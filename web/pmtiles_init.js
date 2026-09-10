@@ -20,8 +20,33 @@ window.registerUsraPmtiles = function registerUsraPmtiles() {
     }
     const request = input instanceof Request ? input : new Request(input, init);
     const headers = new Headers(request.headers);
+    const range = headers.get('Range') || headers.get('range');
     headers.delete('If-None-Match');
     headers.delete('If-Modified-Since');
-    return originalFetch(new Request(request, {headers, cache: 'no-store'}));
+    if (!range) {
+      return originalFetch(new Request(request, {headers, cache: 'no-store'}));
+    }
+
+    // Flutter's development server ignores Range and returns 200 with the
+    // complete asset. Adapt that response to the 206 contract PMTiles needs.
+    headers.delete('Range');
+    return originalFetch(new Request(request, {headers, cache: 'no-store'}))
+      .then(response => response.arrayBuffer())
+      .then(buffer => {
+        const match = /bytes=(\d+)-(\d*)/i.exec(range);
+        if (!match) return new Response(buffer);
+        const start = Number(match[1]);
+        const requestedEnd = match[2] ? Number(match[2]) : buffer.byteLength - 1;
+        const end = Math.min(requestedEnd, buffer.byteLength - 1);
+        const body = buffer.slice(start, end + 1);
+        return new Response(body, {
+          status: 206,
+          headers: {
+            'Content-Length': String(body.byteLength),
+            'Content-Range': `bytes ${start}-${end}/${buffer.byteLength}`,
+            'Content-Type': 'application/octet-stream',
+          },
+        });
+      });
   };
 })();
