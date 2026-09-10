@@ -1,0 +1,13 @@
+{
+  "source": "https://build.protomaps.com/20260909.pmtiles",
+  "cities": [
+    {
+      "id": "santa-maria-rs",
+      "name": "Santa Maria, RS",
+      "bbox": [-54.0, -30.15, -53.55, -29.95],
+      "minzoom": 8,
+      "maxzoom": 17,
+      "output": "assets/maps/santa-maria-rs.pmtiles"
+    }
+  ]
+}
