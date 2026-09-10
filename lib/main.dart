@@ -66,17 +66,22 @@ class _UsraR3AppState extends State<UsraR3App> {
         final dark = Theme.of(context).brightness == Brightness.dark;
         return AnnotatedRegion<SystemUiOverlayStyle>(
           value: SystemUiOverlayStyle(
-            statusBarColor: Theme.of(context).scaffoldBackgroundColor,
+            statusBarColor: Colors.transparent,
             statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
-            systemNavigationBarColor: Theme.of(context).scaffoldBackgroundColor,
+            systemNavigationBarColor: Colors.transparent,
             systemNavigationBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+            systemStatusBarContrastEnforced: false,
+            systemNavigationBarContrastEnforced: false,
           ),
-          child: SafeArea(
-            child: child ?? const SizedBox.shrink(),
+          child: ColoredBox(
+            color: Theme.of(context).scaffoldBackgroundColor,
+            child: SafeArea(
+              maintainBottomViewPadding: true,
+              child: child ?? const SizedBox.shrink(),
+            ),
           ),
         );
       },
-      ),
       themeMode: switch (theme) {
         AppTheme.system => ThemeMode.system,
         AppTheme.light => ThemeMode.light,
@@ -386,6 +391,7 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
+    resizeToAvoidBottomInset: false,
     appBar: AppBar(
       title: const Text('USRA R3'),
       actions: [
