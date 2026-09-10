@@ -96,9 +96,9 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
       await map.addCircle(CircleOptions(
         geometry: LatLng(operatorBounds.centerLatitude, operatorBounds.centerLongitude),
         circleColor: '#DC2626',
-        circleRadius: 10,
+        circleRadius: 5,
         circleStrokeColor: '#FFFFFF',
-        circleStrokeWidth: 3,
+        circleStrokeWidth: 2,
       ));
     }
     for (final contact in contacts) {
