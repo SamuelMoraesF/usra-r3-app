@@ -31,13 +31,26 @@ class UsraDatabase extends _$UsraDatabase {
   UsraDatabase.test(super.e);
 
   @override
-  int get schemaVersion => 2;
+  int get schemaVersion => 4;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
     onCreate: (m) => m.createAll(),
     onUpgrade: (m, from, to) async {
-      if (from < 2) await m.addColumn(logEntries, logEntries.operatorGrid);
+      if (from < 4) {
+        // Some early web builds reported schema version 2 before applying
+        // this column migration. Check the actual table so those databases
+        // are repaired without touching existing log entries.
+        final columns = await m.database.customSelect(
+          'PRAGMA table_info(log_entries)',
+        ).get();
+        final hasOperatorGrid = columns.any(
+          (row) => row.data['name'] == 'operator_grid',
+        );
+        if (!hasOperatorGrid) {
+          await m.addColumn(logEntries, logEntries.operatorGrid);
+        }
+      }
     },
   );
 

@@ -38,6 +38,7 @@ class _UsraR3AppState extends State<UsraR3App> {
   bool loading = true;
   bool mergePrecision = true;
   bool lastOnly = false;
+  int mapMaxAgeHours = 24;
 
   @override
   void initState() {
@@ -66,6 +67,7 @@ class _UsraR3AppState extends State<UsraR3App> {
               database: database,
               mergePrecision: mergePrecision,
               lastOnly: lastOnly,
+              mapMaxAgeHours: mapMaxAgeHours,
               onOpenSettings: _openSettings,
             )
           : SetupWizard(onComplete: _completeSetup),
@@ -112,6 +114,7 @@ class _UsraR3AppState extends State<UsraR3App> {
       );
       mergePrecision = preferences.getBool('map.mergePrecision') ?? true;
       lastOnly = preferences.getBool('map.lastOnly') ?? false;
+      mapMaxAgeHours = preferences.getInt('map.maxAgeHours') ?? 24;
       loading = false;
     });
   }
@@ -141,6 +144,7 @@ class _UsraR3AppState extends State<UsraR3App> {
           theme: theme,
           mergePrecision: mergePrecision,
           lastOnly: lastOnly,
+          mapMaxAgeHours: mapMaxAgeHours,
         ),
       ),
     );
@@ -150,12 +154,14 @@ class _UsraR3AppState extends State<UsraR3App> {
       await preferences.setString('theme', result.theme.name);
       await preferences.setBool('map.mergePrecision', result.mergePrecision);
       await preferences.setBool('map.lastOnly', result.lastOnly);
+      await preferences.setInt('map.maxAgeHours', result.mapMaxAgeHours);
       if (mounted) {
         setState(() {
           profile = result.profile;
           theme = result.theme;
           mergePrecision = result.mergePrecision;
           lastOnly = result.lastOnly;
+          mapMaxAgeHours = result.mapMaxAgeHours;
         });
       }
     }
@@ -306,12 +312,14 @@ class HomePage extends StatefulWidget {
     required this.onOpenSettings,
     required this.mergePrecision,
     required this.lastOnly,
+    required this.mapMaxAgeHours,
   });
   final OperatorProfile profile;
   final UsraDatabase database;
   final VoidCallback onOpenSettings;
   final bool mergePrecision;
   final bool lastOnly;
+  final int mapMaxAgeHours;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -325,6 +333,7 @@ class _HomePageState extends State<HomePage> {
   final power = TextEditingController();
   final station = TextEditingController(text: 'P');
   final traffic = TextEditingController(text: 'S');
+  int _mapFocusRequest = 0;
 
   @override
   void initState() {
@@ -504,6 +513,9 @@ class _HomePageState extends State<HomePage> {
         child: OfflineContactsMap(
           entries: snapshot.data ?? const [],
           operatorGrid: widget.profile.grid,
+          focusGrid: location.text.trim(),
+          focusRequest: _mapFocusRequest,
+          maxAgeHours: widget.mapMaxAgeHours,
           mergePrecision: widget.mergePrecision,
           lastOnly: widget.lastOnly,
         ),
@@ -515,16 +527,20 @@ class _HomePageState extends State<HomePage> {
       value == null || value.trim().isEmpty ? 'Campo obrigatório' : null;
   Future<void> _register() async {
     if (!formKey.currentState!.validate()) return;
+    final savedLocation = location.text.trim();
     await widget.database.saveLog(
       callsign: callsign.text.trim().toUpperCase(),
       operatorName: operator.text.trim(),
-      location: location.text.trim(),
+      location: savedLocation,
       operatorGrid: widget.profile.grid,
       powerWatts: double.parse(power.text.replaceAll(',', '.')),
       stationType: station.text.trim().toUpperCase(),
       traffic: traffic.text.trim().toUpperCase(),
     );
-    if (mounted) power.clear();
+    if (mounted) {
+      setState(() => _mapFocusRequest++);
+      power.clear();
+    }
   }
 
   String _formatDate(DateTime value) {
@@ -658,11 +674,12 @@ class _ChoiceField extends StatelessWidget {
 }
 
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key, required this.profile, required this.theme, required this.mergePrecision, required this.lastOnly});
+  const SettingsPage({super.key, required this.profile, required this.theme, required this.mergePrecision, required this.lastOnly, required this.mapMaxAgeHours});
   final OperatorProfile profile;
   final AppTheme theme;
   final bool mergePrecision;
   final bool lastOnly;
+  final int mapMaxAgeHours;
   @override
   State<SettingsPage> createState() => _SettingsPageState();
 }
@@ -675,11 +692,13 @@ class _SettingsPageState extends State<SettingsPage> {
   bool locating = false;
   late bool mergePrecision = widget.mergePrecision;
   late bool lastOnly = widget.lastOnly;
+  late final maxAgeHours = TextEditingController(text: widget.mapMaxAgeHours.toString());
   @override
   void dispose() {
     callsign.dispose();
     name.dispose();
     grid.dispose();
+    maxAgeHours.dispose();
     super.dispose();
   }
 
@@ -718,6 +737,15 @@ class _SettingsPageState extends State<SettingsPage> {
           subtitle: const Text('Exibe apenas um marcador para cada indicativo.'),
           value: lastOnly,
           onChanged: (value) => setState(() => lastOnly = value),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: maxAgeHours,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Exibir contatos das últimas (horas)',
+            helperText: 'Contatos mais antigos continuam salvos, mas não aparecem no mapa.',
+          ),
         ),
         const SizedBox(height: 12),
         Text(
@@ -764,6 +792,7 @@ class _SettingsPageState extends State<SettingsPage> {
       theme,
       mergePrecision,
       lastOnly,
+      math.max(1, int.tryParse(maxAgeHours.text.trim()) ?? widget.mapMaxAgeHours),
     ),
   );
   Future<void> _useGps() async {
@@ -791,11 +820,12 @@ class _SettingsPageState extends State<SettingsPage> {
 }
 
 class _SettingsResult {
-  const _SettingsResult(this.profile, this.theme, this.mergePrecision, this.lastOnly);
+  const _SettingsResult(this.profile, this.theme, this.mergePrecision, this.lastOnly, this.mapMaxAgeHours);
   final OperatorProfile profile;
   final AppTheme theme;
   final bool mergePrecision;
   final bool lastOnly;
+  final int mapMaxAgeHours;
 }
 
 class _Brand extends StatelessWidget {

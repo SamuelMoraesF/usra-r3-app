@@ -9,11 +9,14 @@ import 'pmtiles_registration_stub.dart'
     if (dart.library.js_interop) 'pmtiles_registration_web.dart';
 
 class OfflineContactsMap extends StatefulWidget {
-  const OfflineContactsMap({super.key, required this.entries, required this.operatorGrid, this.mergePrecision = true, this.lastOnly = false});
+  const OfflineContactsMap({super.key, required this.entries, required this.operatorGrid, this.focusGrid = '', this.focusRequest = 0, this.mergePrecision = true, this.lastOnly = false, this.maxAgeHours = 24});
   final List<LogEntry> entries;
   final String operatorGrid;
+  final String focusGrid;
+  final int focusRequest;
   final bool mergePrecision;
   final bool lastOnly;
+  final int maxAgeHours;
 
   @override
   State<OfflineContactsMap> createState() => _OfflineContactsMapState();
@@ -34,13 +37,32 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
   @override
   void didUpdateWidget(covariant OfflineContactsMap oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.entries != widget.entries || oldWidget.operatorGrid != widget.operatorGrid || oldWidget.mergePrecision != widget.mergePrecision || oldWidget.lastOnly != widget.lastOnly) {
+    if (oldWidget.focusRequest != widget.focusRequest) {
+      _animateToGrid(widget.focusGrid);
+    }
+    if (oldWidget.entries != widget.entries || oldWidget.operatorGrid != widget.operatorGrid || oldWidget.mergePrecision != widget.mergePrecision || oldWidget.lastOnly != widget.lastOnly || oldWidget.maxAgeHours != widget.maxAgeHours) {
       _refreshContacts();
       _drawContacts();
     }
   }
 
-  void _refreshContacts() => contacts = aggregateMapContacts(widget.entries, mergePrecision: widget.mergePrecision, lastOnlyByCallsign: widget.lastOnly);
+  Future<void> _animateToGrid(String value) async {
+    final map = controller;
+    final bounds = GridLocator.bounds(value);
+    if (map == null || bounds == null) return;
+    await map.animateCamera(
+      CameraUpdate.newLatLngZoom(
+        LatLng(bounds.centerLatitude, bounds.centerLongitude),
+        13,
+      ),
+    );
+  }
+
+  void _refreshContacts() {
+    final cutoff = DateTime.now().toUtc().subtract(Duration(hours: widget.maxAgeHours));
+    final visibleEntries = widget.entries.where((entry) => !entry.createdAt.isBefore(cutoff)).toList();
+    contacts = aggregateMapContacts(visibleEntries, mergePrecision: widget.mergePrecision, lastOnlyByCallsign: widget.lastOnly);
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -108,7 +130,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
       await map.addCircle(CircleOptions(
         geometry: LatLng(operatorBounds.centerLatitude, operatorBounds.centerLongitude),
         circleColor: '#DC2626',
-        circleRadius: 5,
+        circleRadius: 10,
         circleBlur: 0,
         circleOpacity: 1,
         circleStrokeColor: '#FFFFFF',
@@ -123,7 +145,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
       final circle = await map.addCircle(CircleOptions(
         geometry: LatLng(bounds.centerLatitude, bounds.centerLongitude),
         circleColor: '#2563EB',
-        circleRadius: 7,
+        circleRadius: 3.5,
         circleBlur: 0,
         circleOpacity: 1,
         circleStrokeColor: '#FFFFFF',
