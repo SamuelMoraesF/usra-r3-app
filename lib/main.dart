@@ -6,6 +6,7 @@ import 'package:shared_preferences/shared_preferences.dart';
 import 'data/database.dart';
 import 'grid_locator.dart';
 import 'widgets/grid_locator_field.dart';
+import 'map/offline_map.dart';
 
 void main() => runApp(const UsraR3App());
 
@@ -342,6 +343,17 @@ class _HomePageState extends State<HomePage> {
     body: ListView(
       padding: const EdgeInsets.all(20),
       children: [
+        SizedBox(
+          height: 300,
+          child: StreamBuilder<List<LogEntry>>(
+            stream: widget.database.watchLogs(),
+            builder: (context, snapshot) => ClipRRect(
+              borderRadius: BorderRadius.circular(12),
+              child: OfflineContactsMap(entries: snapshot.data ?? const []),
+            ),
+          ),
+        ),
+        const SizedBox(height: 18),
         Text(
           'Novo contato',
           style: Theme.of(

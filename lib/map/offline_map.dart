@@ -1,0 +1,91 @@
+import 'package:flutter/services.dart';
+import 'package:flutter/material.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
+
+import '../data/database.dart';
+import 'contact_aggregation.dart';
+
+class OfflineContactsMap extends StatefulWidget {
+  const OfflineContactsMap({super.key, required this.entries, this.mergePrecision = true, this.lastOnly = false});
+  final List<LogEntry> entries;
+  final bool mergePrecision;
+  final bool lastOnly;
+
+  @override
+  State<OfflineContactsMap> createState() => _OfflineContactsMapState();
+}
+
+class _OfflineContactsMapState extends State<OfflineContactsMap> {
+  MapLibreMapController? controller;
+  List<MapContact> contacts = const [];
+
+  @override
+  void initState() {
+    super.initState();
+    _refreshContacts();
+    _loadStyle();
+  }
+
+  @override
+  void didUpdateWidget(covariant OfflineContactsMap oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.entries != widget.entries || oldWidget.mergePrecision != widget.mergePrecision || oldWidget.lastOnly != widget.lastOnly) {
+      _refreshContacts();
+      _drawContacts();
+    }
+  }
+
+  void _refreshContacts() => contacts = aggregateMapContacts(widget.entries, mergePrecision: widget.mergePrecision, lastOnlyByCallsign: widget.lastOnly);
+
+  @override
+  Widget build(BuildContext context) {
+    final style = _cachedStyle;
+    if (style == null) return const Center(child: CircularProgressIndicator());
+    return MapLibreMap(
+      styleString: style,
+      initialCameraPosition: const CameraPosition(target: LatLng(-29.6868, -53.8069), zoom: 12),
+      compassEnabled: true,
+      myLocationEnabled: false,
+      onMapCreated: (value) => controller = value,
+      onStyleLoadedCallback: _drawContacts,
+    );
+  }
+
+  Future<void> _loadStyle() async {
+    final style = await loadOfflineMapStyle();
+    if (mounted) setState(() => _cachedStyle = style);
+  }
+
+  Future<void> _drawContacts() async {
+    final map = controller;
+    if (map == null || !mounted) return;
+    await map.clearCircles();
+    for (final contact in contacts) {
+      final bounds = contact.bounds;
+      if (bounds == null) continue;
+      final circle = await map.addCircle(CircleOptions(
+        geometry: LatLng(bounds.centerLatitude, bounds.centerLongitude),
+        circleColor: '#2563EB',
+        circleRadius: 7,
+        circleStrokeColor: '#FFFFFF',
+        circleStrokeWidth: 2,
+      ));
+      map.onCircleTapped.add((_) => _showContact(contact));
+      assert(circle.id.isNotEmpty);
+    }
+  }
+
+  void _showContact(MapContact contact) {
+    showModalBottomSheet<void>(
+      context: context,
+      builder: (_) => SafeArea(child: ListTile(
+        title: Text('${contact.latest.callsign} · ${contact.latest.operatorName}'),
+        subtitle: Text('Grid ${contact.latest.location}\nPrimeiro: ${contact.first.createdAt.toLocal()}\nÚltimo: ${contact.last.createdAt.toLocal()}'),
+      )),
+    );
+  }
+
+  String? _cachedStyle;
+}
+
+Future<String> loadOfflineMapStyle() async => rootBundle.loadString('assets/maps/santa-maria-style.json');

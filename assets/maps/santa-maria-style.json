@@ -1,0 +1,18 @@
+{
+  "version": 8,
+  "name": "USRA R3 offline",
+  "sources": {
+    "basemap": {
+      "type": "vector",
+      "url": "pmtiles://assets/maps/santa-maria-rs.pmtiles"
+    }
+  },
+  "layers": [
+    {"id":"background","type":"background","paint":{"background-color":"#e8e5df"}},
+    {"id":"water","type":"fill","source":"basemap","source-layer":"water","paint":{"fill-color":"#a9d7e8"}},
+    {"id":"landuse","type":"fill","source":"basemap","source-layer":"landuse","paint":{"fill-color":"#d9e5c4","fill-opacity":0.55}},
+    {"id":"buildings","type":"fill","source":"basemap","source-layer":"buildings","minzoom":13,"paint":{"fill-color":"#cfcac4","fill-opacity":0.65}},
+    {"id":"roads","type":"line","source":"basemap","source-layer":"roads","paint":{"line-color":"#ffffff","line-width":["interpolate",["linear"],["zoom"],8,0.5,14,3],"line-opacity":0.9}},
+    {"id":"boundaries","type":"line","source":"basemap","source-layer":"boundaries","paint":{"line-color":"#9b8f83","line-width":1,"line-dasharray":[2,2]}}
+  ]
+}

@@ -83,11 +83,66 @@ class GridLocator {
     return result.toString();
   }
 
+  static GridLocatorBounds? bounds(String value) {
+    final info = inspect(value);
+    if (!info.isValid) return null;
+    final grid = info.normalized;
+    var lon = (grid.codeUnitAt(0) - 65).toDouble();
+    var lat = (grid.codeUnitAt(1) - 65).toDouble();
+    var lonSize = 20.0;
+    var latSize = 10.0;
+    lon = lon * 20;
+    lat = lat * 10;
+    lon += int.parse(grid[2]) * 2;
+    lat += int.parse(grid[3]);
+    lonSize = 2;
+    latSize = 1;
+    if (grid.length >= 6) {
+      lon += (grid.codeUnitAt(4) - 65) * (2 / 24);
+      lat += (grid.codeUnitAt(5) - 65) * (1 / 24);
+      lonSize = 2 / 24;
+      latSize = 1 / 24;
+    }
+    if (grid.length >= 8) {
+      lon += int.parse(grid[6]) * (lonSize / 10);
+      lat += int.parse(grid[7]) * (latSize / 10);
+      lonSize /= 10;
+      latSize /= 10;
+    }
+    if (grid.length >= 10) {
+      lon += (grid.codeUnitAt(8) - 65) * (lonSize / 24);
+      lat += (grid.codeUnitAt(9) - 65) * (latSize / 24);
+      lonSize /= 24;
+      latSize /= 24;
+    }
+    return GridLocatorBounds(
+      minLongitude: lon - 180,
+      minLatitude: lat - 90,
+      maxLongitude: lon + lonSize - 180,
+      maxLatitude: lat + latSize - 90,
+    );
+  }
+
   static bool _isAllowedLength(String value) =>
       value.length == 4 ||
       value.length == 6 ||
       value.length == 8 ||
       value.length == 10;
+}
+
+class GridLocatorBounds {
+  const GridLocatorBounds({
+    required this.minLatitude,
+    required this.minLongitude,
+    required this.maxLatitude,
+    required this.maxLongitude,
+  });
+  final double minLatitude;
+  final double minLongitude;
+  final double maxLatitude;
+  final double maxLongitude;
+  double get centerLatitude => (minLatitude + maxLatitude) / 2;
+  double get centerLongitude => (minLongitude + maxLongitude) / 2;
 }
 
 class GridLocatorInfo {
