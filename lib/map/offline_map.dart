@@ -53,6 +53,17 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
       myLocationEnabled: false,
       onMapCreated: (value) => controller = value,
       onStyleLoadedCallback: _drawContacts,
+      onCameraIdle: _logCameraZoom,
+    );
+  }
+
+  Future<void> _logCameraZoom() async {
+    final position = await controller?.queryCameraPosition();
+    if (position == null) return;
+    debugPrint(
+      '[USRA R3] mapa: zoom=${position.zoom.toStringAsFixed(2)} '
+      'centro=${position.target.latitude.toStringAsFixed(5)},'
+      '${position.target.longitude.toStringAsFixed(5)}',
     );
   }
 
