@@ -8,6 +8,8 @@
 	<string>$(DEVELOPMENT_LANGUAGE)</string>
 	<key>CFBundleDisplayName</key>
 	<string>Usra R3</string>
+	<key>NSLocationWhenInUseUsageDescription</key>
+	<string>O USRA R3 usa sua localização para descobrir o grid Maidenhead atual.</string>
 	<key>CFBundleExecutable</key>
 	<string>$(EXECUTABLE_NAME)</string>
 	<key>CFBundleIdentifier</key>
