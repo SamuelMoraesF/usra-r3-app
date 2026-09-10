@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
@@ -32,6 +33,8 @@ class _UsraR3AppState extends State<UsraR3App> {
   OperatorProfile profile = const OperatorProfile();
   bool setupDone = false;
   bool loading = true;
+  bool mergePrecision = true;
+  bool lastOnly = false;
 
   @override
   void initState() {
@@ -57,6 +60,8 @@ class _UsraR3AppState extends State<UsraR3App> {
           ? HomePage(
               profile: profile,
               database: database,
+              mergePrecision: mergePrecision,
+              lastOnly: lastOnly,
               onOpenSettings: _openSettings,
             )
           : SetupWizard(onComplete: _completeSetup),
@@ -101,6 +106,8 @@ class _UsraR3AppState extends State<UsraR3App> {
         (value) => value.name == savedTheme,
         orElse: () => AppTheme.system,
       );
+      mergePrecision = preferences.getBool('map.mergePrecision') ?? true;
+      lastOnly = preferences.getBool('map.lastOnly') ?? false;
       loading = false;
     });
   }
@@ -125,17 +132,26 @@ class _UsraR3AppState extends State<UsraR3App> {
   Future<void> _openSettings() async {
     final result = await Navigator.of(context).push<_SettingsResult>(
       MaterialPageRoute(
-        builder: (_) => SettingsPage(profile: profile, theme: theme),
+        builder: (_) => SettingsPage(
+          profile: profile,
+          theme: theme,
+          mergePrecision: mergePrecision,
+          lastOnly: lastOnly,
+        ),
       ),
     );
     if (result != null) {
       await _saveProfile(result.profile);
       final preferences = await SharedPreferences.getInstance();
       await preferences.setString('theme', result.theme.name);
+      await preferences.setBool('map.mergePrecision', result.mergePrecision);
+      await preferences.setBool('map.lastOnly', result.lastOnly);
       if (mounted) {
         setState(() {
           profile = result.profile;
           theme = result.theme;
+          mergePrecision = result.mergePrecision;
+          lastOnly = result.lastOnly;
         });
       }
     }
@@ -284,10 +300,14 @@ class HomePage extends StatefulWidget {
     required this.profile,
     required this.database,
     required this.onOpenSettings,
+    required this.mergePrecision,
+    required this.lastOnly,
   });
   final OperatorProfile profile;
   final UsraDatabase database;
   final VoidCallback onOpenSettings;
+  final bool mergePrecision;
+  final bool lastOnly;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -352,7 +372,11 @@ class _HomePageState extends State<HomePage> {
               stream: widget.database.watchLogs(),
               builder: (context, snapshot) => ClipRRect(
                 borderRadius: BorderRadius.circular(12),
-                child: OfflineContactsMap(entries: snapshot.data ?? const []),
+                child: OfflineContactsMap(
+                  entries: snapshot.data ?? const [],
+                  mergePrecision: widget.mergePrecision,
+                  lastOnly: widget.lastOnly,
+                ),
               ),
             ),
           ),
@@ -529,9 +553,11 @@ class _ChoiceField extends StatelessWidget {
 }
 
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key, required this.profile, required this.theme});
+  const SettingsPage({super.key, required this.profile, required this.theme, required this.mergePrecision, required this.lastOnly});
   final OperatorProfile profile;
   final AppTheme theme;
+  final bool mergePrecision;
+  final bool lastOnly;
   @override
   State<SettingsPage> createState() => _SettingsPageState();
 }
@@ -542,6 +568,8 @@ class _SettingsPageState extends State<SettingsPage> {
   late final grid = TextEditingController(text: widget.profile.grid);
   late AppTheme theme = widget.theme;
   bool locating = false;
+  late bool mergePrecision = widget.mergePrecision;
+  late bool lastOnly = widget.lastOnly;
   @override
   void dispose() {
     callsign.dispose();
@@ -572,6 +600,21 @@ class _SettingsPageState extends State<SettingsPage> {
           onSelectionChanged: (value) => setState(() => theme = value.first),
         ),
         const SizedBox(height: 28),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Agrupar grids de precisões diferentes'),
+          subtitle: const Text('Usa o grid mais preciso para a mesma área e indicativo.'),
+          value: mergePrecision,
+          onChanged: (value) => setState(() => mergePrecision = value),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Mostrar somente o último contato por pessoa'),
+          subtitle: const Text('Exibe apenas um marcador para cada indicativo.'),
+          value: lastOnly,
+          onChanged: (value) => setState(() => lastOnly = value),
+        ),
+        const SizedBox(height: 12),
         Text(
           'Dados do operador',
           style: Theme.of(
@@ -614,6 +657,8 @@ class _SettingsPageState extends State<SettingsPage> {
         grid: grid.text.trim().toUpperCase(),
       ),
       theme,
+      mergePrecision,
+      lastOnly,
     ),
   );
   Future<void> _useGps() async {
@@ -641,9 +686,11 @@ class _SettingsPageState extends State<SettingsPage> {
 }
 
 class _SettingsResult {
-  const _SettingsResult(this.profile, this.theme);
+  const _SettingsResult(this.profile, this.theme, this.mergePrecision, this.lastOnly);
   final OperatorProfile profile;
   final AppTheme theme;
+  final bool mergePrecision;
+  final bool lastOnly;
 }
 
 class _Brand extends StatelessWidget {
