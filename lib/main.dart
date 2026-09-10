@@ -3,10 +3,16 @@ import 'dart:math' as math;
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
+import 'dart:convert';
+import 'dart:typed_data';
+
+import 'package:file_picker/file_picker.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
 import 'data/database.dart';
+import 'data/csv_transfer.dart';
 import 'grid_locator.dart';
 import 'widgets/grid_locator_field.dart';
 import 'map/offline_map.dart';
@@ -145,6 +151,7 @@ class _UsraR3AppState extends State<UsraR3App> {
           mergePrecision: mergePrecision,
           lastOnly: lastOnly,
           mapMaxAgeHours: mapMaxAgeHours,
+          database: database,
         ),
       ),
     );
@@ -327,6 +334,7 @@ class HomePage extends StatefulWidget {
 
 class _HomePageState extends State<HomePage> {
   final formKey = GlobalKey<FormState>();
+  final _callsignFocusNode = FocusNode();
   final callsign = TextEditingController();
   final operator = TextEditingController();
   final location = TextEditingController();
@@ -339,7 +347,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    callsign.addListener(_fillFromPreviousContact);
+    _callsignFocusNode.addListener(_onCallsignFocusChanged);
   }
 
   @override
@@ -349,7 +357,8 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
-    callsign.removeListener(_fillFromPreviousContact);
+    _callsignFocusNode.removeListener(_onCallsignFocusChanged);
+    _callsignFocusNode.dispose();
     for (final c in [callsign, operator, location, power, station, traffic]) {
       c.dispose();
     }
@@ -393,6 +402,7 @@ class _HomePageState extends State<HomePage> {
             children: [
               TextFormField(
                 controller: callsign,
+                focusNode: _callsignFocusNode,
                 textCapitalization: TextCapitalization.characters,
                 inputFormatters: [UpperCaseFormatter()],
                 textInputAction: TextInputAction.next,
@@ -554,6 +564,12 @@ class _HomePageState extends State<HomePage> {
     }
   }
 
+  void _onCallsignFocusChanged() {
+    if (!_callsignFocusNode.hasFocus) {
+      _fillFromPreviousContact();
+    }
+  }
+
   Future<void> _fillFromPreviousContact() async {
     final value = callsign.text.trim().toUpperCase();
     if (value.isEmpty) return;
@@ -699,12 +715,13 @@ class _ChoiceField extends StatelessWidget {
 }
 
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key, required this.profile, required this.theme, required this.mergePrecision, required this.lastOnly, required this.mapMaxAgeHours});
+  const SettingsPage({super.key, required this.profile, required this.theme, required this.mergePrecision, required this.lastOnly, required this.mapMaxAgeHours, required this.database});
   final OperatorProfile profile;
   final AppTheme theme;
   final bool mergePrecision;
   final bool lastOnly;
   final int mapMaxAgeHours;
+  final UsraDatabase database;
   @override
   State<SettingsPage> createState() => _SettingsPageState();
 }
@@ -802,10 +819,77 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         ),
         const SizedBox(height: 18),
+        Text(
+          'Dados do logbook',
+          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
+        OutlinedButton.icon(
+          onPressed: _exportCsv,
+          icon: const Icon(Icons.file_upload_outlined),
+          label: const Text('Exportar registros para CSV'),
+        ),
+        OutlinedButton.icon(
+          onPressed: _importing ? null : _importCsv,
+          icon: const Icon(Icons.file_download_outlined),
+          label: Text(_importing ? 'Importando...' : 'Importar registros de CSV'),
+        ),
+        const SizedBox(height: 18),
         FilledButton(onPressed: _save, child: const Text('Salvar alterações')),
       ],
     ),
   );
+  bool _importing = false;
+
+  Future<void> _exportCsv() async {
+    try {
+      final csv = logsToCsv(await widget.database.allLogs());
+      await SharePlus.instance.share(ShareParams(
+        files: [XFile.fromData(
+          Uint8List.fromList(utf8.encode(csv)),
+          mimeType: 'text/csv',
+          name: 'usra-r3-logbook.csv',
+        )],
+        subject: 'USRA R3 logbook',
+      ));
+    } catch (error) {
+      if (mounted) _showTransferError(error);
+    }
+  }
+
+  Future<void> _importCsv() async {
+    setState(() => _importing = true);
+    try {
+      final result = await FilePicker.platform.pickFiles(
+        type: FileType.custom,
+        allowedExtensions: ['csv'],
+        withData: true,
+      );
+      final bytes = result?.files.single.bytes;
+      if (bytes == null) return;
+      final entries = csvToLogCompanions(utf8.decode(bytes));
+      if (entries.isEmpty) {
+        throw const FormatException('O arquivo não possui registros.');
+      }
+      await widget.database.importLogs(entries);
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('${entries.length} registro(s) importado(s).')),
+        );
+      }
+    } catch (error) {
+      if (mounted) _showTransferError(error);
+    } finally {
+      if (mounted) setState(() => _importing = false);
+    }
+  }
+
+  void _showTransferError(Object error) {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Falha na transferência: $error')),
+    );
+  }
+
   void _save() => Navigator.pop(
     context,
     _SettingsResult(

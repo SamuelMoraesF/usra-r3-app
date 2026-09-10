@@ -114,4 +114,16 @@ class UsraDatabase extends _$UsraDatabase {
           ..limit(1))
         .getSingleOrNull();
   }
+
+  Future<List<LogEntry>> allLogs() => (select(logEntries)
+        ..orderBy([(entry) => OrderingTerm.asc(entry.createdAt)]))
+      .get();
+
+  Future<void> importLogs(List<LogEntriesCompanion> entries) async {
+    await transaction(() async {
+      await batch((batch) {
+        batch.insertAll(logEntries, entries);
+      });
+    });
+  }
 }

@@ -84,7 +84,6 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
       myLocationEnabled: false,
       onMapCreated: _onMapCreated,
       onStyleLoadedCallback: _drawContacts,
-      onCameraIdle: _logCameraZoom,
     );
   }
 
@@ -98,16 +97,6 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
     if (index is int && index >= 0 && index < contacts.length) {
       _showContact(contacts[index]);
     }
-  }
-
-  Future<void> _logCameraZoom() async {
-    final position = await controller?.queryCameraPosition();
-    if (position == null) return;
-    debugPrint(
-      '[USRA R3] mapa: zoom=${position.zoom.toStringAsFixed(2)} '
-      'centro=${position.target.latitude.toStringAsFixed(5)},'
-      '${position.target.longitude.toStringAsFixed(5)}',
-    );
   }
 
   Future<void> _loadStyle() async {
@@ -161,9 +150,20 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
       context: context,
       builder: (_) => SafeArea(child: ListTile(
         title: Text('${contact.latest.callsign} · ${contact.latest.operatorName}'),
-        subtitle: Text('Grid ${contact.latest.location}\nPrimeiro: ${contact.first.createdAt.toLocal()}\nÚltimo: ${contact.last.createdAt.toLocal()}'),
+        subtitle: Text(
+          'Grid ${contact.latest.location}\n'
+          'Primeiro: ${_formatDate(contact.first.createdAt)}\n'
+          'Último: ${_formatDate(contact.last.createdAt)}',
+        ),
       )),
     );
+  }
+
+  String _formatDate(DateTime value) {
+    final local = value.toLocal();
+    String two(int number) => number.toString().padLeft(2, '0');
+    return '${two(local.day)}/${two(local.month)}/${local.year} '
+        '${two(local.hour)}:${two(local.minute)}:${two(local.second)}';
   }
 
   String? _cachedStyle;
