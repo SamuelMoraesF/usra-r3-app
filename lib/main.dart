@@ -3,6 +3,7 @@ import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 
+import 'data/database.dart';
 import 'grid_locator.dart';
 import 'widgets/grid_locator_field.dart';
 
@@ -25,6 +26,7 @@ class UsraR3App extends StatefulWidget {
 }
 
 class _UsraR3AppState extends State<UsraR3App> {
+  final database = UsraDatabase();
   AppTheme theme = AppTheme.system;
   OperatorProfile profile = const OperatorProfile();
   bool setupDone = false;
@@ -51,7 +53,11 @@ class _UsraR3AppState extends State<UsraR3App> {
       home: loading
           ? const Scaffold(body: Center(child: CircularProgressIndicator()))
           : setupDone
-          ? HomePage(profile: profile, onOpenSettings: _openSettings)
+          ? HomePage(
+              profile: profile,
+              database: database,
+              onOpenSettings: _openSettings,
+            )
           : SetupWizard(onComplete: _completeSetup),
     );
   }
@@ -275,9 +281,11 @@ class HomePage extends StatefulWidget {
   const HomePage({
     super.key,
     required this.profile,
+    required this.database,
     required this.onOpenSettings,
   });
   final OperatorProfile profile;
+  final UsraDatabase database;
   final VoidCallback onOpenSettings;
 
   @override
@@ -292,7 +300,6 @@ class _HomePageState extends State<HomePage> {
   final power = TextEditingController();
   final station = TextEditingController(text: 'P');
   final traffic = TextEditingController(text: 'S');
-  final log = <String>[];
 
   @override
   void initState() {
@@ -409,38 +416,59 @@ class _HomePageState extends State<HomePage> {
           ),
         ),
         const SizedBox(height: 28),
-        if (log.isNotEmpty) ...[
-          Text(
-            'Registros desta sessão',
-            style: Theme.of(
-              context,
-            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-          ),
-          const SizedBox(height: 8),
-          ...log.map(
-            (item) => Card(
-              child: ListTile(
-                leading: const Icon(Icons.radio),
-                title: Text(item),
-              ),
-            ),
-          ),
-        ],
+        StreamBuilder<List<LogEntry>>(
+          stream: widget.database.watchLogs(),
+          builder: (context, snapshot) {
+            final entries = snapshot.data ?? const <LogEntry>[];
+            if (entries.isEmpty) return const SizedBox.shrink();
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Registros salvos',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                ...entries.map(
+                  (entry) => Card(
+                    child: ListTile(
+                      leading: const Icon(Icons.radio),
+                      title: Text('${entry.callsign} · ${entry.operatorName}'),
+                      subtitle: Text(
+                        '${entry.location} · ${entry.powerWatts} W · ${entry.stationType} · ${entry.traffic}\n${_formatDate(entry.createdAt)}',
+                      ),
+                    ),
+                  ),
+                ),
+              ],
+            );
+          },
+        ),
       ],
     ),
   );
 
   String? _required(String? value) =>
       value == null || value.trim().isEmpty ? 'Campo obrigatório' : null;
-  void _register() {
+  Future<void> _register() async {
     if (!formKey.currentState!.validate()) return;
-    setState(() {
-      log.insert(
-        0,
-        '${callsign.text} · ${operator.text} · ${location.text} · ${power.text} W · ${station.text} · ${traffic.text}',
-      );
-      power.clear();
-    });
+    await widget.database.saveLog(
+      callsign: callsign.text.trim().toUpperCase(),
+      operatorName: operator.text.trim(),
+      location: location.text.trim(),
+      powerWatts: double.parse(power.text.replaceAll(',', '.')),
+      stationType: station.text.trim().toUpperCase(),
+      traffic: traffic.text.trim().toUpperCase(),
+    );
+    if (mounted) power.clear();
+  }
+
+  String _formatDate(DateTime value) {
+    final local = value.toLocal();
+    String two(int number) => number.toString().padLeft(2, '0');
+    return '${two(local.day)}/${two(local.month)}/${local.year} ${two(local.hour)}:${two(local.minute)}:${two(local.second)}';
   }
 }
 
