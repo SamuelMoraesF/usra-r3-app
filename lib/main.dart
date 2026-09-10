@@ -343,17 +343,21 @@ class _HomePageState extends State<HomePage> {
     body: ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        SizedBox(
-          height: 300,
-          child: StreamBuilder<List<LogEntry>>(
-            stream: widget.database.watchLogs(),
-            builder: (context, snapshot) => ClipRRect(
-              borderRadius: BorderRadius.circular(12),
-              child: OfflineContactsMap(entries: snapshot.data ?? const []),
+        if (kIsWeb ||
+            defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS) ...[
+          SizedBox(
+            height: 300,
+            child: StreamBuilder<List<LogEntry>>(
+              stream: widget.database.watchLogs(),
+              builder: (context, snapshot) => ClipRRect(
+                borderRadius: BorderRadius.circular(12),
+                child: OfflineContactsMap(entries: snapshot.data ?? const []),
+              ),
             ),
           ),
-        ),
-        const SizedBox(height: 18),
+          const SizedBox(height: 18),
+        ],
         Text(
           'Novo contato',
           style: Theme.of(
