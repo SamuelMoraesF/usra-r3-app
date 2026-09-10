@@ -325,19 +325,11 @@ class _HomePageState extends State<HomePage> {
   @override
   void initState() {
     super.initState();
-    callsign.text = widget.profile.callsign;
-    operator.text = widget.profile.name;
-    location.text = widget.profile.grid;
   }
 
   @override
   void didUpdateWidget(covariant HomePage oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.profile != widget.profile) {
-      callsign.text = widget.profile.callsign;
-      operator.text = widget.profile.name;
-      location.text = widget.profile.grid;
-    }
   }
 
   @override
