@@ -392,21 +392,28 @@ class _HomePageState extends State<HomePage> {
   @override
   Widget build(BuildContext context) => Scaffold(
     resizeToAvoidBottomInset: false,
-    appBar: AppBar(
-      title: const Text('USRA R3'),
-      actions: [
-        IconButton(
-          onPressed: widget.onOpenSettings,
-          icon: const Icon(Icons.settings_outlined),
-          tooltip: 'Configurações',
-        ),
-      ],
-    ),
     body: LayoutBuilder(
       builder: (context, constraints) {
         final panel = ListView(
       padding: const EdgeInsets.all(20),
       children: [
+        Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              'USRA R3',
+              style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                fontWeight: FontWeight.w700,
+              ),
+            ),
+            IconButton(
+              onPressed: widget.onOpenSettings,
+              icon: const Icon(Icons.settings_outlined),
+              tooltip: 'Configurações',
+            ),
+          ],
+        ),
+        const SizedBox(height: 8),
         Text(
           'Novo contato',
           style: Theme.of(
