@@ -22,6 +22,7 @@ class OfflineContactsMap extends StatefulWidget {
 class _OfflineContactsMapState extends State<OfflineContactsMap> {
   MapLibreMapController? controller;
   List<MapContact> contacts = const [];
+  bool _markerLayersReady = false;
 
   @override
   void initState() {
@@ -90,47 +91,63 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
   Future<void> _drawContacts() async {
     final map = controller;
     if (map == null || !mounted) return;
-    await map.clearCircles();
+    final features = <Map<String, dynamic>>[];
     final operatorBounds = GridLocator.bounds(widget.operatorGrid);
     if (operatorBounds != null) {
-      await map.addCircle(CircleOptions(
-        geometry: LatLng(operatorBounds.centerLatitude, operatorBounds.centerLongitude),
-        circleColor: '#DC2626',
-        circleRadius: 5,
-        circleBlur: 0,
-        circleOpacity: 1,
-        circleStrokeColor: '#FFFFFF',
-        circleStrokeWidth: 2,
-        circleStrokeOpacity: 1,
-      ));
+      features.add(_pointFeature(operatorBounds.centerLongitude, operatorBounds.centerLatitude, 'operator'));
     }
     for (final contact in contacts) {
       final bounds = contact.bounds;
       if (bounds == null) continue;
-      final circle = await map.addCircle(CircleOptions(
-        geometry: LatLng(bounds.centerLatitude, bounds.centerLongitude),
-        circleColor: '#2563EB',
-        circleRadius: 7,
-        circleBlur: 0,
-        circleOpacity: 1,
-        circleStrokeColor: '#FFFFFF',
-        circleStrokeWidth: 2,
-        circleStrokeOpacity: 1,
-      ));
-      map.onCircleTapped.add((_) => _showContact(contact));
-      assert(circle.id.isNotEmpty);
+      features.add(_pointFeature(bounds.centerLongitude, bounds.centerLatitude, 'contact'));
+    }
+    final geojson = {
+      'type': 'FeatureCollection',
+      'features': features,
+    };
+    if (_markerLayersReady) {
+      await map.setGeoJsonSource('usra-markers', geojson);
+    } else {
+      await map.addGeoJsonSource('usra-markers', geojson);
+      await map.addCircleLayer(
+        'usra-markers',
+        'usra-operator-marker',
+        const CircleLayerProperties(
+          circleRadius: 5,
+          circleColor: '#DC2626',
+          circleBlur: 0,
+          circleOpacity: 1,
+          circleStrokeColor: '#FFFFFF',
+          circleStrokeWidth: 2,
+          circleStrokeOpacity: 1,
+        ),
+        filter: ['==', ['get', 'kind'], 'operator'],
+        enableInteraction: false,
+      );
+      await map.addCircleLayer(
+        'usra-markers',
+        'usra-contact-markers',
+        const CircleLayerProperties(
+          circleRadius: 7,
+          circleColor: '#2563EB',
+          circleBlur: 0,
+          circleOpacity: 1,
+          circleStrokeColor: '#FFFFFF',
+          circleStrokeWidth: 2,
+          circleStrokeOpacity: 1,
+        ),
+        filter: ['==', ['get', 'kind'], 'contact'],
+        enableInteraction: false,
+      );
+      _markerLayersReady = true;
     }
   }
 
-  void _showContact(MapContact contact) {
-    showModalBottomSheet<void>(
-      context: context,
-      builder: (_) => SafeArea(child: ListTile(
-        title: Text('${contact.latest.callsign} · ${contact.latest.operatorName}'),
-        subtitle: Text('Grid ${contact.latest.location}\nPrimeiro: ${contact.first.createdAt.toLocal()}\nÚltimo: ${contact.last.createdAt.toLocal()}'),
-      )),
-    );
-  }
+  Map<String, dynamic> _pointFeature(double longitude, double latitude, String kind) => {
+    'type': 'Feature',
+    'geometry': {'type': 'Point', 'coordinates': [longitude, latitude]},
+    'properties': {'kind': kind},
+  };
 
   String? _cachedStyle;
   bool _webReady = false;
