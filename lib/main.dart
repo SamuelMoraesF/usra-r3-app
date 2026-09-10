@@ -453,28 +453,39 @@ class _HomePageState extends State<HomePage> {
               const SizedBox(height: 12),
               GridLocatorField(controller: location, allowInvalid: true),
               const SizedBox(height: 12),
-              TextFormField(
-                controller: power,
-                keyboardType: const TextInputType.numberWithOptions(
-                  decimal: true,
-                ),
-                inputFormatters: [PowerFormatter()],
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(labelText: 'Potência (W)'),
-                validator: _required,
-              ),
-              const SizedBox(height: 12),
-              _ChoiceField(
-                controller: station,
-                label: 'Tipo de estação',
-                values: const {'P': 'Portátil', 'M': 'Móvel', 'F': 'Fixa'},
-              ),
-              const SizedBox(height: 12),
-              _ChoiceField(
-                controller: traffic,
-                label: 'Tráfego',
-                values: const {'S': 'Sem tráfego', 'C': 'Com tráfego'},
-                onSubmitted: (_) => _register(),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(
+                    child: TextFormField(
+                      controller: power,
+                      keyboardType: const TextInputType.numberWithOptions(
+                        decimal: true,
+                      ),
+                      inputFormatters: [PowerFormatter()],
+                      textInputAction: TextInputAction.next,
+                      decoration: const InputDecoration(labelText: 'Potência (W)'),
+                      validator: _required,
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _ChoiceField(
+                      controller: station,
+                      label: 'Estação',
+                      values: const {'P': 'Portátil', 'M': 'Móvel', 'F': 'Fixa'},
+                    ),
+                  ),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: _ChoiceField(
+                      controller: traffic,
+                      label: 'Tráfego',
+                      values: const {'S': 'Sem tráfego', 'C': 'Com tráfego'},
+                      onSubmitted: (_) => _register(),
+                    ),
+                  ),
+                ],
               ),
               const SizedBox(height: 18),
               SizedBox(
