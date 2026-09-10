@@ -29,6 +29,7 @@ class UsraR3App extends StatefulWidget {
 
 class _UsraR3AppState extends State<UsraR3App> {
   final database = UsraDatabase();
+  final navigatorKey = GlobalKey<NavigatorState>();
   AppTheme theme = AppTheme.system;
   OperatorProfile profile = const OperatorProfile();
   bool setupDone = false;
@@ -46,6 +47,7 @@ class _UsraR3AppState extends State<UsraR3App> {
   Widget build(BuildContext context) {
     return MaterialApp(
       title: 'USRA R3',
+      navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       themeMode: switch (theme) {
         AppTheme.system => ThemeMode.system,
@@ -130,7 +132,7 @@ class _UsraR3AppState extends State<UsraR3App> {
   }
 
   Future<void> _openSettings() async {
-    final result = await Navigator.of(context).push<_SettingsResult>(
+    final result = await navigatorKey.currentState!.push<_SettingsResult>(
       MaterialPageRoute(
         builder: (_) => SettingsPage(
           profile: profile,
