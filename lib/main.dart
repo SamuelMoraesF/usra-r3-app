@@ -456,7 +456,7 @@ class _HomePageState extends State<HomePage> {
                       leading: const Icon(Icons.radio),
                       title: Text('${entry.callsign} · ${entry.operatorName}'),
                       subtitle: Text(
-                        '${entry.location} · ${entry.powerWatts} W · ${entry.stationType} · ${entry.traffic}\n${_distanceLabel(entry)}\n${_formatDate(entry.createdAt)}',
+                        '${entry.location} · ${entry.powerWatts} W · ${entry.stationType} · ${entry.traffic}\n${_distanceLabel(entry)}${_distanceLabel(entry).isEmpty ? '' : '\n'}${_formatDate(entry.createdAt)}',
                       ),
                     ),
                   ),
@@ -527,7 +527,7 @@ class _HomePageState extends State<HomePage> {
     final contact = GridLocator.bounds(entry.location);
     final operatorLocation = GridLocator.bounds(entry.operatorGrid);
     if (contact == null || operatorLocation == null) {
-      return 'Distância indisponível';
+      return '';
     }
     const earthRadiusMeters = 6371000.0;
     final lat1 = contact.centerLatitude * math.pi / 180;
