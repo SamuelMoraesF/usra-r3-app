@@ -16,7 +16,16 @@ class LogEntries extends Table {
 
 @DriftDatabase(tables: [LogEntries])
 class UsraDatabase extends _$UsraDatabase {
-  UsraDatabase() : super(driftDatabase(name: 'usra_r3_logbook'));
+  UsraDatabase()
+    : super(
+        driftDatabase(
+          name: 'usra_r3_logbook',
+          web: DriftWebOptions(
+            sqlite3Wasm: Uri.parse('sqlite3.wasm'),
+            driftWorker: Uri.parse('drift_worker.js'),
+          ),
+        ),
+      );
 
   UsraDatabase.test(super.e);
 
