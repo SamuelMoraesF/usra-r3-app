@@ -97,8 +97,11 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
         geometry: LatLng(operatorBounds.centerLatitude, operatorBounds.centerLongitude),
         circleColor: '#DC2626',
         circleRadius: 5,
+        circleBlur: 0,
+        circleOpacity: 1,
         circleStrokeColor: '#FFFFFF',
         circleStrokeWidth: 2,
+        circleStrokeOpacity: 1,
       ));
     }
     for (final contact in contacts) {
@@ -108,8 +111,11 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
         geometry: LatLng(bounds.centerLatitude, bounds.centerLongitude),
         circleColor: '#2563EB',
         circleRadius: 7,
+        circleBlur: 0,
+        circleOpacity: 1,
         circleStrokeColor: '#FFFFFF',
         circleStrokeWidth: 2,
+        circleStrokeOpacity: 1,
       ));
       map.onCircleTapped.add((_) => _showContact(contact));
       assert(circle.id.isNotEmpty);
