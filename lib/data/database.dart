@@ -64,6 +64,32 @@ class UsraDatabase extends _$UsraDatabase {
     );
   }
 
+  Future<bool> deleteLog(int id) async {
+    return await (delete(logEntries)..where((entry) => entry.id.equals(id))).go() > 0;
+  }
+
+  Future<bool> updateLog({
+    required int id,
+    required String callsign,
+    required String operatorName,
+    required String location,
+    required double powerWatts,
+    required String stationType,
+    required String traffic,
+  }) async {
+    return await (update(logEntries)..where((entry) => entry.id.equals(id))).write(
+          LogEntriesCompanion(
+            callsign: Value(callsign),
+            operatorName: Value(operatorName),
+            location: Value(location),
+            powerWatts: Value(powerWatts),
+            stationType: Value(stationType),
+            traffic: Value(traffic),
+          ),
+        ) >
+        0;
+  }
+
   Stream<List<LogEntry>> watchLogs() => (select(
     logEntries,
   )..orderBy([(entry) => OrderingTerm.desc(entry.createdAt)])).watch();

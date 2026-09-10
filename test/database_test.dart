@@ -31,4 +31,15 @@ void main() {
       isTrue,
     );
   });
+
+  test('updates and deletes a log entry', () async {
+    final id = await database.saveLog(
+      callsign: 'PY2ABC', operatorName: 'Operador', location: 'GG30CH90NH',
+      operatorGrid: 'GG30CH90NH', powerWatts: 25, stationType: 'P', traffic: 'C',
+    );
+    expect(await database.updateLog(id: id, callsign: 'PY3XYZ', operatorName: 'Novo', location: 'GG30CH90NH', powerWatts: 50, stationType: 'F', traffic: 'S'), isTrue);
+    expect((await database.select(database.logEntries).get()).single.callsign, 'PY3XYZ');
+    expect(await database.deleteLog(id), isTrue);
+    expect(await database.select(database.logEntries).get(), isEmpty);
+  });
 }

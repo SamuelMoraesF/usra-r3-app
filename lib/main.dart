@@ -458,6 +458,16 @@ class _HomePageState extends State<HomePage> {
                       subtitle: Text(
                         '${entry.location} · ${entry.powerWatts} W · ${entry.stationType} · ${entry.traffic}\n${_distanceLabel(entry)}${_distanceLabel(entry).isEmpty ? '' : '\n'}${_formatDate(entry.createdAt)}',
                       ),
+                      trailing: PopupMenuButton<_LogAction>(
+                        onSelected: (action) => switch (action) {
+                          _LogAction.edit => _editLog(entry),
+                          _LogAction.delete => _deleteLog(entry),
+                        },
+                        itemBuilder: (_) => const [
+                          PopupMenuItem(value: _LogAction.edit, child: Text('Editar')),
+                          PopupMenuItem(value: _LogAction.delete, child: Text('Remover')),
+                        ],
+                      ),
                     ),
                   ),
                 ),
@@ -540,7 +550,72 @@ class _HomePageState extends State<HomePage> {
     final distance = earthRadiusMeters * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
     return 'Distância aproximada: ${distance.round()} m';
   }
+
+  Future<void> _deleteLog(LogEntry entry) async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Remover contato?'),
+        content: Text('O registro de ${entry.callsign} será removido permanentemente.'),
+        actions: [
+          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancelar')),
+          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Remover')),
+        ],
+      ),
+    );
+    if (confirmed == true) await widget.database.deleteLog(entry.id);
+  }
+
+  Future<void> _editLog(LogEntry entry) async {
+    final callsign = TextEditingController(text: entry.callsign);
+    final operator = TextEditingController(text: entry.operatorName);
+    final location = TextEditingController(text: entry.location);
+    final power = TextEditingController(text: entry.powerWatts.toString());
+    final station = TextEditingController(text: entry.stationType);
+    final traffic = TextEditingController(text: entry.traffic);
+    final key = GlobalKey<FormState>();
+    try {
+      await showDialog<void>(
+        context: context,
+        builder: (dialogContext) => AlertDialog(
+          title: const Text('Editar contato'),
+          content: SingleChildScrollView(
+            child: Form(
+              key: key,
+              child: Column(mainAxisSize: MainAxisSize.min, children: [
+                TextFormField(controller: callsign, inputFormatters: [UpperCaseFormatter()], decoration: const InputDecoration(labelText: 'Indicativo'), validator: _required),
+                const SizedBox(height: 10),
+                TextFormField(controller: operator, decoration: const InputDecoration(labelText: 'Nome do operador'), validator: _required),
+                const SizedBox(height: 10),
+                GridLocatorField(controller: location, allowInvalid: true),
+                const SizedBox(height: 10),
+                TextFormField(controller: power, inputFormatters: [PowerFormatter()], keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Potência (W)'), validator: _required),
+                const SizedBox(height: 10),
+                _ChoiceField(controller: station, label: 'Tipo de estação', values: const {'P': 'Portátil', 'M': 'Móvel', 'F': 'Fixa'}),
+                const SizedBox(height: 10),
+                _ChoiceField(controller: traffic, label: 'Tráfego', values: const {'S': 'Sem tráfego', 'C': 'Com tráfego'}),
+              ]),
+            ),
+          ),
+          actions: [
+            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar')),
+            FilledButton(onPressed: () async {
+              if (!key.currentState!.validate()) return;
+              await widget.database.updateLog(id: entry.id, callsign: callsign.text.trim().toUpperCase(), operatorName: operator.text.trim(), location: location.text.trim(), powerWatts: double.parse(power.text.replaceAll(',', '.')), stationType: station.text.trim().toUpperCase(), traffic: traffic.text.trim().toUpperCase());
+              if (dialogContext.mounted) Navigator.pop(dialogContext);
+            }, child: const Text('Salvar')),
+          ],
+        ),
+      );
+    } finally {
+      for (final controller in [callsign, operator, location, power, station, traffic]) {
+        controller.dispose();
+      }
+    }
+  }
 }
+
+enum _LogAction { edit, delete }
 
 class _ChoiceField extends StatelessWidget {
   const _ChoiceField({
