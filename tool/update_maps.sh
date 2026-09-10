@@ -19,7 +19,8 @@ with open(config_path, encoding="utf-8") as file:
     config = json.load(file)
 
 source = os.environ.get("PROTOMAPS_SOURCE", config["source"])
-for city in config["cities"]:
+items = config.get("areas", []) + config.get("cities", [])
+for city in items:
     output = city["output"]
     os.makedirs(os.path.dirname(output), exist_ok=True)
     bbox = ",".join(str(value) for value in city["bbox"])
