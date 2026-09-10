@@ -1,5 +1,15 @@
 {
   "source": "https://build.protomaps.com/20260909.pmtiles",
+  "areas": [
+    {
+      "id": "rio-grande-do-sul-rs",
+      "name": "Rio Grande do Sul",
+      "bbox": [-57.65, -33.75, -49.65, -27.00],
+      "minzoom": 0,
+      "maxzoom": 8,
+      "output": "assets/maps/rio-grande-do-sul-rs.pmtiles"
+    }
+  ],
   "cities": [
     {
       "id": "santa-maria-rs",
