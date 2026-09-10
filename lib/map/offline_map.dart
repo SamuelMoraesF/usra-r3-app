@@ -49,6 +49,13 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
     return MapLibreMap(
       styleString: style,
       initialCameraPosition: const CameraPosition(target: LatLng(-29.6868, -53.8069), zoom: 12),
+      minMaxZoomPreference: const MinMaxZoomPreference(8, 17),
+      cameraTargetBounds: CameraTargetBounds(
+        LatLngBounds(
+          southwest: const LatLng(-33.75, -57.65),
+          northeast: const LatLng(-27.00, -49.65),
+        ),
+      ),
       compassEnabled: true,
       myLocationEnabled: false,
       onMapCreated: (value) => controller = value,
