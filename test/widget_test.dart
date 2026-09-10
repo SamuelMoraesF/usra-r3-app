@@ -1,10 +1,12 @@
 import 'package:flutter_test/flutter_test.dart';
+import 'package:flutter/material.dart';
 
 import 'package:usra_r3/main.dart';
 
 void main() {
   testWidgets('renders the setup wizard', (tester) async {
-    await tester.pumpWidget(const UsraR3App());
+    await tester.pumpWidget(MaterialApp(home: SetupWizard(onComplete: (_) {})));
+    await tester.pump();
 
     expect(find.text('USRA R3'), findsOneWidget);
     expect(find.text('Configure seu perfil'), findsOneWidget);

@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:geolocator/geolocator.dart';
+import 'package:shared_preferences/shared_preferences.dart';
 
 import 'grid_locator.dart';
 import 'widgets/grid_locator_field.dart';
@@ -27,6 +28,13 @@ class _UsraR3AppState extends State<UsraR3App> {
   AppTheme theme = AppTheme.system;
   OperatorProfile profile = const OperatorProfile();
   bool setupDone = false;
+  bool loading = true;
+
+  @override
+  void initState() {
+    super.initState();
+    _loadPreferences();
+  }
 
   @override
   Widget build(BuildContext context) {
@@ -40,14 +48,11 @@ class _UsraR3AppState extends State<UsraR3App> {
       },
       theme: _theme(Brightness.light),
       darkTheme: _theme(Brightness.dark),
-      home: setupDone
+      home: loading
+          ? const Scaffold(body: Center(child: CircularProgressIndicator()))
+          : setupDone
           ? HomePage(profile: profile, onOpenSettings: _openSettings)
-          : SetupWizard(
-              onComplete: (value) => setState(() {
-                profile = value;
-                setupDone = true;
-              }),
-            ),
+          : SetupWizard(onComplete: _completeSetup),
     );
   }
 
@@ -75,17 +80,58 @@ class _UsraR3AppState extends State<UsraR3App> {
     );
   }
 
-  void _openSettings() async {
+  Future<void> _loadPreferences() async {
+    final preferences = await SharedPreferences.getInstance();
+    final callsign = preferences.getString('operator.callsign') ?? '';
+    final name = preferences.getString('operator.name') ?? '';
+    final grid = preferences.getString('operator.grid') ?? '';
+    final savedTheme = preferences.getString('theme');
+    if (!mounted) return;
+    setState(() {
+      profile = OperatorProfile(callsign: callsign, name: name, grid: grid);
+      setupDone = callsign.isNotEmpty && name.isNotEmpty;
+      theme = AppTheme.values.firstWhere(
+        (value) => value.name == savedTheme,
+        orElse: () => AppTheme.system,
+      );
+      loading = false;
+    });
+  }
+
+  Future<void> _completeSetup(OperatorProfile value) async {
+    await _saveProfile(value);
+    if (mounted) {
+      setState(() {
+        profile = value;
+        setupDone = true;
+      });
+    }
+  }
+
+  Future<void> _saveProfile(OperatorProfile value) async {
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString('operator.callsign', value.callsign);
+    await preferences.setString('operator.name', value.name);
+    await preferences.setString('operator.grid', value.grid);
+  }
+
+  Future<void> _openSettings() async {
     final result = await Navigator.of(context).push<_SettingsResult>(
       MaterialPageRoute(
         builder: (_) => SettingsPage(profile: profile, theme: theme),
       ),
     );
-    if (result != null)
-      setState(() {
-        profile = result.profile;
-        theme = result.theme;
-      });
+    if (result != null) {
+      await _saveProfile(result.profile);
+      final preferences = await SharedPreferences.getInstance();
+      await preferences.setString('theme', result.theme.name);
+      if (mounted) {
+        setState(() {
+          profile = result.profile;
+          theme = result.theme;
+        });
+      }
+    }
   }
 }
 
@@ -182,7 +228,7 @@ class _SetupWizardState extends State<SetupWizard> {
   );
 
   void _finish() {
-    if (formKey.currentState!.validate())
+    if (formKey.currentState!.validate()) {
       widget.onComplete(
         OperatorProfile(
           callsign: callsign.text.trim().toUpperCase(),
@@ -190,31 +236,36 @@ class _SetupWizardState extends State<SetupWizard> {
           grid: grid.text.trim().toUpperCase(),
         ),
       );
+    }
   }
 
   Future<void> _useGps() async {
     setState(() => locating = true);
     try {
-      if (!await Geolocator.isLocationServiceEnabled())
+      if (!await Geolocator.isLocationServiceEnabled()) {
         throw Exception('Ative o serviço de localização');
+      }
       var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied)
+      if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
+      }
       if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever)
+          permission == LocationPermission.deniedForever) {
         throw Exception('Permissão de localização negada');
+      }
       final position = await Geolocator.getCurrentPosition();
       grid.text = GridLocator.fromCoordinates(
         position.latitude,
         position.longitude,
       );
     } catch (error) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(
             content: Text(error.toString().replaceFirst('Exception: ', '')),
           ),
         );
+      }
     }
     if (mounted) setState(() => locating = false);
   }
@@ -252,9 +303,20 @@ class _HomePageState extends State<HomePage> {
   }
 
   @override
+  void didUpdateWidget(covariant HomePage oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.profile != widget.profile) {
+      callsign.text = widget.profile.callsign;
+      operator.text = widget.profile.name;
+      location.text = widget.profile.grid;
+    }
+  }
+
+  @override
   void dispose() {
-    for (final c in [callsign, operator, location, power, station, traffic])
+    for (final c in [callsign, operator, location, power, station, traffic]) {
       c.dispose();
+    }
     super.dispose();
   }
 
@@ -514,18 +576,21 @@ class _SettingsPageState extends State<SettingsPage> {
     setState(() => locating = true);
     try {
       var permission = await Geolocator.checkPermission();
-      if (permission == LocationPermission.denied)
+      if (permission == LocationPermission.denied) {
         permission = await Geolocator.requestPermission();
+      }
       if (permission == LocationPermission.denied ||
-          permission == LocationPermission.deniedForever)
+          permission == LocationPermission.deniedForever) {
         throw Exception('Permissão de localização negada');
+      }
       final p = await Geolocator.getCurrentPosition();
       grid.text = GridLocator.fromCoordinates(p.latitude, p.longitude);
     } catch (e) {
-      if (mounted)
+      if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
           SnackBar(content: Text(e.toString().replaceFirst('Exception: ', ''))),
         );
+      }
     }
     if (mounted) setState(() => locating = false);
   }
