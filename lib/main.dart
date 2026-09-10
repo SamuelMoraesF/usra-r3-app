@@ -4,7 +4,6 @@ import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'dart:convert';
-import 'dart:typed_data';
 
 import 'package:file_picker/file_picker.dart';
 import 'package:geolocator/geolocator.dart';
@@ -110,16 +109,27 @@ class _UsraR3AppState extends State<UsraR3App> {
       useMaterial3: true,
       brightness: brightness,
       colorScheme: ColorScheme.fromSeed(
-        seedColor: const Color(0xFF18181B),
+        seedColor: const Color(0xFFF36F21),
         brightness: brightness,
       ),
       scaffoldBackgroundColor: dark
-          ? const Color(0xFF09090B)
-          : const Color(0xFFFAFAFA),
+          ? const Color(0xFF17120F)
+          : const Color(0xFFFFFBF7),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
-        fillColor: dark ? const Color(0xFF18181B) : Colors.white,
-        border: OutlineInputBorder(borderRadius: BorderRadius.circular(8)),
+        fillColor: dark ? const Color(0xFF241B16) : Colors.white,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide.none,
+        ),
+        enabledBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: dark ? const Color(0xFF3A2A21) : const Color(0xFFEADFD7)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(10),
+          borderSide: BorderSide(color: const Color(0xFFF36F21), width: 1.5),
+        ),
         contentPadding: const EdgeInsets.symmetric(
           horizontal: 12,
           vertical: 12,
@@ -517,13 +527,31 @@ class _HomePageState extends State<HomePage> {
                 const SizedBox(height: 8),
                 ...entries.map(
                   (entry) => Card(
+                    margin: const EdgeInsets.only(bottom: 8),
+                    elevation: 0,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(14),
+                      side: BorderSide(color: Theme.of(context).dividerColor.withValues(alpha: 0.55)),
+                    ),
                     child: ListTile(
-                      leading: const Icon(Icons.radio),
-                      title: Text('${entry.callsign} · ${entry.operatorName}'),
-                      subtitle: Text(
-                        '${entry.location} · ${entry.powerWatts} W · ${entry.stationType} · ${entry.traffic}\n${_distanceLabel(entry)}${_distanceLabel(entry).isEmpty ? '' : '\n'}${_formatDate(entry.createdAt)}',
+                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
+                      title: Text(
+                        '${entry.callsign} · ${entry.operatorName}',
+                        style: const TextStyle(fontWeight: FontWeight.w700),
+                      ),
+                      subtitle: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(
+                            '${entry.location} · ${entry.powerWatts} W · ${entry.stationType} · ${entry.traffic}',
+                            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.35),
+                          ),
+                          const SizedBox(height: 4),
+                          _contactMeta(entry),
+                        ],
                       ),
                       trailing: PopupMenuButton<_LogAction>(
+                        icon: const Icon(Icons.more_vert),
                         onSelected: (action) => switch (action) {
                           _LogAction.edit => _editLog(entry),
                           _LogAction.delete => _deleteLog(entry),
@@ -648,7 +676,37 @@ class _HomePageState extends State<HomePage> {
     final a = math.pow(math.sin(deltaLat / 2), 2) +
         math.cos(lat1) * math.cos(lat2) * math.pow(math.sin(deltaLon / 2), 2);
     final distance = earthRadiusMeters * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
-    return 'Distância aproximada: ${distance.round()} m';
+    if (distance < 1000) return '${distance.round()}m';
+    final kilometers = distance / 1000;
+    final value = kilometers == kilometers.roundToDouble()
+        ? kilometers.toStringAsFixed(0)
+        : kilometers.toStringAsFixed(1);
+    return '${value}km';
+  }
+
+  Widget _contactMeta(LogEntry entry) {
+    final distance = _distanceLabel(entry);
+    final color = Theme.of(context).colorScheme.onSurfaceVariant;
+    final items = <Widget>[];
+    if (distance.isNotEmpty) {
+      items.addAll([
+        Icon(Icons.straighten, size: 15, color: color),
+        const SizedBox(width: 3),
+        Text(distance),
+        const SizedBox(width: 8),
+        Text('·', style: TextStyle(color: color)),
+        const SizedBox(width: 8),
+      ]);
+    }
+    items.addAll([
+      Icon(Icons.schedule, size: 15, color: color),
+      const SizedBox(width: 3),
+      Flexible(child: Text(_formatDate(entry.createdAt), overflow: TextOverflow.ellipsis)),
+    ]);
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: items,
+    );
   }
 
   Future<void> _deleteLog(LogEntry entry) async {
