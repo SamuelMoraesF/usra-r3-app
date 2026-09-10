@@ -60,10 +60,22 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
       ),
       compassEnabled: true,
       myLocationEnabled: false,
-      onMapCreated: (value) => controller = value,
+      onMapCreated: _onMapCreated,
       onStyleLoadedCallback: _drawContacts,
       onCameraIdle: _logCameraZoom,
     );
+  }
+
+  void _onMapCreated(MapLibreMapController value) {
+    controller = value;
+    value.onCircleTapped.add(_onCircleTapped);
+  }
+
+  void _onCircleTapped(Circle circle) {
+    final index = circle.data?['contactIndex'];
+    if (index is int && index >= 0 && index < contacts.length) {
+      _showContact(contacts[index]);
+    }
   }
 
   Future<void> _logCameraZoom() async {
@@ -104,7 +116,8 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
         circleStrokeOpacity: 1,
       ));
     }
-    for (final contact in contacts) {
+    for (var index = 0; index < contacts.length; index++) {
+      final contact = contacts[index];
       final bounds = contact.bounds;
       if (bounds == null) continue;
       final circle = await map.addCircle(CircleOptions(
@@ -116,8 +129,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
         circleStrokeColor: '#FFFFFF',
         circleStrokeWidth: 2,
         circleStrokeOpacity: 1,
-      ));
-      map.onCircleTapped.add((_) => _showContact(contact));
+      ), {'contactIndex': index});
       assert(circle.id.isNotEmpty);
     }
   }
