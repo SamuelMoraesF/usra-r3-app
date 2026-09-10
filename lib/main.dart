@@ -1,3 +1,5 @@
+import 'dart:math' as math;
+
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
@@ -454,7 +456,7 @@ class _HomePageState extends State<HomePage> {
                       leading: const Icon(Icons.radio),
                       title: Text('${entry.callsign} · ${entry.operatorName}'),
                       subtitle: Text(
-                        '${entry.location} · ${entry.powerWatts} W · ${entry.stationType} · ${entry.traffic}\n${_formatDate(entry.createdAt)}',
+                        '${entry.location} · ${entry.powerWatts} W · ${entry.stationType} · ${entry.traffic}\n${_distanceLabel(entry)}\n${_formatDate(entry.createdAt)}',
                       ),
                     ),
                   ),
@@ -491,6 +493,7 @@ class _HomePageState extends State<HomePage> {
         borderRadius: BorderRadius.circular(12),
         child: OfflineContactsMap(
           entries: snapshot.data ?? const [],
+          operatorGrid: widget.profile.grid,
           mergePrecision: widget.mergePrecision,
           lastOnly: widget.lastOnly,
         ),
@@ -506,6 +509,7 @@ class _HomePageState extends State<HomePage> {
       callsign: callsign.text.trim().toUpperCase(),
       operatorName: operator.text.trim(),
       location: location.text.trim(),
+      operatorGrid: widget.profile.grid,
       powerWatts: double.parse(power.text.replaceAll(',', '.')),
       stationType: station.text.trim().toUpperCase(),
       traffic: traffic.text.trim().toUpperCase(),
@@ -517,6 +521,24 @@ class _HomePageState extends State<HomePage> {
     final local = value.toLocal();
     String two(int number) => number.toString().padLeft(2, '0');
     return '${two(local.day)}/${two(local.month)}/${local.year} ${two(local.hour)}:${two(local.minute)}:${two(local.second)}';
+  }
+
+  String _distanceLabel(LogEntry entry) {
+    final contact = GridLocator.bounds(entry.location);
+    final operatorLocation = GridLocator.bounds(entry.operatorGrid);
+    if (contact == null || operatorLocation == null) {
+      return 'Distância indisponível';
+    }
+    const earthRadiusMeters = 6371000.0;
+    final lat1 = contact.centerLatitude * math.pi / 180;
+    final lat2 = operatorLocation.centerLatitude * math.pi / 180;
+    final deltaLat = lat2 - lat1;
+    final deltaLon =
+        (operatorLocation.centerLongitude - contact.centerLongitude) * math.pi / 180;
+    final a = math.pow(math.sin(deltaLat / 2), 2) +
+        math.cos(lat1) * math.cos(lat2) * math.pow(math.sin(deltaLon / 2), 2);
+    final distance = earthRadiusMeters * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    return 'Distância aproximada: ${distance.round()} m';
   }
 }
 

@@ -8,6 +8,7 @@ LogEntry entry(String grid, int minute, {String callsign = 'PY2AA'}) => LogEntry
   callsign: callsign,
   operatorName: 'Operator',
   location: grid,
+  operatorGrid: 'GG30DH31',
   powerWatts: 10,
   stationType: 'P',
   traffic: 'S',

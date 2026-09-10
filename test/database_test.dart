@@ -14,6 +14,7 @@ void main() {
       callsign: 'PY2ABC',
       operatorName: 'Operador',
       location: 'GG30CH90NH',
+      operatorGrid: 'GG30CH90NH',
       powerWatts: 25,
       stationType: 'P',
       traffic: 'C',

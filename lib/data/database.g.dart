@@ -66,6 +66,17 @@ class $LogEntriesTable extends LogEntries
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _operatorGridMeta = const VerificationMeta(
+    'operatorGrid',
+  );
+  @override
+  late final GeneratedColumn<String> operatorGrid = GeneratedColumn<String>(
+    'operator_grid',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: true,
+  );
   static const VerificationMeta _powerWattsMeta = const VerificationMeta(
     'powerWatts',
   );
@@ -106,6 +117,7 @@ class $LogEntriesTable extends LogEntries
     callsign,
     operatorName,
     location,
+    operatorGrid,
     powerWatts,
     stationType,
     traffic,
@@ -159,6 +171,17 @@ class $LogEntriesTable extends LogEntries
       );
     } else if (isInserting) {
       context.missing(_locationMeta);
+    }
+    if (data.containsKey('operator_grid')) {
+      context.handle(
+        _operatorGridMeta,
+        operatorGrid.isAcceptableOrUnknown(
+          data['operator_grid']!,
+          _operatorGridMeta,
+        ),
+      );
+    } else if (isInserting) {
+      context.missing(_operatorGridMeta);
     }
     if (data.containsKey('power_watts')) {
       context.handle(
@@ -216,6 +239,10 @@ class $LogEntriesTable extends LogEntries
         DriftSqlType.string,
         data['${effectivePrefix}location'],
       )!,
+      operatorGrid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}operator_grid'],
+      )!,
       powerWatts: attachedDatabase.typeMapping.read(
         DriftSqlType.double,
         data['${effectivePrefix}power_watts'],
@@ -243,6 +270,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
   final String callsign;
   final String operatorName;
   final String location;
+  final String operatorGrid;
   final double powerWatts;
   final String stationType;
   final String traffic;
@@ -252,6 +280,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     required this.callsign,
     required this.operatorName,
     required this.location,
+    required this.operatorGrid,
     required this.powerWatts,
     required this.stationType,
     required this.traffic,
@@ -264,6 +293,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     map['callsign'] = Variable<String>(callsign);
     map['operator_name'] = Variable<String>(operatorName);
     map['location'] = Variable<String>(location);
+    map['operator_grid'] = Variable<String>(operatorGrid);
     map['power_watts'] = Variable<double>(powerWatts);
     map['station_type'] = Variable<String>(stationType);
     map['traffic'] = Variable<String>(traffic);
@@ -277,6 +307,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
       callsign: Value(callsign),
       operatorName: Value(operatorName),
       location: Value(location),
+      operatorGrid: Value(operatorGrid),
       powerWatts: Value(powerWatts),
       stationType: Value(stationType),
       traffic: Value(traffic),
@@ -294,6 +325,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
       callsign: serializer.fromJson<String>(json['callsign']),
       operatorName: serializer.fromJson<String>(json['operatorName']),
       location: serializer.fromJson<String>(json['location']),
+      operatorGrid: serializer.fromJson<String>(json['operatorGrid']),
       powerWatts: serializer.fromJson<double>(json['powerWatts']),
       stationType: serializer.fromJson<String>(json['stationType']),
       traffic: serializer.fromJson<String>(json['traffic']),
@@ -308,6 +340,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
       'callsign': serializer.toJson<String>(callsign),
       'operatorName': serializer.toJson<String>(operatorName),
       'location': serializer.toJson<String>(location),
+      'operatorGrid': serializer.toJson<String>(operatorGrid),
       'powerWatts': serializer.toJson<double>(powerWatts),
       'stationType': serializer.toJson<String>(stationType),
       'traffic': serializer.toJson<String>(traffic),
@@ -320,6 +353,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     String? callsign,
     String? operatorName,
     String? location,
+    String? operatorGrid,
     double? powerWatts,
     String? stationType,
     String? traffic,
@@ -329,6 +363,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     callsign: callsign ?? this.callsign,
     operatorName: operatorName ?? this.operatorName,
     location: location ?? this.location,
+    operatorGrid: operatorGrid ?? this.operatorGrid,
     powerWatts: powerWatts ?? this.powerWatts,
     stationType: stationType ?? this.stationType,
     traffic: traffic ?? this.traffic,
@@ -342,6 +377,9 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
           ? data.operatorName.value
           : this.operatorName,
       location: data.location.present ? data.location.value : this.location,
+      operatorGrid: data.operatorGrid.present
+          ? data.operatorGrid.value
+          : this.operatorGrid,
       powerWatts: data.powerWatts.present
           ? data.powerWatts.value
           : this.powerWatts,
@@ -360,6 +398,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
           ..write('callsign: $callsign, ')
           ..write('operatorName: $operatorName, ')
           ..write('location: $location, ')
+          ..write('operatorGrid: $operatorGrid, ')
           ..write('powerWatts: $powerWatts, ')
           ..write('stationType: $stationType, ')
           ..write('traffic: $traffic')
@@ -374,6 +413,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     callsign,
     operatorName,
     location,
+    operatorGrid,
     powerWatts,
     stationType,
     traffic,
@@ -387,6 +427,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
           other.callsign == this.callsign &&
           other.operatorName == this.operatorName &&
           other.location == this.location &&
+          other.operatorGrid == this.operatorGrid &&
           other.powerWatts == this.powerWatts &&
           other.stationType == this.stationType &&
           other.traffic == this.traffic);
@@ -398,6 +439,7 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
   final Value<String> callsign;
   final Value<String> operatorName;
   final Value<String> location;
+  final Value<String> operatorGrid;
   final Value<double> powerWatts;
   final Value<String> stationType;
   final Value<String> traffic;
@@ -407,6 +449,7 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     this.callsign = const Value.absent(),
     this.operatorName = const Value.absent(),
     this.location = const Value.absent(),
+    this.operatorGrid = const Value.absent(),
     this.powerWatts = const Value.absent(),
     this.stationType = const Value.absent(),
     this.traffic = const Value.absent(),
@@ -417,6 +460,7 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     required String callsign,
     required String operatorName,
     required String location,
+    required String operatorGrid,
     required double powerWatts,
     required String stationType,
     required String traffic,
@@ -424,6 +468,7 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
        callsign = Value(callsign),
        operatorName = Value(operatorName),
        location = Value(location),
+       operatorGrid = Value(operatorGrid),
        powerWatts = Value(powerWatts),
        stationType = Value(stationType),
        traffic = Value(traffic);
@@ -433,6 +478,7 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     Expression<String>? callsign,
     Expression<String>? operatorName,
     Expression<String>? location,
+    Expression<String>? operatorGrid,
     Expression<double>? powerWatts,
     Expression<String>? stationType,
     Expression<String>? traffic,
@@ -443,6 +489,7 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
       if (callsign != null) 'callsign': callsign,
       if (operatorName != null) 'operator_name': operatorName,
       if (location != null) 'location': location,
+      if (operatorGrid != null) 'operator_grid': operatorGrid,
       if (powerWatts != null) 'power_watts': powerWatts,
       if (stationType != null) 'station_type': stationType,
       if (traffic != null) 'traffic': traffic,
@@ -455,6 +502,7 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     Value<String>? callsign,
     Value<String>? operatorName,
     Value<String>? location,
+    Value<String>? operatorGrid,
     Value<double>? powerWatts,
     Value<String>? stationType,
     Value<String>? traffic,
@@ -465,6 +513,7 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
       callsign: callsign ?? this.callsign,
       operatorName: operatorName ?? this.operatorName,
       location: location ?? this.location,
+      operatorGrid: operatorGrid ?? this.operatorGrid,
       powerWatts: powerWatts ?? this.powerWatts,
       stationType: stationType ?? this.stationType,
       traffic: traffic ?? this.traffic,
@@ -489,6 +538,9 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     if (location.present) {
       map['location'] = Variable<String>(location.value);
     }
+    if (operatorGrid.present) {
+      map['operator_grid'] = Variable<String>(operatorGrid.value);
+    }
     if (powerWatts.present) {
       map['power_watts'] = Variable<double>(powerWatts.value);
     }
@@ -509,6 +561,7 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
           ..write('callsign: $callsign, ')
           ..write('operatorName: $operatorName, ')
           ..write('location: $location, ')
+          ..write('operatorGrid: $operatorGrid, ')
           ..write('powerWatts: $powerWatts, ')
           ..write('stationType: $stationType, ')
           ..write('traffic: $traffic')
@@ -535,6 +588,7 @@ typedef $$LogEntriesTableCreateCompanionBuilder =
       required String callsign,
       required String operatorName,
       required String location,
+      required String operatorGrid,
       required double powerWatts,
       required String stationType,
       required String traffic,
@@ -546,6 +600,7 @@ typedef $$LogEntriesTableUpdateCompanionBuilder =
       Value<String> callsign,
       Value<String> operatorName,
       Value<String> location,
+      Value<String> operatorGrid,
       Value<double> powerWatts,
       Value<String> stationType,
       Value<String> traffic,
@@ -582,6 +637,11 @@ class $$LogEntriesTableFilterComposer
 
   ColumnFilters<String> get location => $composableBuilder(
     column: $table.location,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get operatorGrid => $composableBuilder(
+    column: $table.operatorGrid,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -635,6 +695,11 @@ class $$LogEntriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get operatorGrid => $composableBuilder(
+    column: $table.operatorGrid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<double> get powerWatts => $composableBuilder(
     column: $table.powerWatts,
     builder: (column) => ColumnOrderings(column),
@@ -676,6 +741,11 @@ class $$LogEntriesTableAnnotationComposer
 
   GeneratedColumn<String> get location =>
       $composableBuilder(column: $table.location, builder: (column) => column);
+
+  GeneratedColumn<String> get operatorGrid => $composableBuilder(
+    column: $table.operatorGrid,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<double> get powerWatts => $composableBuilder(
     column: $table.powerWatts,
@@ -727,6 +797,7 @@ class $$LogEntriesTableTableManager
                 Value<String> callsign = const Value.absent(),
                 Value<String> operatorName = const Value.absent(),
                 Value<String> location = const Value.absent(),
+                Value<String> operatorGrid = const Value.absent(),
                 Value<double> powerWatts = const Value.absent(),
                 Value<String> stationType = const Value.absent(),
                 Value<String> traffic = const Value.absent(),
@@ -736,6 +807,7 @@ class $$LogEntriesTableTableManager
                 callsign: callsign,
                 operatorName: operatorName,
                 location: location,
+                operatorGrid: operatorGrid,
                 powerWatts: powerWatts,
                 stationType: stationType,
                 traffic: traffic,
@@ -747,6 +819,7 @@ class $$LogEntriesTableTableManager
                 required String callsign,
                 required String operatorName,
                 required String location,
+                required String operatorGrid,
                 required double powerWatts,
                 required String stationType,
                 required String traffic,
@@ -756,6 +829,7 @@ class $$LogEntriesTableTableManager
                 callsign: callsign,
                 operatorName: operatorName,
                 location: location,
+                operatorGrid: operatorGrid,
                 powerWatts: powerWatts,
                 stationType: stationType,
                 traffic: traffic,

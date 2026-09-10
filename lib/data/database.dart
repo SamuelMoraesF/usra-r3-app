@@ -9,6 +9,7 @@ class LogEntries extends Table {
   TextColumn get callsign => text()();
   TextColumn get operatorName => text()();
   TextColumn get location => text()();
+  TextColumn get operatorGrid => text()();
   RealColumn get powerWatts => real()();
   TextColumn get stationType => text()();
   TextColumn get traffic => text()();
@@ -30,12 +31,21 @@ class UsraDatabase extends _$UsraDatabase {
   UsraDatabase.test(super.e);
 
   @override
-  int get schemaVersion => 1;
+  int get schemaVersion => 2;
+
+  @override
+  MigrationStrategy get migration => MigrationStrategy(
+    onCreate: (m) => m.createAll(),
+    onUpgrade: (m, from, to) async {
+      if (from < 2) await m.addColumn(logEntries, logEntries.operatorGrid);
+    },
+  );
 
   Future<int> saveLog({
     required String callsign,
     required String operatorName,
     required String location,
+    required String operatorGrid,
     required double powerWatts,
     required String stationType,
     required String traffic,
@@ -46,6 +56,7 @@ class UsraDatabase extends _$UsraDatabase {
         callsign: callsign,
         operatorName: operatorName,
         location: location,
+        operatorGrid: operatorGrid,
         powerWatts: powerWatts,
         stationType: stationType,
         traffic: traffic,

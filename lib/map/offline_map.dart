@@ -3,13 +3,15 @@ import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
 import '../data/database.dart';
+import '../grid_locator.dart';
 import 'contact_aggregation.dart';
 import 'pmtiles_registration_stub.dart'
     if (dart.library.js_interop) 'pmtiles_registration_web.dart';
 
 class OfflineContactsMap extends StatefulWidget {
-  const OfflineContactsMap({super.key, required this.entries, this.mergePrecision = true, this.lastOnly = false});
+  const OfflineContactsMap({super.key, required this.entries, required this.operatorGrid, this.mergePrecision = true, this.lastOnly = false});
   final List<LogEntry> entries;
+  final String operatorGrid;
   final bool mergePrecision;
   final bool lastOnly;
 
@@ -32,7 +34,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
   @override
   void didUpdateWidget(covariant OfflineContactsMap oldWidget) {
     super.didUpdateWidget(oldWidget);
-    if (oldWidget.entries != widget.entries || oldWidget.mergePrecision != widget.mergePrecision || oldWidget.lastOnly != widget.lastOnly) {
+    if (oldWidget.entries != widget.entries || oldWidget.operatorGrid != widget.operatorGrid || oldWidget.mergePrecision != widget.mergePrecision || oldWidget.lastOnly != widget.lastOnly) {
       _refreshContacts();
       _drawContacts();
     }
@@ -89,6 +91,16 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
     final map = controller;
     if (map == null || !mounted) return;
     await map.clearCircles();
+    final operatorBounds = GridLocator.bounds(widget.operatorGrid);
+    if (operatorBounds != null) {
+      await map.addCircle(CircleOptions(
+        geometry: LatLng(operatorBounds.centerLatitude, operatorBounds.centerLongitude),
+        circleColor: '#DC2626',
+        circleRadius: 10,
+        circleStrokeColor: '#FFFFFF',
+        circleStrokeWidth: 3,
+      ));
+    }
     for (final contact in contacts) {
       final bounds = contact.bounds;
       if (bounds == null) continue;
