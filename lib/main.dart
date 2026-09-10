@@ -360,28 +360,11 @@ class _HomePageState extends State<HomePage> {
         ),
       ],
     ),
-    body: ListView(
+    body: LayoutBuilder(
+      builder: (context, constraints) {
+        final panel = ListView(
       padding: const EdgeInsets.all(20),
       children: [
-        if (kIsWeb ||
-            defaultTargetPlatform == TargetPlatform.android ||
-            defaultTargetPlatform == TargetPlatform.iOS) ...[
-          SizedBox(
-            height: 300,
-            child: StreamBuilder<List<LogEntry>>(
-              stream: widget.database.watchLogs(),
-              builder: (context, snapshot) => ClipRRect(
-                borderRadius: BorderRadius.circular(12),
-                child: OfflineContactsMap(
-                  entries: snapshot.data ?? const [],
-                  mergePrecision: widget.mergePrecision,
-                  lastOnly: widget.lastOnly,
-                ),
-              ),
-            ),
-          ),
-          const SizedBox(height: 18),
-        ],
         Text(
           'Novo contato',
           style: Theme.of(
@@ -487,6 +470,37 @@ class _HomePageState extends State<HomePage> {
           },
         ),
       ],
+    );
+        final showMap = kIsWeb ||
+            defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS;
+        if (!showMap) return panel;
+        final map = _buildMap();
+        if (constraints.maxWidth >= 700) {
+          return Row(
+            children: [
+              Expanded(child: map),
+              SizedBox(width: constraints.maxWidth.clamp(0, 480), child: panel),
+            ],
+          );
+        }
+        return Column(children: [Expanded(child: map), SizedBox(height: 390, child: panel)]);
+      },
+    ),
+  );
+
+  Widget _buildMap() => StreamBuilder<List<LogEntry>>(
+    stream: widget.database.watchLogs(),
+    builder: (context, snapshot) => Padding(
+      padding: const EdgeInsets.all(12),
+      child: ClipRRect(
+        borderRadius: BorderRadius.circular(12),
+        child: OfflineContactsMap(
+          entries: snapshot.data ?? const [],
+          mergePrecision: widget.mergePrecision,
+          lastOnly: widget.lastOnly,
+        ),
+      ),
     ),
   );
 
