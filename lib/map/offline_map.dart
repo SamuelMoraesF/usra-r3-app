@@ -4,6 +4,8 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 
 import '../data/database.dart';
 import 'contact_aggregation.dart';
+import 'pmtiles_registration_stub.dart'
+    if (dart.library.js_interop) 'pmtiles_registration_web.dart';
 
 class OfflineContactsMap extends StatefulWidget {
   const OfflineContactsMap({super.key, required this.entries, this.mergePrecision = true, this.lastOnly = false});
@@ -24,6 +26,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
     super.initState();
     _refreshContacts();
     _loadStyle();
+    _prepareWeb();
   }
 
   @override
@@ -40,7 +43,9 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
   @override
   Widget build(BuildContext context) {
     final style = _cachedStyle;
-    if (style == null) return const Center(child: CircularProgressIndicator());
+    if (style == null || !_webReady) {
+      return const Center(child: CircularProgressIndicator());
+    }
     return MapLibreMap(
       styleString: style,
       initialCameraPosition: const CameraPosition(target: LatLng(-29.6868, -53.8069), zoom: 12),
@@ -54,6 +59,12 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
   Future<void> _loadStyle() async {
     final style = await loadOfflineMapStyle();
     if (mounted) setState(() => _cachedStyle = style);
+  }
+
+  Future<void> _prepareWeb() async {
+    await MapLibreMap.ensureWebLibraryLoaded();
+    await registerPmtilesProtocol();
+    if (mounted) setState(() => _webReady = true);
   }
 
   Future<void> _drawContacts() async {
@@ -86,6 +97,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
   }
 
   String? _cachedStyle;
+  bool _webReady = false;
 }
 
 Future<String> loadOfflineMapStyle() async => rootBundle.loadString('assets/maps/santa-maria-style.json');
