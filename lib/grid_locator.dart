@@ -15,8 +15,8 @@ class GridLocator {
     final accuracy = switch (pairLength) {
       4 => const GridLocatorAccuracy(kilometers: 2000),
       6 => const GridLocatorAccuracy(kilometers: 10),
-      8 => const GridLocatorAccuracy(meters: 1000),
-      10 => const GridLocatorAccuracy(meters: 50),
+      8 => const GridLocatorAccuracy(meters: 900),
+      10 => const GridLocatorAccuracy(meters: 40),
       _ => null,
     };
 

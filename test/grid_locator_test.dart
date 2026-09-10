@@ -37,11 +37,11 @@ void main() {
       );
       expect(
         GridLocator.inspect('GG30CH90').accuracy!.label,
-        'precisão de 1000 m',
+        'precisão de 900 m',
       );
       expect(
         GridLocator.inspect('GG30CH90NH').accuracy!.label,
-        'precisão de 50 m',
+        'precisão de 40 m',
       );
     });
   });

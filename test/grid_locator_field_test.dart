@@ -15,7 +15,7 @@ void main() {
 
     await tester.enterText(find.byType(TextField), 'gg30ch90nh');
     await tester.pump();
-    expect(find.text('precisão de 50 m'), findsOneWidget);
+    expect(find.text('precisão de 40 m'), findsOneWidget);
 
     tester.binding.focusManager.primaryFocus?.unfocus();
     await tester.pump();
