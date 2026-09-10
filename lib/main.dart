@@ -829,6 +829,7 @@ class _SettingsPageState extends State<SettingsPage> {
           icon: const Icon(Icons.file_upload_outlined),
           label: const Text('Exportar registros para CSV'),
         ),
+        const SizedBox(height: 8),
         OutlinedButton.icon(
           onPressed: _importing ? null : _importCsv,
           icon: const Icon(Icons.file_download_outlined),
@@ -860,12 +861,11 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _importCsv() async {
     setState(() => _importing = true);
     try {
-      final result = await FilePicker.platform.pickFiles(
+      final files = await FilePicker.pickFiles(
         type: FileType.custom,
         allowedExtensions: ['csv'],
-        withData: true,
       );
-      final bytes = result?.files.single.bytes;
+      final bytes = files.isEmpty ? null : await files.single.readAsBytes();
       if (bytes == null) return;
       final entries = csvToLogCompanions(utf8.decode(bytes));
       if (entries.isEmpty) {
