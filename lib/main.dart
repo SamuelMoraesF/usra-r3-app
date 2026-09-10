@@ -334,10 +334,12 @@ class _HomePageState extends State<HomePage> {
   final station = TextEditingController(text: 'P');
   final traffic = TextEditingController(text: 'S');
   int _mapFocusRequest = 0;
+  String _lastMapFocusGrid = '';
 
   @override
   void initState() {
     super.initState();
+    callsign.addListener(_fillFromPreviousContact);
   }
 
   @override
@@ -347,6 +349,7 @@ class _HomePageState extends State<HomePage> {
 
   @override
   void dispose() {
+    callsign.removeListener(_fillFromPreviousContact);
     for (final c in [callsign, operator, location, power, station, traffic]) {
       c.dispose();
     }
@@ -513,7 +516,7 @@ class _HomePageState extends State<HomePage> {
         child: OfflineContactsMap(
           entries: snapshot.data ?? const [],
           operatorGrid: widget.profile.grid,
-          focusGrid: location.text.trim(),
+          focusGrid: _lastMapFocusGrid,
           focusRequest: _mapFocusRequest,
           maxAgeHours: widget.mapMaxAgeHours,
           mergePrecision: widget.mergePrecision,
@@ -538,9 +541,31 @@ class _HomePageState extends State<HomePage> {
       traffic: traffic.text.trim().toUpperCase(),
     );
     if (mounted) {
-      setState(() => _mapFocusRequest++);
-      power.clear();
+      setState(() {
+        _lastMapFocusGrid = savedLocation;
+        _mapFocusRequest++;
+        callsign.clear();
+        operator.clear();
+        location.clear();
+        power.clear();
+        station.text = 'P';
+        traffic.text = 'S';
+      });
     }
+  }
+
+  Future<void> _fillFromPreviousContact() async {
+    final value = callsign.text.trim().toUpperCase();
+    if (value.isEmpty) return;
+    final latest = await widget.database.latestLogForCallsign(value);
+    if (!mounted || callsign.text.trim().toUpperCase() != value || latest == null) {
+      return;
+    }
+    operator.text = latest.operatorName;
+    location.text = latest.location;
+    power.text = latest.powerWatts.toString();
+    station.text = latest.stationType;
+    traffic.text = latest.traffic;
   }
 
   String _formatDate(DateTime value) {

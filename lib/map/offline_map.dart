@@ -130,7 +130,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
       await map.addCircle(CircleOptions(
         geometry: LatLng(operatorBounds.centerLatitude, operatorBounds.centerLongitude),
         circleColor: '#DC2626',
-        circleRadius: 10,
+        circleRadius: 7,
         circleBlur: 0,
         circleOpacity: 1,
         circleStrokeColor: '#FFFFFF',
@@ -145,7 +145,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
       final circle = await map.addCircle(CircleOptions(
         geometry: LatLng(bounds.centerLatitude, bounds.centerLongitude),
         circleColor: '#2563EB',
-        circleRadius: 3.5,
+        circleRadius: 5,
         circleBlur: 0,
         circleOpacity: 1,
         circleStrokeColor: '#FFFFFF',
