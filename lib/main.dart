@@ -10,6 +10,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
 
 import 'data/database.dart';
 import 'data/csv_transfer.dart';
@@ -17,7 +18,10 @@ import 'grid_locator.dart';
 import 'widgets/grid_locator_field.dart';
 import 'map/offline_map.dart';
 
-void main() => runApp(const UsraR3App());
+void main() {
+  MapLibreMap.useHybridComposition = true;
+  runApp(const UsraR3App());
+}
 
 enum AppTheme { system, light, dark }
 
@@ -58,6 +62,21 @@ class _UsraR3AppState extends State<UsraR3App> {
       title: 'USRA R3',
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
+      builder: (context, child) {
+        final dark = Theme.of(context).brightness == Brightness.dark;
+        return AnnotatedRegion<SystemUiOverlayStyle>(
+          value: SystemUiOverlayStyle(
+            statusBarColor: Theme.of(context).scaffoldBackgroundColor,
+            statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+            systemNavigationBarColor: Theme.of(context).scaffoldBackgroundColor,
+            systemNavigationBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+          ),
+          child: SafeArea(
+            child: child ?? const SizedBox.shrink(),
+          ),
+        );
+      },
+      ),
       themeMode: switch (theme) {
         AppTheme.system => ThemeMode.system,
         AppTheme.light => ThemeMode.light,

@@ -7,6 +7,8 @@ import '../grid_locator.dart';
 import 'contact_aggregation.dart';
 import 'pmtiles_registration_stub.dart'
     if (dart.library.js_interop) 'pmtiles_registration_web.dart';
+import 'offline_map_style_stub.dart'
+    if (dart.library.io) 'offline_map_style_io.dart';
 
 class OfflineContactsMap extends StatefulWidget {
   const OfflineContactsMap({super.key, required this.entries, required this.operatorGrid, this.focusGrid = '', this.focusRequest = 0, this.mergePrecision = true, this.lastOnly = false, this.maxAgeHours = 24});
@@ -170,4 +172,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
   bool _webReady = false;
 }
 
-Future<String> loadOfflineMapStyle() async => rootBundle.loadString('assets/maps/santa-maria-style.json');
+Future<String> loadOfflineMapStyle() async {
+  final nativeStyle = await prepareNativeOfflineMapStyle();
+  return nativeStyle ?? rootBundle.loadString('assets/maps/santa-maria-style.json');
+}
