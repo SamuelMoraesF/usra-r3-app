@@ -40,7 +40,7 @@ jobs:
         if: matrix.target == 'android'
         with:
           distribution: temurin
-          java-version: '17'
+          java-version: '21'
       - uses: gradle/actions/setup-gradle@v6.3.0
         if: matrix.target == 'android'
       - uses: ./.github/actions/setup

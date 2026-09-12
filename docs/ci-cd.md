@@ -5,6 +5,8 @@ em **Actions → CI**. Pelo CLI: `gh workflow run ci.yml --ref main`.
 Verifica formatação, análise, testes com cobertura, código gerado pelo Drift e
 builds Android debug e web release. Os artefatos ficam disponíveis por 7 dias.
 Flutter está fixado em 3.47.3; ao atualizar, valide também o `pubspec.lock`.
+Os builds Android usam JDK 21, exigido pelo plugin MapLibre, mesmo com o código
+do aplicativo configurado para gerar bytecode Java 17.
 
 ## Distribuir uma versão
 
