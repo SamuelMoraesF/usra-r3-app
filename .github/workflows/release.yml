@@ -8,7 +8,9 @@ permissions:
   contents: read
 concurrency:
   group: release-${{ github.event.release.tag_name || github.ref_name }}
-  cancel-in-progress: false
+  # Creating a release from a pushed tag emits both `push` and `release`
+  # events. Keep only one package job for that tag.
+  cancel-in-progress: true
 jobs:
   package:
     runs-on: ubuntu-latest
