@@ -41,9 +41,9 @@ class UsraDatabase extends _$UsraDatabase {
         // Some early web builds reported schema version 2 before applying
         // this column migration. Check the actual table so those databases
         // are repaired without touching existing log entries.
-        final columns = await m.database.customSelect(
-          'PRAGMA table_info(log_entries)',
-        ).get();
+        final columns = await m.database
+            .customSelect('PRAGMA table_info(log_entries)')
+            .get();
         final hasOperatorGrid = columns.any(
           (row) => row.data['name'] == 'operator_grid',
         );
@@ -78,7 +78,10 @@ class UsraDatabase extends _$UsraDatabase {
   }
 
   Future<bool> deleteLog(int id) async {
-    return await (delete(logEntries)..where((entry) => entry.id.equals(id))).go() > 0;
+    return await (delete(
+          logEntries,
+        )..where((entry) => entry.id.equals(id))).go() >
+        0;
   }
 
   Future<bool> updateLog({
@@ -90,7 +93,9 @@ class UsraDatabase extends _$UsraDatabase {
     required String stationType,
     required String traffic,
   }) async {
-    return await (update(logEntries)..where((entry) => entry.id.equals(id))).write(
+    return await (update(
+          logEntries,
+        )..where((entry) => entry.id.equals(id))).write(
           LogEntriesCompanion(
             callsign: Value(callsign),
             operatorName: Value(operatorName),
@@ -115,9 +120,9 @@ class UsraDatabase extends _$UsraDatabase {
         .getSingleOrNull();
   }
 
-  Future<List<LogEntry>> allLogs() => (select(logEntries)
-        ..orderBy([(entry) => OrderingTerm.asc(entry.createdAt)]))
-      .get();
+  Future<List<LogEntry>> allLogs() => (select(
+    logEntries,
+  )..orderBy([(entry) => OrderingTerm.asc(entry.createdAt)])).get();
 
   Future<void> importLogs(List<LogEntriesCompanion> entries) async {
     await transaction(() async {

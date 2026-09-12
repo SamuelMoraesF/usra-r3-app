@@ -68,7 +68,9 @@ class _UsraR3AppState extends State<UsraR3App> {
             statusBarColor: Colors.transparent,
             statusBarIconBrightness: dark ? Brightness.light : Brightness.dark,
             systemNavigationBarColor: Colors.transparent,
-            systemNavigationBarIconBrightness: dark ? Brightness.light : Brightness.dark,
+            systemNavigationBarIconBrightness: dark
+                ? Brightness.light
+                : Brightness.dark,
             systemStatusBarContrastEnforced: false,
             systemNavigationBarContrastEnforced: false,
           ),
@@ -124,7 +126,9 @@ class _UsraR3AppState extends State<UsraR3App> {
         ),
         enabledBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
-          borderSide: BorderSide(color: dark ? const Color(0xFF3A2A21) : const Color(0xFFEADFD7)),
+          borderSide: BorderSide(
+            color: dark ? const Color(0xFF3A2A21) : const Color(0xFFEADFD7),
+          ),
         ),
         focusedBorder: OutlineInputBorder(
           borderRadius: BorderRadius.circular(10),
@@ -401,176 +405,204 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    resizeToAvoidBottomInset: false,
+    resizeToAvoidBottomInset: true,
     body: LayoutBuilder(
       builder: (context, constraints) {
         final panel = ListView(
-      padding: const EdgeInsets.all(20),
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          padding: const EdgeInsets.all(20),
           children: [
-            Text(
-              'USRA R3',
-              style: Theme.of(context).textTheme.titleLarge?.copyWith(
-                fontWeight: FontWeight.w700,
-              ),
-            ),
-            IconButton(
-              onPressed: widget.onOpenSettings,
-              icon: const Icon(Icons.settings_outlined),
-              tooltip: 'Configurações',
-            ),
-          ],
-        ),
-        const SizedBox(height: 8),
-        Text(
-          'Novo contato',
-          style: Theme.of(
-            context,
-          ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
-        ),
-        const SizedBox(height: 6),
-        Text(
-          'Registre uma comunicação rapidamente.',
-          style: TextStyle(
-            color: Theme.of(context).colorScheme.onSurfaceVariant,
-          ),
-        ),
-        const SizedBox(height: 22),
-        Form(
-          key: formKey,
-          child: Column(
-            children: [
-              TextFormField(
-                controller: callsign,
-                focusNode: _callsignFocusNode,
-                textCapitalization: TextCapitalization.characters,
-                inputFormatters: [UpperCaseFormatter()],
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(labelText: 'Indicativo'),
-                validator: _required,
-              ),
-              const SizedBox(height: 12),
-              TextFormField(
-                controller: operator,
-                textInputAction: TextInputAction.next,
-                decoration: const InputDecoration(
-                  labelText: 'Nome do operador',
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Text(
+                  'USRA R3',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
                 ),
-                validator: _required,
+                IconButton(
+                  onPressed: widget.onOpenSettings,
+                  icon: const Icon(Icons.settings_outlined),
+                  tooltip: 'Configurações',
+                ),
+              ],
+            ),
+            const SizedBox(height: 8),
+            Text(
+              'Novo contato',
+              style: Theme.of(
+                context,
+              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 6),
+            Text(
+              'Registre uma comunicação rapidamente.',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
               ),
-              const SizedBox(height: 12),
-              GridLocatorField(controller: location, allowInvalid: true),
-              const SizedBox(height: 12),
-              Row(
-                crossAxisAlignment: CrossAxisAlignment.start,
+            ),
+            const SizedBox(height: 22),
+            Form(
+              key: formKey,
+              child: Column(
                 children: [
-                  Expanded(
-                    child: TextFormField(
-                      controller: power,
-                      keyboardType: const TextInputType.numberWithOptions(
-                        decimal: true,
+                  TextFormField(
+                    controller: callsign,
+                    focusNode: _callsignFocusNode,
+                    textCapitalization: TextCapitalization.characters,
+                    inputFormatters: [UpperCaseFormatter()],
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(labelText: 'Indicativo'),
+                    validator: _required,
+                  ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: operator,
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(
+                      labelText: 'Nome do operador',
+                    ),
+                    validator: _required,
+                  ),
+                  const SizedBox(height: 12),
+                  GridLocatorField(controller: location, allowInvalid: true),
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: power,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          inputFormatters: [PowerFormatter()],
+                          textInputAction: TextInputAction.next,
+                          decoration: const InputDecoration(
+                            labelText: 'Potência (W)',
+                          ),
+                          validator: _required,
+                        ),
                       ),
-                      inputFormatters: [PowerFormatter()],
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(labelText: 'Potência (W)'),
-                      validator: _required,
-                    ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _ChoiceField(
+                          controller: station,
+                          label: 'Estação',
+                          values: const {
+                            'P': 'Portátil',
+                            'M': 'Móvel',
+                            'F': 'Fixa',
+                          },
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _ChoiceField(
+                          controller: traffic,
+                          label: 'Tráfego',
+                          values: const {
+                            'S': 'Sem tráfego',
+                            'C': 'Com tráfego',
+                          },
+                          onSubmitted: (_) => _register(),
+                        ),
+                      ),
+                    ],
                   ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _ChoiceField(
-                      controller: station,
-                      label: 'Estação',
-                      values: const {'P': 'Portátil', 'M': 'Móvel', 'F': 'Fixa'},
-                    ),
-                  ),
-                  const SizedBox(width: 8),
-                  Expanded(
-                    child: _ChoiceField(
-                      controller: traffic,
-                      label: 'Tráfego',
-                      values: const {'S': 'Sem tráfego', 'C': 'Com tráfego'},
-                      onSubmitted: (_) => _register(),
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: _register,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Registrar log'),
                     ),
                   ),
                 ],
               ),
-              const SizedBox(height: 18),
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: _register,
-                  icon: const Icon(Icons.add),
-                  label: const Text('Registrar log'),
-                ),
-              ),
-            ],
-          ),
-        ),
-        const SizedBox(height: 28),
-        StreamBuilder<List<LogEntry>>(
-          stream: widget.database.watchLogs(),
-          builder: (context, snapshot) {
-            final entries = snapshot.data ?? const <LogEntry>[];
-            if (entries.isEmpty) return const SizedBox.shrink();
-            return Column(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                Text(
-                  'Registros salvos',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
-                  ),
-                ),
-                const SizedBox(height: 8),
-                ...entries.map(
-                  (entry) => Card(
-                    margin: const EdgeInsets.only(bottom: 8),
-                    elevation: 0,
-                    shape: RoundedRectangleBorder(
-                      borderRadius: BorderRadius.circular(14),
-                      side: BorderSide(color: Theme.of(context).dividerColor.withValues(alpha: 0.55)),
-                    ),
-                    child: ListTile(
-                      contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 4),
-                      title: Text(
-                        '${entry.callsign} · ${entry.operatorName}',
-                        style: const TextStyle(fontWeight: FontWeight.w700),
+            ),
+            const SizedBox(height: 28),
+            StreamBuilder<List<LogEntry>>(
+              stream: widget.database.watchLogs(),
+              builder: (context, snapshot) {
+                final entries = snapshot.data ?? const <LogEntry>[];
+                if (entries.isEmpty) return const SizedBox.shrink();
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    Text(
+                      'Registros salvos',
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                        fontWeight: FontWeight.w700,
                       ),
-                      subtitle: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text(
-                            '${entry.location} · ${entry.powerWatts} W · ${entry.stationType} · ${entry.traffic}',
-                            style: TextStyle(color: Theme.of(context).colorScheme.onSurfaceVariant, height: 1.35),
+                    ),
+                    const SizedBox(height: 8),
+                    ...entries.map(
+                      (entry) => Card(
+                        margin: const EdgeInsets.only(bottom: 8),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(14),
+                          side: BorderSide(
+                            color: Theme.of(
+                              context,
+                            ).dividerColor.withValues(alpha: 0.55),
                           ),
-                          const SizedBox(height: 4),
-                          _contactMeta(entry),
-                        ],
-                      ),
-                      trailing: PopupMenuButton<_LogAction>(
-                        icon: const Icon(Icons.more_vert),
-                        onSelected: (action) => switch (action) {
-                          _LogAction.edit => _editLog(entry),
-                          _LogAction.delete => _deleteLog(entry),
-                        },
-                        itemBuilder: (_) => const [
-                          PopupMenuItem(value: _LogAction.edit, child: Text('Editar')),
-                          PopupMenuItem(value: _LogAction.delete, child: Text('Remover')),
-                        ],
+                        ),
+                        child: ListTile(
+                          contentPadding: const EdgeInsets.symmetric(
+                            horizontal: 14,
+                            vertical: 4,
+                          ),
+                          title: Text(
+                            '${entry.callsign} · ${entry.operatorName}',
+                            style: const TextStyle(fontWeight: FontWeight.w700),
+                          ),
+                          subtitle: Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Text(
+                                '${entry.location} · ${entry.powerWatts} W · ${entry.stationType} · ${entry.traffic}',
+                                style: TextStyle(
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                  height: 1.35,
+                                ),
+                              ),
+                              const SizedBox(height: 4),
+                              _contactMeta(entry),
+                            ],
+                          ),
+                          trailing: PopupMenuButton<_LogAction>(
+                            icon: const Icon(Icons.more_vert),
+                            onSelected: (action) => switch (action) {
+                              _LogAction.edit => _editLog(entry),
+                              _LogAction.delete => _deleteLog(entry),
+                            },
+                            itemBuilder: (_) => const [
+                              PopupMenuItem(
+                                value: _LogAction.edit,
+                                child: Text('Editar'),
+                              ),
+                              PopupMenuItem(
+                                value: _LogAction.delete,
+                                child: Text('Remover'),
+                              ),
+                            ],
+                          ),
+                        ),
                       ),
                     ),
-                  ),
-                ),
-              ],
-            );
-          },
-        ),
-      ],
-    );
-        final showMap = kIsWeb ||
+                  ],
+                );
+              },
+            ),
+          ],
+        );
+        final showMap =
+            kIsWeb ||
             defaultTargetPlatform == TargetPlatform.android ||
             defaultTargetPlatform == TargetPlatform.iOS;
         if (!showMap) return panel;
@@ -583,7 +615,24 @@ class _HomePageState extends State<HomePage> {
             ],
           );
         }
-        return Column(children: [Expanded(child: map), SizedBox(height: 390, child: panel)]);
+        final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+        final keyboardOpen = keyboardInset > 0;
+        final availableHeight = constraints.maxHeight + keyboardInset;
+        final panelHeight = 390.0.clamp(0.0, availableHeight * 0.65);
+        return Column(
+          children: [
+            // Keep the map mounted and at its original size while typing so
+            // dismissing the keyboard restores the same camera and zoom.
+            Offstage(
+              offstage: keyboardOpen,
+              child: SizedBox(
+                height: availableHeight - panelHeight,
+                child: map,
+              ),
+            ),
+            Expanded(child: panel),
+          ],
+        );
       },
     ),
   );
@@ -646,7 +695,9 @@ class _HomePageState extends State<HomePage> {
     final value = callsign.text.trim().toUpperCase();
     if (value.isEmpty) return;
     final latest = await widget.database.latestLogForCallsign(value);
-    if (!mounted || callsign.text.trim().toUpperCase() != value || latest == null) {
+    if (!mounted ||
+        callsign.text.trim().toUpperCase() != value ||
+        latest == null) {
       return;
     }
     operator.text = latest.operatorName;
@@ -673,10 +724,14 @@ class _HomePageState extends State<HomePage> {
     final lat2 = operatorLocation.centerLatitude * math.pi / 180;
     final deltaLat = lat2 - lat1;
     final deltaLon =
-        (operatorLocation.centerLongitude - contact.centerLongitude) * math.pi / 180;
-    final a = math.pow(math.sin(deltaLat / 2), 2) +
+        (operatorLocation.centerLongitude - contact.centerLongitude) *
+        math.pi /
+        180;
+    final a =
+        math.pow(math.sin(deltaLat / 2), 2) +
         math.cos(lat1) * math.cos(lat2) * math.pow(math.sin(deltaLon / 2), 2);
-    final distance = earthRadiusMeters * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
+    final distance =
+        earthRadiusMeters * 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a));
     if (distance < 1000) return '${distance.round()}m';
     final kilometers = distance / 1000;
     final value = kilometers == kilometers.roundToDouble()
@@ -702,12 +757,14 @@ class _HomePageState extends State<HomePage> {
     items.addAll([
       Icon(Icons.schedule, size: 15, color: color),
       const SizedBox(width: 3),
-      Flexible(child: Text(_formatDate(entry.createdAt), overflow: TextOverflow.ellipsis)),
+      Flexible(
+        child: Text(
+          _formatDate(entry.createdAt),
+          overflow: TextOverflow.ellipsis,
+        ),
+      ),
     ]);
-    return Row(
-      mainAxisSize: MainAxisSize.min,
-      children: items,
-    );
+    return Row(mainAxisSize: MainAxisSize.min, children: items);
   }
 
   Future<void> _deleteLog(LogEntry entry) async {
@@ -715,10 +772,18 @@ class _HomePageState extends State<HomePage> {
       context: context,
       builder: (dialogContext) => AlertDialog(
         title: const Text('Remover contato?'),
-        content: Text('O registro de ${entry.callsign} será removido permanentemente.'),
+        content: Text(
+          'O registro de ${entry.callsign} será removido permanentemente.',
+        ),
         actions: [
-          TextButton(onPressed: () => Navigator.pop(dialogContext, false), child: const Text('Cancelar')),
-          FilledButton(onPressed: () => Navigator.pop(dialogContext, true), child: const Text('Remover')),
+          TextButton(
+            onPressed: () => Navigator.pop(dialogContext, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(dialogContext, true),
+            child: const Text('Remover'),
+          ),
         ],
       ),
     );
@@ -741,33 +806,86 @@ class _HomePageState extends State<HomePage> {
           content: SingleChildScrollView(
             child: Form(
               key: key,
-              child: Column(mainAxisSize: MainAxisSize.min, children: [
-                TextFormField(controller: callsign, inputFormatters: [UpperCaseFormatter()], decoration: const InputDecoration(labelText: 'Indicativo'), validator: _required),
-                const SizedBox(height: 10),
-                TextFormField(controller: operator, decoration: const InputDecoration(labelText: 'Nome do operador'), validator: _required),
-                const SizedBox(height: 10),
-                GridLocatorField(controller: location, allowInvalid: true),
-                const SizedBox(height: 10),
-                TextFormField(controller: power, inputFormatters: [PowerFormatter()], keyboardType: const TextInputType.numberWithOptions(decimal: true), decoration: const InputDecoration(labelText: 'Potência (W)'), validator: _required),
-                const SizedBox(height: 10),
-                _ChoiceField(controller: station, label: 'Tipo de estação', values: const {'P': 'Portátil', 'M': 'Móvel', 'F': 'Fixa'}),
-                const SizedBox(height: 10),
-                _ChoiceField(controller: traffic, label: 'Tráfego', values: const {'S': 'Sem tráfego', 'C': 'Com tráfego'}),
-              ]),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  TextFormField(
+                    controller: callsign,
+                    inputFormatters: [UpperCaseFormatter()],
+                    decoration: const InputDecoration(labelText: 'Indicativo'),
+                    validator: _required,
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: operator,
+                    decoration: const InputDecoration(
+                      labelText: 'Nome do operador',
+                    ),
+                    validator: _required,
+                  ),
+                  const SizedBox(height: 10),
+                  GridLocatorField(controller: location, allowInvalid: true),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: power,
+                    inputFormatters: [PowerFormatter()],
+                    keyboardType: const TextInputType.numberWithOptions(
+                      decimal: true,
+                    ),
+                    decoration: const InputDecoration(
+                      labelText: 'Potência (W)',
+                    ),
+                    validator: _required,
+                  ),
+                  const SizedBox(height: 10),
+                  _ChoiceField(
+                    controller: station,
+                    label: 'Tipo de estação',
+                    values: const {'P': 'Portátil', 'M': 'Móvel', 'F': 'Fixa'},
+                  ),
+                  const SizedBox(height: 10),
+                  _ChoiceField(
+                    controller: traffic,
+                    label: 'Tráfego',
+                    values: const {'S': 'Sem tráfego', 'C': 'Com tráfego'},
+                  ),
+                ],
+              ),
             ),
           ),
           actions: [
-            TextButton(onPressed: () => Navigator.pop(dialogContext), child: const Text('Cancelar')),
-            FilledButton(onPressed: () async {
-              if (!key.currentState!.validate()) return;
-              await widget.database.updateLog(id: entry.id, callsign: callsign.text.trim().toUpperCase(), operatorName: operator.text.trim(), location: location.text.trim(), powerWatts: double.parse(power.text.replaceAll(',', '.')), stationType: station.text.trim().toUpperCase(), traffic: traffic.text.trim().toUpperCase());
-              if (dialogContext.mounted) Navigator.pop(dialogContext);
-            }, child: const Text('Salvar')),
+            TextButton(
+              onPressed: () => Navigator.pop(dialogContext),
+              child: const Text('Cancelar'),
+            ),
+            FilledButton(
+              onPressed: () async {
+                if (!key.currentState!.validate()) return;
+                await widget.database.updateLog(
+                  id: entry.id,
+                  callsign: callsign.text.trim().toUpperCase(),
+                  operatorName: operator.text.trim(),
+                  location: location.text.trim(),
+                  powerWatts: double.parse(power.text.replaceAll(',', '.')),
+                  stationType: station.text.trim().toUpperCase(),
+                  traffic: traffic.text.trim().toUpperCase(),
+                );
+                if (dialogContext.mounted) Navigator.pop(dialogContext);
+              },
+              child: const Text('Salvar'),
+            ),
           ],
         ),
       );
     } finally {
-      for (final controller in [callsign, operator, location, power, station, traffic]) {
+      for (final controller in [
+        callsign,
+        operator,
+        location,
+        power,
+        station,
+        traffic,
+      ]) {
         controller.dispose();
       }
     }
@@ -817,7 +935,15 @@ class _ChoiceField extends StatelessWidget {
 }
 
 class SettingsPage extends StatefulWidget {
-  const SettingsPage({super.key, required this.profile, required this.theme, required this.mergePrecision, required this.lastOnly, required this.mapMaxAgeHours, required this.database});
+  const SettingsPage({
+    super.key,
+    required this.profile,
+    required this.theme,
+    required this.mergePrecision,
+    required this.lastOnly,
+    required this.mapMaxAgeHours,
+    required this.database,
+  });
   final OperatorProfile profile;
   final AppTheme theme;
   final bool mergePrecision;
@@ -836,7 +962,9 @@ class _SettingsPageState extends State<SettingsPage> {
   bool locating = false;
   late bool mergePrecision = widget.mergePrecision;
   late bool lastOnly = widget.lastOnly;
-  late final maxAgeHours = TextEditingController(text: widget.mapMaxAgeHours.toString());
+  late final maxAgeHours = TextEditingController(
+    text: widget.mapMaxAgeHours.toString(),
+  );
   @override
   void dispose() {
     callsign.dispose();
@@ -871,14 +999,18 @@ class _SettingsPageState extends State<SettingsPage> {
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('Agrupar grids de precisões diferentes'),
-          subtitle: const Text('Usa o grid mais preciso para a mesma área e indicativo.'),
+          subtitle: const Text(
+            'Usa o grid mais preciso para a mesma área e indicativo.',
+          ),
           value: mergePrecision,
           onChanged: (value) => setState(() => mergePrecision = value),
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('Mostrar somente o último contato por pessoa'),
-          subtitle: const Text('Exibe apenas um marcador para cada indicativo.'),
+          subtitle: const Text(
+            'Exibe apenas um marcador para cada indicativo.',
+          ),
           value: lastOnly,
           onChanged: (value) => setState(() => lastOnly = value),
         ),
@@ -888,7 +1020,8 @@ class _SettingsPageState extends State<SettingsPage> {
           keyboardType: TextInputType.number,
           decoration: const InputDecoration(
             labelText: 'Exibir contatos das últimas (horas)',
-            helperText: 'Contatos mais antigos continuam salvos, mas não aparecem no mapa.',
+            helperText:
+                'Contatos mais antigos continuam salvos, mas não aparecem no mapa.',
           ),
         ),
         const SizedBox(height: 12),
@@ -923,7 +1056,9 @@ class _SettingsPageState extends State<SettingsPage> {
         const SizedBox(height: 18),
         Text(
           'Dados do logbook',
-          style: Theme.of(context).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
         ),
         const SizedBox(height: 8),
         OutlinedButton.icon(
@@ -935,7 +1070,9 @@ class _SettingsPageState extends State<SettingsPage> {
         OutlinedButton.icon(
           onPressed: _importing ? null : _importCsv,
           icon: const Icon(Icons.file_download_outlined),
-          label: Text(_importing ? 'Importando...' : 'Importar registros de CSV'),
+          label: Text(
+            _importing ? 'Importando...' : 'Importar registros de CSV',
+          ),
         ),
         const SizedBox(height: 18),
         FilledButton(onPressed: _save, child: const Text('Salvar alterações')),
@@ -947,14 +1084,18 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _exportCsv() async {
     try {
       final csv = logsToCsv(await widget.database.allLogs());
-      await SharePlus.instance.share(ShareParams(
-        files: [XFile.fromData(
-          Uint8List.fromList(utf8.encode(csv)),
-          mimeType: 'text/csv',
-          name: 'usra-r3-logbook.csv',
-        )],
-        subject: 'USRA R3 logbook',
-      ));
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [
+            XFile.fromData(
+              Uint8List.fromList(utf8.encode(csv)),
+              mimeType: 'text/csv',
+              name: 'usra-r3-logbook.csv',
+            ),
+          ],
+          subject: 'USRA R3 logbook',
+        ),
+      );
     } catch (error) {
       if (mounted) _showTransferError(error);
     }
@@ -976,7 +1117,9 @@ class _SettingsPageState extends State<SettingsPage> {
       await widget.database.importLogs(entries);
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
-          SnackBar(content: Text('${entries.length} registro(s) importado(s).')),
+          SnackBar(
+            content: Text('${entries.length} registro(s) importado(s).'),
+          ),
         );
       }
     } catch (error) {
@@ -987,9 +1130,9 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _showTransferError(Object error) {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(content: Text('Falha na transferência: $error')),
-    );
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text('Falha na transferência: $error')));
   }
 
   void _save() => Navigator.pop(
@@ -1003,7 +1146,10 @@ class _SettingsPageState extends State<SettingsPage> {
       theme,
       mergePrecision,
       lastOnly,
-      math.max(1, int.tryParse(maxAgeHours.text.trim()) ?? widget.mapMaxAgeHours),
+      math.max(
+        1,
+        int.tryParse(maxAgeHours.text.trim()) ?? widget.mapMaxAgeHours,
+      ),
     ),
   );
   Future<void> _useGps() async {
@@ -1031,7 +1177,13 @@ class _SettingsPageState extends State<SettingsPage> {
 }
 
 class _SettingsResult {
-  const _SettingsResult(this.profile, this.theme, this.mergePrecision, this.lastOnly, this.mapMaxAgeHours);
+  const _SettingsResult(
+    this.profile,
+    this.theme,
+    this.mergePrecision,
+    this.lastOnly,
+    this.mapMaxAgeHours,
+  );
   final OperatorProfile profile;
   final AppTheme theme;
   final bool mergePrecision;

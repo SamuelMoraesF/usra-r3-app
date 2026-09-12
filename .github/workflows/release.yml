@@ -1,0 +1,91 @@
+name: Release
+on:
+  push:
+    tags: ['v*']
+  release:
+    types: [published]
+permissions:
+  contents: read
+concurrency:
+  group: release-${{ github.event.release.tag_name || github.ref_name }}
+  cancel-in-progress: false
+jobs:
+  package:
+    runs-on: ubuntu-latest
+    timeout-minutes: 45
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.release.tag_name || github.ref_name }}
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+      - uses: ./.github/actions/setup
+      - name: Validate version
+        env:
+          RELEASE_TAG: ${{ github.event.release.tag_name || github.ref_name }}
+        run: |
+          python3 tool/release_version.py "$RELEASE_TAG" >> "$GITHUB_ENV"
+      - run: flutter analyze --fatal-infos
+      - run: flutter test
+      - name: Build signed APK
+        env:
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          : "${ANDROID_KEYSTORE_BASE64:?Missing signing secret}"
+          : "${ANDROID_KEYSTORE_PASSWORD:?Missing signing secret}"
+          : "${ANDROID_KEY_ALIAS:?Missing signing secret}"
+          : "${ANDROID_KEY_PASSWORD:?Missing signing secret}"
+          export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/release.jks"
+          trap 'rm -f "$ANDROID_KEYSTORE_PATH"' EXIT
+          umask 077
+          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_PATH"
+          flutter build apk --release --build-name="$RELEASE_VERSION" --build-number="$RELEASE_BUILD"
+          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
+          "$APKSIGNER" verify --verbose build/app/outputs/flutter-apk/app-release.apk
+      - run: flutter build web --release --build-name="$RELEASE_VERSION" --build-number="$RELEASE_BUILD"
+      - name: Package web, source and APK
+        run: |
+          mkdir -p dist/bundle/web dist/bundle/source
+          cp -a build/web/. dist/bundle/web/
+          git archive HEAD | tar -x -C dist/bundle/source
+          cp build/app/outputs/flutter-apk/app-release.apk dist/usra-r3-app.apk
+          cp dist/usra-r3-app.apk dist/bundle/
+          (cd dist/bundle && zip -qr ../usra-r3-app.zip .)
+          (cd dist && sha256sum usra-r3-app.apk usra-r3-app.zip > SHA256SUMS)
+      - uses: actions/upload-artifact@v4
+        with:
+          name: release-files
+          path: |
+            dist/usra-r3-app.apk
+            dist/usra-r3-app.zip
+            dist/SHA256SUMS
+          retention-days: 7
+          if-no-files-found: error
+  publish:
+    needs: package
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: release-files
+          path: dist
+      - name: Attach packages to release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ github.event.release.tag_name || github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: |
+            dist/usra-r3-app.apk
+            dist/usra-r3-app.zip
+            dist/SHA256SUMS

@@ -30,7 +30,9 @@ String logsToCsv(List<LogEntry> entries) {
 
 List<LogEntriesCompanion> csvToLogCompanions(String source) {
   final rows = _parseCsv(source);
-  if (rows.isEmpty || rows.first.map(_normalizeHeader).toList().join(',') != csvHeaders.join(',')) {
+  if (rows.isEmpty ||
+      rows.first.map(_normalizeHeader).toList().join(',') !=
+          csvHeaders.join(',')) {
     throw const FormatException('Cabeçalho CSV inválido.');
   }
   final result = <LogEntriesCompanion>[];
@@ -45,16 +47,18 @@ List<LogEntriesCompanion> csvToLogCompanions(String source) {
     if (createdAt == null || power == null || row[1].trim().isEmpty) {
       throw FormatException('Dados inválidos na linha ${index + 1}.');
     }
-    result.add(LogEntriesCompanion.insert(
-      createdAt: createdAt.toUtc(),
-      callsign: row[1].trim().toUpperCase(),
-      operatorName: row[2].trim(),
-      location: row[3].trim(),
-      operatorGrid: row[4].trim().toUpperCase(),
-      powerWatts: power,
-      stationType: row[6].trim().toUpperCase(),
-      traffic: row[7].trim().toUpperCase(),
-    ));
+    result.add(
+      LogEntriesCompanion.insert(
+        createdAt: createdAt.toUtc(),
+        callsign: row[1].trim().toUpperCase(),
+        operatorName: row[2].trim(),
+        location: row[3].trim(),
+        operatorGrid: row[4].trim().toUpperCase(),
+        powerWatts: power,
+        stationType: row[6].trim().toUpperCase(),
+        traffic: row[7].trim().toUpperCase(),
+      ),
+    );
   }
   return result;
 }
@@ -84,7 +88,11 @@ List<List<String>> _parseCsv(String source) {
       row.add(field.toString());
       field = StringBuffer();
     } else if ((character == '\n' || character == '\r') && !quoted) {
-      if (character == '\r' && index + 1 < source.length && source[index + 1] == '\n') index++;
+      if (character == '\r' &&
+          index + 1 < source.length &&
+          source[index + 1] == '\n') {
+        index++;
+      }
       row.add(field.toString());
       rows.add(row);
       row = <String>[];

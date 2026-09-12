@@ -5,6 +5,8 @@ Radioamadores na rede R3 de emergência.
 
 ## Desenvolvimento
 
+Para CI, releases e backup da chave Android, consulte [CI/CD](docs/ci-cd.md).
+
 ```bash
 flutter pub get
 flutter run

@@ -12,9 +12,11 @@ Future<String?> prepareNativeOfflineMapStyle() async {
     await mapFile.writeAsBytes(data.buffer.asUint8List(), flush: true);
   }
 
-  final style = jsonDecode(
-    await rootBundle.loadString('assets/maps/santa-maria-style.json'),
-  ) as Map<String, dynamic>;
+  final style =
+      jsonDecode(
+            await rootBundle.loadString('assets/maps/santa-maria-style.json'),
+          )
+          as Map<String, dynamic>;
   final sources = style['sources'] as Map<String, dynamic>;
   final basemap = sources['basemap'] as Map<String, dynamic>;
   basemap['url'] = 'pmtiles://file://${mapFile.path}';

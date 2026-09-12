@@ -1,0 +1,12 @@
+name: Flutter setup
+description: Install the pinned Flutter SDK and dependencies
+runs:
+  using: composite
+  steps:
+    - uses: subosito/flutter-action@v2
+      with:
+        flutter-version: '3.47.3'
+        channel: stable
+        cache: true
+    - shell: bash
+      run: flutter pub get --enforce-lockfile
