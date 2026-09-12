@@ -596,6 +596,7 @@ class _HomePageState extends State<HomePage> {
         borderRadius: BorderRadius.circular(12),
         child: OfflineContactsMap(
           entries: snapshot.data ?? const [],
+          entriesLoaded: snapshot.hasData,
           operatorGrid: widget.profile.grid,
           focusGrid: _lastMapFocusGrid,
           focusRequest: _mapFocusRequest,

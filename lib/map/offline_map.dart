@@ -5,13 +5,24 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 import '../data/database.dart';
 import '../grid_locator.dart';
 import 'contact_aggregation.dart';
+import 'map_palette.dart';
 import 'pmtiles_registration_stub.dart'
     if (dart.library.js_interop) 'pmtiles_registration_web.dart';
 import 'offline_map_style_stub.dart'
     if (dart.library.io) 'offline_map_style_io.dart';
 
 class OfflineContactsMap extends StatefulWidget {
-  const OfflineContactsMap({super.key, required this.entries, required this.operatorGrid, this.focusGrid = '', this.focusRequest = 0, this.mergePrecision = true, this.lastOnly = false, this.maxAgeHours = 24});
+  const OfflineContactsMap({
+    super.key,
+    required this.entries,
+    required this.operatorGrid,
+    this.focusGrid = '',
+    this.focusRequest = 0,
+    this.mergePrecision = true,
+    this.lastOnly = false,
+    this.maxAgeHours = 24,
+    this.entriesLoaded = true,
+  });
   final List<LogEntry> entries;
   final String operatorGrid;
   final String focusGrid;
@@ -19,6 +30,7 @@ class OfflineContactsMap extends StatefulWidget {
   final bool mergePrecision;
   final bool lastOnly;
   final int maxAgeHours;
+  final bool entriesLoaded;
 
   @override
   State<OfflineContactsMap> createState() => _OfflineContactsMapState();
@@ -27,6 +39,22 @@ class OfflineContactsMap extends StatefulWidget {
 class _OfflineContactsMapState extends State<OfflineContactsMap> {
   MapLibreMapController? controller;
   List<MapContact> contacts = const [];
+  ColorScheme? _mapColors;
+  bool _styleReady = false;
+  bool _initialCameraSet = false;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final colors = Theme.of(context).colorScheme;
+    if (_mapColors == colors) return;
+    _mapColors = colors;
+    final source = _sourceStyle;
+    if (source != null) {
+      _styleReady = false;
+      _cachedStyle = themedMapStyle(source, colors);
+    }
+  }
 
   @override
   void initState() {
@@ -40,12 +68,61 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
   void didUpdateWidget(covariant OfflineContactsMap oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (oldWidget.focusRequest != widget.focusRequest) {
+      _initialCameraSet = true;
       _animateToGrid(widget.focusGrid);
     }
-    if (oldWidget.entries != widget.entries || oldWidget.operatorGrid != widget.operatorGrid || oldWidget.mergePrecision != widget.mergePrecision || oldWidget.lastOnly != widget.lastOnly || oldWidget.maxAgeHours != widget.maxAgeHours) {
+    if (oldWidget.entries != widget.entries ||
+        oldWidget.operatorGrid != widget.operatorGrid ||
+        oldWidget.mergePrecision != widget.mergePrecision ||
+        oldWidget.lastOnly != widget.lastOnly ||
+        oldWidget.maxAgeHours != widget.maxAgeHours) {
       _refreshContacts();
       _drawContacts();
     }
+    _fitInitialPoints();
+  }
+
+  Future<void> _fitInitialPoints() async {
+    final map = controller;
+    if (map == null ||
+        !mounted ||
+        !_styleReady ||
+        !widget.entriesLoaded ||
+        _initialCameraSet) {
+      return;
+    }
+    _initialCameraSet = true;
+    final bounds = [
+      GridLocator.bounds(widget.operatorGrid),
+      ...contacts.map((contact) => contact.bounds),
+    ].nonNulls.toList();
+    if (bounds.isEmpty) return;
+    var south = bounds.first.centerLatitude;
+    var north = south;
+    var west = bounds.first.centerLongitude;
+    var east = west;
+    for (final point in bounds.skip(1)) {
+      if (point.centerLatitude < south) south = point.centerLatitude;
+      if (point.centerLatitude > north) north = point.centerLatitude;
+      if (point.centerLongitude < west) west = point.centerLongitude;
+      if (point.centerLongitude > east) east = point.centerLongitude;
+    }
+    if (south == north && west == east) {
+      await map.moveCamera(CameraUpdate.newLatLngZoom(LatLng(south, west), 13));
+      return;
+    }
+    await map.moveCamera(
+      CameraUpdate.newLatLngBounds(
+        LatLngBounds(
+          southwest: LatLng(south, west),
+          northeast: LatLng(north, east),
+        ),
+        left: 80,
+        top: 80,
+        right: 80,
+        bottom: 80,
+      ),
+    );
   }
 
   Future<void> _animateToGrid(String value) async {
@@ -61,9 +138,17 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
   }
 
   void _refreshContacts() {
-    final cutoff = DateTime.now().toUtc().subtract(Duration(hours: widget.maxAgeHours));
-    final visibleEntries = widget.entries.where((entry) => !entry.createdAt.isBefore(cutoff)).toList();
-    contacts = aggregateMapContacts(visibleEntries, mergePrecision: widget.mergePrecision, lastOnlyByCallsign: widget.lastOnly);
+    final cutoff = DateTime.now().toUtc().subtract(
+      Duration(hours: widget.maxAgeHours),
+    );
+    final visibleEntries = widget.entries
+        .where((entry) => !entry.createdAt.isBefore(cutoff))
+        .toList();
+    contacts = aggregateMapContacts(
+      visibleEntries,
+      mergePrecision: widget.mergePrecision,
+      lastOnlyByCallsign: widget.lastOnly,
+    );
   }
 
   @override
@@ -74,8 +159,11 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
     }
     return MapLibreMap(
       styleString: style,
-      initialCameraPosition: const CameraPosition(target: LatLng(-29.6868, -53.8069), zoom: 12),
-      minMaxZoomPreference: const MinMaxZoomPreference(12, 15),
+      initialCameraPosition: const CameraPosition(
+        target: LatLng(-29.6868, -53.8069),
+        zoom: 12,
+      ),
+      minMaxZoomPreference: const MinMaxZoomPreference(8, 15),
       cameraTargetBounds: CameraTargetBounds(
         LatLngBounds(
           southwest: const LatLng(-30.15, -54.00),
@@ -85,7 +173,11 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
       compassEnabled: true,
       myLocationEnabled: false,
       onMapCreated: _onMapCreated,
-      onStyleLoadedCallback: _drawContacts,
+      onStyleLoadedCallback: () {
+        _styleReady = true;
+        _drawContacts();
+        _fitInitialPoints();
+      },
     );
   }
 
@@ -103,7 +195,11 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
 
   Future<void> _loadStyle() async {
     final style = await loadOfflineMapStyle();
-    if (mounted) setState(() => _cachedStyle = style);
+    if (!mounted) return;
+    setState(() {
+      _sourceStyle = style;
+      _cachedStyle = themedMapStyle(style, _mapColors!);
+    });
   }
 
   Future<void> _prepareWeb() async {
@@ -114,35 +210,44 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
 
   Future<void> _drawContacts() async {
     final map = controller;
-    if (map == null || !mounted) return;
+    if (map == null || !mounted || !_styleReady) return;
+    final colors = _mapColors!;
     await map.clearCircles();
     final operatorBounds = GridLocator.bounds(widget.operatorGrid);
     if (operatorBounds != null) {
-      await map.addCircle(CircleOptions(
-        geometry: LatLng(operatorBounds.centerLatitude, operatorBounds.centerLongitude),
-        circleColor: '#F36F21',
-        circleRadius: 7,
-        circleBlur: 0,
-        circleOpacity: 1,
-        circleStrokeColor: '#FFFFFF',
-        circleStrokeWidth: 2,
-        circleStrokeOpacity: 1,
-      ));
+      await map.addCircle(
+        CircleOptions(
+          geometry: LatLng(
+            operatorBounds.centerLatitude,
+            operatorBounds.centerLongitude,
+          ),
+          circleColor: mapColor(colors.primary),
+          circleRadius: 8,
+          circleBlur: 0,
+          circleOpacity: 1,
+          circleStrokeColor: mapColor(colors.surface),
+          circleStrokeWidth: 3,
+          circleStrokeOpacity: 1,
+        ),
+      );
     }
     for (var index = 0; index < contacts.length; index++) {
       final contact = contacts[index];
       final bounds = contact.bounds;
       if (bounds == null) continue;
-      final circle = await map.addCircle(CircleOptions(
-        geometry: LatLng(bounds.centerLatitude, bounds.centerLongitude),
-        circleColor: '#B84E18',
-        circleRadius: 5,
-        circleBlur: 0,
-        circleOpacity: 1,
-        circleStrokeColor: '#FFFFFF',
-        circleStrokeWidth: 2,
-        circleStrokeOpacity: 1,
-      ), {'contactIndex': index});
+      final circle = await map.addCircle(
+        CircleOptions(
+          geometry: LatLng(bounds.centerLatitude, bounds.centerLongitude),
+          circleColor: mapColor(colors.tertiary),
+          circleRadius: 6,
+          circleBlur: 0,
+          circleOpacity: 1,
+          circleStrokeColor: mapColor(colors.surface),
+          circleStrokeWidth: 2,
+          circleStrokeOpacity: 1,
+        ),
+        {'contactIndex': index},
+      );
       assert(circle.id.isNotEmpty);
     }
   }
@@ -164,7 +269,16 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
               mainAxisSize: MainAxisSize.min,
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
-                Center(child: Container(width: 36, height: 4, decoration: BoxDecoration(color: colors.outlineVariant, borderRadius: BorderRadius.circular(4)))),
+                Center(
+                  child: Container(
+                    width: 36,
+                    height: 4,
+                    decoration: BoxDecoration(
+                      color: colors.outlineVariant,
+                      borderRadius: BorderRadius.circular(4),
+                    ),
+                  ),
+                ),
                 const SizedBox(height: 18),
                 Row(
                   children: [
@@ -172,15 +286,22 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
                       radius: 24,
                       backgroundColor: colors.primaryContainer,
                       foregroundColor: colors.primary,
-                      child: const Icon(Icons.radio, size: 25),
+                      child: const Icon(Icons.cell_tower, size: 25),
                     ),
                     const SizedBox(width: 12),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text(contact.latest.callsign, style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800)),
-                          Text(contact.latest.operatorName, style: TextStyle(color: colors.onSurfaceVariant)),
+                          Text(
+                            contact.latest.callsign,
+                            style: Theme.of(context).textTheme.titleLarge
+                                ?.copyWith(fontWeight: FontWeight.w800),
+                          ),
+                          Text(
+                            contact.latest.operatorName,
+                            style: TextStyle(color: colors.onSurfaceVariant),
+                          ),
                         ],
                       ),
                     ),
@@ -193,15 +314,41 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
                   children: [
                     _detailChip(Icons.grid_3x3, contact.latest.location),
                     _detailChip(Icons.bolt, '${contact.latest.powerWatts} W'),
-                    _detailChip(Icons.cell_tower, contact.latest.stationType),
-                    _detailChip(Icons.swap_calls, contact.latest.traffic),
+                    _detailChip(Icons.cell_tower, switch (contact
+                        .latest
+                        .stationType
+                        .trim()
+                        .toUpperCase()) {
+                      'P' => 'Portátil',
+                      'M' => 'Móvel',
+                      'F' => 'Fixa',
+                      _ => contact.latest.stationType,
+                    }),
+                    _detailChip(Icons.swap_calls, switch (contact.latest.traffic
+                        .trim()
+                        .toUpperCase()) {
+                      'S' => 'Sem tráfego',
+                      'C' => 'Com tráfego',
+                      _ => contact.latest.traffic,
+                    }),
                   ],
                 ),
                 const SizedBox(height: 16),
-                Text('Histórico do ponto', style: Theme.of(context).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700)),
+                Text(
+                  'Histórico do ponto',
+                  style: Theme.of(
+                    context,
+                  ).textTheme.labelLarge?.copyWith(fontWeight: FontWeight.w700),
+                ),
                 const SizedBox(height: 6),
-                Text('Primeiro contato  ${_formatDate(contact.first.createdAt)}', style: TextStyle(color: colors.onSurfaceVariant)),
-                Text('Último contato     ${_formatDate(contact.last.createdAt)}', style: TextStyle(color: colors.onSurfaceVariant)),
+                Text(
+                  'Primeiro contato: ${_formatDate(contact.first.createdAt)}',
+                  style: TextStyle(color: colors.onSurfaceVariant),
+                ),
+                Text(
+                  'Último contato: ${_formatDate(contact.last.createdAt)}',
+                  style: TextStyle(color: colors.onSurfaceVariant),
+                ),
               ],
             ),
           ),
@@ -225,10 +372,12 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
   }
 
   String? _cachedStyle;
+  String? _sourceStyle;
   bool _webReady = false;
 }
 
 Future<String> loadOfflineMapStyle() async {
   final nativeStyle = await prepareNativeOfflineMapStyle();
-  return nativeStyle ?? rootBundle.loadString('assets/maps/santa-maria-style.json');
+  return nativeStyle ??
+      rootBundle.loadString('assets/maps/santa-maria-style.json');
 }
