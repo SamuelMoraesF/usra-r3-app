@@ -10,6 +10,7 @@ String themedMapStyle(String source, ColorScheme colors) {
   final palette = <String, String>{
     'background': dark ? '#17120F' : '#FFFBF7',
     'water': dark ? '#243E45' : '#BAD8DC',
+    'waterway': dark ? '#243E45' : '#BAD8DC',
     'landuse': dark ? '#283127' : '#E1E8D8',
     'buildings': dark ? '#372B24' : '#EADFD5',
     'roads': dark ? '#665044' : '#FFFFFF',
@@ -71,6 +72,9 @@ String themedMapStyle(String source, ColorScheme colors) {
       },
     });
   }
+  // The PMTiles water source mixes polygons and lines. Keep the geometry
+  // filter in the style and color both layers consistently; applying a fill
+  // layer to stream line features produces malformed-looking water shapes.
   // Land sits below water so mixed polygons cannot tint lakes and rivers.
   final landIndex = layers.indexWhere((layer) => layer['id'] == 'landuse');
   final waterIndex = layers.indexWhere((layer) => layer['id'] == 'water');

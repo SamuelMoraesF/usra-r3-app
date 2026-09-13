@@ -22,6 +22,19 @@ void main() {
       final ids = layers.map((layer) => layer['id']).toList();
       expect(ids.toSet().length, ids.length);
       expect(ids.indexOf('landuse'), lessThan(ids.indexOf('water')));
+      expect(ids.indexOf('water'), lessThan(ids.indexOf('waterway')));
+      expect(ids.indexOf('waterway'), lessThan(ids.indexOf('buildings')));
+      final water = layers.firstWhere((layer) => layer['id'] == 'water');
+      expect(water['filter'], ['==', '\$type', 'Polygon']);
+      final waterway = layers.firstWhere(
+        (layer) => layer['id'] == 'waterway',
+      );
+      expect(waterway['type'], 'line');
+      expect(waterway['filter'], ['==', '\$type', 'LineString']);
+      expect(
+        waterway['paint']['line-color'],
+        brightness == Brightness.dark ? '#243E45' : '#BAD8DC',
+      );
       expect(ids.indexOf('road-casing') + 1, ids.indexOf('roads'));
       expect(
         layers.first['paint']['background-color'],

@@ -80,20 +80,25 @@ void main() {
       var prefs = await SharedPreferences.getInstance();
       expect(MapSettings.read(prefs).showLines, isFalse);
       expect(MapSettings.read(prefs).showAll, isFalse);
+      expect(MapSettings.read(prefs).showCompass, isTrue);
       expect(MapSettings.read(prefs).repeaterGrid, defaultRepeaterGrid);
       for (final lines in [true, false]) {
         for (final all in [true, false]) {
-          await MapSettings(
-            showLines: lines,
-            showAll: all,
-            repeaterGrid: oldRepeater,
-          ).save(prefs);
-          prefs = await SharedPreferences.getInstance();
-          await prefs.reload();
-          final restored = MapSettings.read(prefs);
-          expect(restored.showLines, lines);
-          expect(restored.showAll, all);
-          expect(restored.repeaterGrid, oldRepeater);
+          for (final compass in [true, false]) {
+            await MapSettings(
+              showLines: lines,
+              showAll: all,
+              showCompass: compass,
+              repeaterGrid: oldRepeater,
+            ).save(prefs);
+            prefs = await SharedPreferences.getInstance();
+            await prefs.reload();
+            final restored = MapSettings.read(prefs);
+            expect(restored.showLines, lines);
+            expect(restored.showAll, all);
+            expect(restored.showCompass, compass);
+            expect(restored.repeaterGrid, oldRepeater);
+          }
         }
       }
     },

@@ -11,6 +11,7 @@ import 'contact_scene.dart';
 import 'map_settings.dart';
 import 'route_distance.dart';
 import 'map_palette.dart';
+import 'map_compass.dart';
 import 'pmtiles_registration_stub.dart'
     if (dart.library.js_interop) 'pmtiles_registration_web.dart';
 import 'offline_map_style_stub.dart'
@@ -61,6 +62,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
   bool _redrawRequested = false;
   bool _distanceLayerReady = false;
   final _distanceImages = <String, String>{};
+  final _mapBearing = ValueNotifier<double>(0);
 
   @override
   void didChangeDependencies() {
@@ -198,7 +200,10 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
   @override
   void dispose() {
     _expiryTimer?.cancel();
-    controller?.onCircleTapped.remove(_onCircleTapped);
+    final map = controller;
+    map?.onCircleTapped.remove(_onCircleTapped);
+    map?.removeListener(_onMapControllerChanged);
+    _mapBearing.dispose();
     super.dispose();
   }
 
@@ -218,15 +223,18 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
               zoom: 12,
             ),
             minMaxZoomPreference: const MinMaxZoomPreference(8, 15),
+            trackCameraPosition: true,
             cameraTargetBounds: CameraTargetBounds(
               LatLngBounds(
                 southwest: const LatLng(-30.15, -54.00),
                 northeast: const LatLng(-29.55, -53.55),
               ),
             ),
-            compassEnabled: true,
+            compassEnabled: false,
             myLocationEnabled: false,
             onMapCreated: _onMapCreated,
+            onCameraMove: _onCameraMove,
+            onCameraIdle: _onCameraIdle,
             onStyleLoadedCallback: () {
               _distanceLayerReady = false;
               _distanceImages.clear();
@@ -236,6 +244,16 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
             },
           ),
         ),
+        if (widget.settings.showCompass)
+          Positioned(
+            left: 12,
+            bottom: 12,
+            child: ValueListenableBuilder<double>(
+              valueListenable: _mapBearing,
+              builder: (context, bearing, child) =>
+                  MapCompass(bearing: bearing, onTap: _resetMapNorth),
+            ),
+          ),
         Positioned(
           top: 12,
           right: 12,
@@ -256,6 +274,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
                     MapSettings(
                       showLines: !widget.settings.showLines,
                       showAll: widget.settings.showAll,
+                      showCompass: widget.settings.showCompass,
                       repeaterGrid: widget.settings.repeaterGrid,
                     ),
                   ),
@@ -271,6 +290,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
                     MapSettings(
                       showLines: widget.settings.showLines,
                       showAll: !widget.settings.showAll,
+                      showCompass: widget.settings.showCompass,
                       repeaterGrid: widget.settings.repeaterGrid,
                     ),
                   ),
@@ -286,6 +306,50 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
   void _onMapCreated(MapLibreMapController value) {
     controller = value;
     value.onCircleTapped.add(_onCircleTapped);
+    value.addListener(_onMapControllerChanged);
+    _onMapControllerChanged();
+  }
+
+  void _onCameraMove(CameraPosition position) {
+    if (!mounted) return;
+    _updateMapBearing(position.bearing);
+  }
+
+  void _onMapControllerChanged() {
+    if (!mounted) return;
+    final position = controller?.cameraPosition;
+    if (position != null) _updateMapBearing(position.bearing);
+  }
+
+  void _onCameraIdle() {
+    final map = controller;
+    if (!mounted || map == null) return;
+    final cached = map.cameraPosition;
+    if (cached != null) {
+      _updateMapBearing(cached.bearing);
+      return;
+    }
+    // Keep the compass working on platform implementations that do not cache
+    // camera positions unless tracking is enabled.
+    map.queryCameraPosition().then((position) {
+      if (mounted && position != null) _updateMapBearing(position.bearing);
+    });
+  }
+
+  void _updateMapBearing(double rawBearing) {
+    final bearing = normalizeBearing(rawBearing);
+    if ((_mapBearing.value - bearing).abs() >= 0.1) {
+      _mapBearing.value = bearing;
+    }
+  }
+
+  Future<void> _resetMapNorth() async {
+    final map = controller;
+    if (map == null || !mounted) return;
+    await map.animateCamera(
+      CameraUpdate.bearingTo(0),
+      duration: const Duration(milliseconds: 250),
+    );
   }
 
   void _onCircleTapped(Circle circle) {

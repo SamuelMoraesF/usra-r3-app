@@ -222,6 +222,7 @@ class _UsraR3AppState extends State<UsraR3App> {
           lastOnly: lastOnly,
           mapMaxAgeHours: mapMaxAgeHours,
           keepScreenOn: keepScreenOn,
+          showCompass: mapSettings.showCompass,
           database: database,
           repeaterGrid: mapSettings.repeaterGrid,
         ),
@@ -239,6 +240,7 @@ class _UsraR3AppState extends State<UsraR3App> {
         MapSettings(
           showLines: mapSettings.showLines,
           showAll: mapSettings.showAll,
+          showCompass: result.showCompass,
           repeaterGrid: result.repeaterGrid,
         ),
       );
@@ -1530,6 +1532,7 @@ class SettingsPage extends StatefulWidget {
     required this.lastOnly,
     required this.mapMaxAgeHours,
     required this.keepScreenOn,
+    required this.showCompass,
     required this.database,
     this.repeaterGrid = defaultRepeaterGrid,
   });
@@ -1539,6 +1542,7 @@ class SettingsPage extends StatefulWidget {
   final bool lastOnly;
   final int mapMaxAgeHours;
   final bool keepScreenOn;
+  final bool showCompass;
   final UsraDatabase database;
   final String repeaterGrid;
   @override
@@ -1555,6 +1559,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool mergePrecision = widget.mergePrecision;
   late bool lastOnly = widget.lastOnly;
   late bool keepScreenOn = widget.keepScreenOn;
+  late bool showCompass = widget.showCompass;
   late final maxAgeHours = TextEditingController(
     text: widget.mapMaxAgeHours.toString(),
   );
@@ -1616,6 +1621,15 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           value: keepScreenOn,
           onChanged: (value) => setState(() => keepScreenOn = value),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Mostrar bússola no mapa'),
+          subtitle: const Text(
+            'Exibe a bússola e o azimute no canto inferior esquerdo do mapa.',
+          ),
+          value: showCompass,
+          onChanged: (value) => setState(() => showCompass = value),
         ),
         const SizedBox(height: 12),
         TextField(
@@ -1773,6 +1787,7 @@ class _SettingsPageState extends State<SettingsPage> {
           int.tryParse(maxAgeHours.text.trim()) ?? widget.mapMaxAgeHours,
         ),
         keepScreenOn,
+        showCompass,
         GridLocator.inspect(repeaterGrid.text).normalized,
       ),
     );
@@ -1810,6 +1825,7 @@ class _SettingsResult {
     this.lastOnly,
     this.mapMaxAgeHours,
     this.keepScreenOn,
+    this.showCompass,
     this.repeaterGrid,
   );
   final OperatorProfile profile;
@@ -1818,6 +1834,7 @@ class _SettingsResult {
   final bool lastOnly;
   final int mapMaxAgeHours;
   final bool keepScreenOn;
+  final bool showCompass;
   final String repeaterGrid;
 }
 

@@ -9,7 +9,8 @@
   },
   "layers": [
     {"id":"background","type":"background","paint":{"background-color":"#f4efe9"}},
-    {"id":"water","type":"fill","source":"basemap","source-layer":"water","paint":{"fill-color":"#9ed5e3","fill-opacity":0.95}},
+    {"id":"water","type":"fill","source":"basemap","source-layer":"water","filter":["==","$type","Polygon"],"paint":{"fill-color":"#9ed5e3","fill-opacity":0.95}},
+    {"id":"waterway","type":"line","source":"basemap","source-layer":"water","filter":["==","$type","LineString"],"layout":{"line-cap":"round","line-join":"round"},"paint":{"line-color":"#9ed5e3","line-width":["interpolate",["linear"],["zoom"],8,0.8,12,1.2,15,3,17,6],"line-opacity":0.95}},
     {"id":"landuse","type":"fill","source":"basemap","source-layer":"landuse","paint":{"fill-color":"#dce8cf","fill-opacity":0.7}},
     {"id":"buildings","type":"fill","source":"basemap","source-layer":"buildings","minzoom":13,"paint":{"fill-color":"#e3d6cb","fill-opacity":0.8}},
     {"id":"roads","type":"line","source":"basemap","source-layer":"roads","paint":{"line-color":"#fffdf9","line-width":["interpolate",["linear"],["zoom"],8,0.7,14,3.2],"line-opacity":0.95}},
