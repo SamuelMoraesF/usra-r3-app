@@ -26,9 +26,7 @@ void main() {
       expect(ids.indexOf('waterway'), lessThan(ids.indexOf('buildings')));
       final water = layers.firstWhere((layer) => layer['id'] == 'water');
       expect(water['filter'], ['==', '\$type', 'Polygon']);
-      final waterway = layers.firstWhere(
-        (layer) => layer['id'] == 'waterway',
-      );
+      final waterway = layers.firstWhere((layer) => layer['id'] == 'waterway');
       expect(waterway['type'], 'line');
       expect(waterway['filter'], ['==', '\$type', 'LineString']);
       expect(
