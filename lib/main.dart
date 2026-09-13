@@ -446,7 +446,7 @@ class _HomePageState extends State<HomePage> {
 
   @override
   Widget build(BuildContext context) => Scaffold(
-    resizeToAvoidBottomInset: true,
+    resizeToAvoidBottomInset: MediaQuery.sizeOf(context).width < 700,
     body: LayoutBuilder(
       builder: (context, constraints) {
         final panel = ListView(
@@ -483,149 +483,161 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
             const SizedBox(height: 22),
-            Form(
-              key: formKey,
-              child: Column(
-                children: [
-                  SizedBox(
-                    width: double.infinity,
-                    child: SegmentedButton<String>(
-                      segments: const [
-                        ButtonSegment(
-                          value: _repeaterFrequency,
-                          label: _FrequencyLabel('Repetidora', '145.37'),
+            FocusTraversalGroup(
+              child: Focus(
+                onKeyEvent: _handleTabKey,
+                child: Form(
+                  key: formKey,
+                  child: Column(
+                    children: [
+                      SizedBox(
+                        width: double.infinity,
+                        child: SegmentedButton<String>(
+                          segments: const [
+                            ButtonSegment(
+                              value: _repeaterFrequency,
+                              label: _FrequencyLabel('Repetidora', '145.37'),
+                            ),
+                            ButtonSegment(
+                              value: _simplexFrequency,
+                              label: _FrequencyLabel('Simplex', '146.52'),
+                            ),
+                          ],
+                          selected: {frequency},
+                          onSelectionChanged: (value) =>
+                              _setFrequency(value.first),
                         ),
-                        ButtonSegment(
-                          value: _simplexFrequency,
-                          label: _FrequencyLabel('Simplex', '146.52'),
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: callsign,
+                              focusNode: _callsignFocusNode,
+                              textCapitalization: TextCapitalization.characters,
+                              inputFormatters: [UpperCaseFormatter()],
+                              textInputAction: TextInputAction.next,
+                              decoration: const InputDecoration(
+                                labelText: 'Indicativo',
+                              ),
+                              validator: _required,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: TextFormField(
+                              controller: via,
+                              textCapitalization: TextCapitalization.characters,
+                              inputFormatters: [UpperCaseFormatter()],
+                              textInputAction: TextInputAction.next,
+                              decoration: const InputDecoration(
+                                labelText: 'Via',
+                              ),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: operator,
+                        textInputAction: TextInputAction.next,
+                        decoration: const InputDecoration(
+                          labelText: 'Nome do operador',
+                        ),
+                        validator: _required,
+                      ),
+                      const SizedBox(height: 12),
+                      GridLocatorField(
+                        controller: location,
+                        allowInvalid: true,
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: TextFormField(
+                              controller: power,
+                              keyboardType:
+                                  const TextInputType.numberWithOptions(
+                                    decimal: true,
+                                  ),
+                              inputFormatters: [PowerFormatter()],
+                              textInputAction: TextInputAction.next,
+                              decoration: const InputDecoration(
+                                labelText: 'Potência (W)',
+                              ),
+                              validator: _required,
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _ChoiceField(
+                              controller: station,
+                              label: 'Estação',
+                              values: const {
+                                'P': 'Portátil',
+                                'M': 'Móvel',
+                                'F': 'Fixa',
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: 12),
+                      Row(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Expanded(
+                            child: _ChoiceField(
+                              controller: traffic,
+                              label: 'Tráfego',
+                              values: const {
+                                'S': 'Sem tráfego',
+                                'C': 'Com tráfego',
+                              },
+                              onChanged: (_) => setState(() {}),
+                              onSubmitted: (_) => _register(),
+                            ),
+                          ),
+                          const SizedBox(width: 8),
+                          Expanded(
+                            child: _ChoiceField(
+                              controller: energy,
+                              label: 'Energia',
+                              values: const {
+                                'B': 'Bateria',
+                                'G': 'Gerador',
+                                'AC': 'Rede elétrica',
+                              },
+                            ),
+                          ),
+                        ],
+                      ),
+                      if (_choiceCode(traffic.text) == 'C') ...[
+                        const SizedBox(height: 12),
+                        TextFormField(
+                          controller: trafficMessage,
+                          decoration: const InputDecoration(
+                            labelText: 'Mensagem (tráfego)',
+                          ),
+                          validator: _required,
                         ),
                       ],
-                      selected: {frequency},
-                      onSelectionChanged: (value) => _setFrequency(value.first),
-                    ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: callsign,
-                          focusNode: _callsignFocusNode,
-                          textCapitalization: TextCapitalization.characters,
-                          inputFormatters: [UpperCaseFormatter()],
-                          textInputAction: TextInputAction.next,
-                          decoration: const InputDecoration(
-                            labelText: 'Indicativo',
-                          ),
-                          validator: _required,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextFormField(
-                          controller: via,
-                          textCapitalization: TextCapitalization.characters,
-                          inputFormatters: [UpperCaseFormatter()],
-                          textInputAction: TextInputAction.next,
-                          decoration: const InputDecoration(labelText: 'Via'),
+                      const SizedBox(height: 18),
+                      SizedBox(
+                        width: double.infinity,
+                        child: FilledButton.icon(
+                          onPressed: _register,
+                          icon: const Icon(Icons.add),
+                          label: const Text('Registrar log'),
                         ),
                       ),
                     ],
                   ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: operator,
-                    textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(
-                      labelText: 'Nome do operador',
-                    ),
-                    validator: _required,
-                  ),
-                  const SizedBox(height: 12),
-                  GridLocatorField(controller: location, allowInvalid: true),
-                  const SizedBox(height: 12),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: power,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          inputFormatters: [PowerFormatter()],
-                          textInputAction: TextInputAction.next,
-                          decoration: const InputDecoration(
-                            labelText: 'Potência (W)',
-                          ),
-                          validator: _required,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _ChoiceField(
-                          controller: station,
-                          label: 'Estação',
-                          values: const {
-                            'P': 'Portátil',
-                            'M': 'Móvel',
-                            'F': 'Fixa',
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: _ChoiceField(
-                          controller: traffic,
-                          label: 'Tráfego',
-                          values: const {
-                            'S': 'Sem tráfego',
-                            'C': 'Com tráfego',
-                          },
-                          onChanged: (_) => setState(() {}),
-                          onSubmitted: (_) => _register(),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _ChoiceField(
-                          controller: energy,
-                          label: 'Energia',
-                          values: const {
-                            'B': 'Bateria',
-                            'G': 'Gerador',
-                            'AC': 'Rede elétrica',
-                          },
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (_choiceCode(traffic.text) == 'C') ...[
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: trafficMessage,
-                      decoration: const InputDecoration(
-                        labelText: 'Mensagem (tráfego)',
-                      ),
-                      validator: _required,
-                    ),
-                  ],
-                  const SizedBox(height: 18),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: _register,
-                      icon: const Icon(Icons.add),
-                      label: const Text('Registrar log'),
-                    ),
-                  ),
-                ],
+                ),
               ),
             ),
             const SizedBox(height: 28),
@@ -780,6 +792,19 @@ class _HomePageState extends State<HomePage> {
 
   String? _required(String? value) =>
       value == null || value.trim().isEmpty ? 'Campo obrigatório' : null;
+
+  KeyEventResult _handleTabKey(FocusNode node, KeyEvent event) {
+    if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.tab) {
+      if (HardwareKeyboard.instance.isShiftPressed) {
+        node.previousFocus();
+      } else {
+        node.nextFocus();
+      }
+      return KeyEventResult.handled;
+    }
+    return KeyEventResult.ignored;
+  }
+
   Future<void> _register() async {
     if (!formKey.currentState!.validate()) return;
     final savedLocation = location.text.trim();
