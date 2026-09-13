@@ -466,6 +466,22 @@ class _HomePageState extends State<HomePage> {
     await preferences.setString('contact.frequency', value);
   }
 
+  void _newContact() {
+    formKey.currentState?.reset();
+    setState(() {
+      callsign.clear();
+      via.clear();
+      operator.clear();
+      location.clear();
+      power.clear();
+      station.text = 'P - Portátil';
+      energy.text = 'B - Bateria';
+      traffic.text = 'S - Sem tráfego';
+      trafficMessage.clear();
+    });
+    _callsignFocusNode.requestFocus();
+  }
+
   @override
   void didUpdateWidget(covariant HomePage oldWidget) {
     super.didUpdateWidget(oldWidget);
@@ -505,7 +521,15 @@ class _HomePageState extends State<HomePage> {
   }
 
   @override
-  Widget build(BuildContext context) => Scaffold(
+  Widget build(BuildContext context) => CallbackShortcuts(
+    bindings: {
+      const SingleActivator(LogicalKeyboardKey.keyN, control: true):
+          _newContact,
+    },
+    child: Focus(autofocus: true, child: _buildScaffold(context)),
+  );
+
+  Widget _buildScaffold(BuildContext context) => Scaffold(
     resizeToAvoidBottomInset: MediaQuery.sizeOf(context).width < 700,
     body: LayoutBuilder(
       builder: (context, constraints) {
