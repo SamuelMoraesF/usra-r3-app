@@ -7,6 +7,8 @@ class LogEntries extends Table {
   IntColumn get id => integer().autoIncrement()();
   DateTimeColumn get createdAt => dateTime()();
   TextColumn get callsign => text()();
+  TextColumn get via => text().withDefault(const Constant(''))();
+  TextColumn get frequency => text().withDefault(const Constant('repeater'))();
   TextColumn get operatorName => text()();
   TextColumn get location => text()();
   TextColumn get operatorGrid => text()();
@@ -32,7 +34,7 @@ class UsraDatabase extends _$UsraDatabase {
   UsraDatabase.test(super.e);
 
   @override
-  int get schemaVersion => 5;
+  int get schemaVersion => 7;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -55,11 +57,19 @@ class UsraDatabase extends _$UsraDatabase {
       if (from < 5) {
         await m.addColumn(logEntries, logEntries.trafficMessage);
       }
+      if (from < 6) {
+        await m.addColumn(logEntries, logEntries.via);
+      }
+      if (from < 7) {
+        await m.addColumn(logEntries, logEntries.frequency);
+      }
     },
   );
 
   Future<int> saveLog({
     required String callsign,
+    String via = '',
+    String frequency = 'repeater',
     required String operatorName,
     required String location,
     required String operatorGrid,
@@ -72,6 +82,8 @@ class UsraDatabase extends _$UsraDatabase {
       LogEntriesCompanion.insert(
         createdAt: DateTime.now().toUtc(),
         callsign: callsign,
+        via: Value(via),
+        frequency: Value(frequency),
         operatorName: operatorName,
         location: location,
         operatorGrid: operatorGrid,
@@ -93,6 +105,8 @@ class UsraDatabase extends _$UsraDatabase {
   Future<bool> updateLog({
     required int id,
     required String callsign,
+    String via = '',
+    String frequency = 'repeater',
     required String operatorName,
     required String location,
     required double powerWatts,
@@ -105,6 +119,8 @@ class UsraDatabase extends _$UsraDatabase {
         )..where((entry) => entry.id.equals(id))).write(
           LogEntriesCompanion(
             callsign: Value(callsign),
+            via: Value(via),
+            frequency: Value(frequency),
             operatorName: Value(operatorName),
             location: Value(location),
             powerWatts: Value(powerWatts),

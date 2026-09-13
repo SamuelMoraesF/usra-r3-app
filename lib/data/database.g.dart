@@ -44,6 +44,28 @@ class $LogEntriesTable extends LogEntries
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _viaMeta = const VerificationMeta('via');
+  @override
+  late final GeneratedColumn<String> via = GeneratedColumn<String>(
+    'via',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
+  static const VerificationMeta _frequencyMeta = const VerificationMeta(
+    'frequency',
+  );
+  @override
+  late final GeneratedColumn<String> frequency = GeneratedColumn<String>(
+    'frequency',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('repeater'),
+  );
   static const VerificationMeta _operatorNameMeta = const VerificationMeta(
     'operatorName',
   );
@@ -127,6 +149,8 @@ class $LogEntriesTable extends LogEntries
     id,
     createdAt,
     callsign,
+    via,
+    frequency,
     operatorName,
     location,
     operatorGrid,
@@ -165,6 +189,18 @@ class $LogEntriesTable extends LogEntries
       );
     } else if (isInserting) {
       context.missing(_callsignMeta);
+    }
+    if (data.containsKey('via')) {
+      context.handle(
+        _viaMeta,
+        via.isAcceptableOrUnknown(data['via']!, _viaMeta),
+      );
+    }
+    if (data.containsKey('frequency')) {
+      context.handle(
+        _frequencyMeta,
+        frequency.isAcceptableOrUnknown(data['frequency']!, _frequencyMeta),
+      );
     }
     if (data.containsKey('operator_name')) {
       context.handle(
@@ -253,6 +289,14 @@ class $LogEntriesTable extends LogEntries
         DriftSqlType.string,
         data['${effectivePrefix}callsign'],
       )!,
+      via: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}via'],
+      )!,
+      frequency: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}frequency'],
+      )!,
       operatorName: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}operator_name'],
@@ -294,6 +338,8 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
   final int id;
   final DateTime createdAt;
   final String callsign;
+  final String via;
+  final String frequency;
   final String operatorName;
   final String location;
   final String operatorGrid;
@@ -305,6 +351,8 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     required this.id,
     required this.createdAt,
     required this.callsign,
+    required this.via,
+    required this.frequency,
     required this.operatorName,
     required this.location,
     required this.operatorGrid,
@@ -319,6 +367,8 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     map['id'] = Variable<int>(id);
     map['created_at'] = Variable<DateTime>(createdAt);
     map['callsign'] = Variable<String>(callsign);
+    map['via'] = Variable<String>(via);
+    map['frequency'] = Variable<String>(frequency);
     map['operator_name'] = Variable<String>(operatorName);
     map['location'] = Variable<String>(location);
     map['operator_grid'] = Variable<String>(operatorGrid);
@@ -334,6 +384,8 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
       id: Value(id),
       createdAt: Value(createdAt),
       callsign: Value(callsign),
+      via: Value(via),
+      frequency: Value(frequency),
       operatorName: Value(operatorName),
       location: Value(location),
       operatorGrid: Value(operatorGrid),
@@ -353,6 +405,8 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
       id: serializer.fromJson<int>(json['id']),
       createdAt: serializer.fromJson<DateTime>(json['createdAt']),
       callsign: serializer.fromJson<String>(json['callsign']),
+      via: serializer.fromJson<String>(json['via']),
+      frequency: serializer.fromJson<String>(json['frequency']),
       operatorName: serializer.fromJson<String>(json['operatorName']),
       location: serializer.fromJson<String>(json['location']),
       operatorGrid: serializer.fromJson<String>(json['operatorGrid']),
@@ -369,6 +423,8 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
       'id': serializer.toJson<int>(id),
       'createdAt': serializer.toJson<DateTime>(createdAt),
       'callsign': serializer.toJson<String>(callsign),
+      'via': serializer.toJson<String>(via),
+      'frequency': serializer.toJson<String>(frequency),
       'operatorName': serializer.toJson<String>(operatorName),
       'location': serializer.toJson<String>(location),
       'operatorGrid': serializer.toJson<String>(operatorGrid),
@@ -383,6 +439,8 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     int? id,
     DateTime? createdAt,
     String? callsign,
+    String? via,
+    String? frequency,
     String? operatorName,
     String? location,
     String? operatorGrid,
@@ -394,6 +452,8 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     id: id ?? this.id,
     createdAt: createdAt ?? this.createdAt,
     callsign: callsign ?? this.callsign,
+    via: via ?? this.via,
+    frequency: frequency ?? this.frequency,
     operatorName: operatorName ?? this.operatorName,
     location: location ?? this.location,
     operatorGrid: operatorGrid ?? this.operatorGrid,
@@ -407,6 +467,8 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
       id: data.id.present ? data.id.value : this.id,
       createdAt: data.createdAt.present ? data.createdAt.value : this.createdAt,
       callsign: data.callsign.present ? data.callsign.value : this.callsign,
+      via: data.via.present ? data.via.value : this.via,
+      frequency: data.frequency.present ? data.frequency.value : this.frequency,
       operatorName: data.operatorName.present
           ? data.operatorName.value
           : this.operatorName,
@@ -433,6 +495,8 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
           ..write('id: $id, ')
           ..write('createdAt: $createdAt, ')
           ..write('callsign: $callsign, ')
+          ..write('via: $via, ')
+          ..write('frequency: $frequency, ')
           ..write('operatorName: $operatorName, ')
           ..write('location: $location, ')
           ..write('operatorGrid: $operatorGrid, ')
@@ -449,6 +513,8 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     id,
     createdAt,
     callsign,
+    via,
+    frequency,
     operatorName,
     location,
     operatorGrid,
@@ -464,6 +530,8 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
           other.id == this.id &&
           other.createdAt == this.createdAt &&
           other.callsign == this.callsign &&
+          other.via == this.via &&
+          other.frequency == this.frequency &&
           other.operatorName == this.operatorName &&
           other.location == this.location &&
           other.operatorGrid == this.operatorGrid &&
@@ -477,6 +545,8 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
   final Value<int> id;
   final Value<DateTime> createdAt;
   final Value<String> callsign;
+  final Value<String> via;
+  final Value<String> frequency;
   final Value<String> operatorName;
   final Value<String> location;
   final Value<String> operatorGrid;
@@ -488,6 +558,8 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     this.id = const Value.absent(),
     this.createdAt = const Value.absent(),
     this.callsign = const Value.absent(),
+    this.via = const Value.absent(),
+    this.frequency = const Value.absent(),
     this.operatorName = const Value.absent(),
     this.location = const Value.absent(),
     this.operatorGrid = const Value.absent(),
@@ -500,6 +572,8 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     this.id = const Value.absent(),
     required DateTime createdAt,
     required String callsign,
+    this.via = const Value.absent(),
+    this.frequency = const Value.absent(),
     required String operatorName,
     required String location,
     required String operatorGrid,
@@ -519,6 +593,8 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     Expression<int>? id,
     Expression<DateTime>? createdAt,
     Expression<String>? callsign,
+    Expression<String>? via,
+    Expression<String>? frequency,
     Expression<String>? operatorName,
     Expression<String>? location,
     Expression<String>? operatorGrid,
@@ -531,6 +607,8 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
       if (id != null) 'id': id,
       if (createdAt != null) 'created_at': createdAt,
       if (callsign != null) 'callsign': callsign,
+      if (via != null) 'via': via,
+      if (frequency != null) 'frequency': frequency,
       if (operatorName != null) 'operator_name': operatorName,
       if (location != null) 'location': location,
       if (operatorGrid != null) 'operator_grid': operatorGrid,
@@ -545,6 +623,8 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     Value<int>? id,
     Value<DateTime>? createdAt,
     Value<String>? callsign,
+    Value<String>? via,
+    Value<String>? frequency,
     Value<String>? operatorName,
     Value<String>? location,
     Value<String>? operatorGrid,
@@ -557,6 +637,8 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
       id: id ?? this.id,
       createdAt: createdAt ?? this.createdAt,
       callsign: callsign ?? this.callsign,
+      via: via ?? this.via,
+      frequency: frequency ?? this.frequency,
       operatorName: operatorName ?? this.operatorName,
       location: location ?? this.location,
       operatorGrid: operatorGrid ?? this.operatorGrid,
@@ -578,6 +660,12 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     }
     if (callsign.present) {
       map['callsign'] = Variable<String>(callsign.value);
+    }
+    if (via.present) {
+      map['via'] = Variable<String>(via.value);
+    }
+    if (frequency.present) {
+      map['frequency'] = Variable<String>(frequency.value);
     }
     if (operatorName.present) {
       map['operator_name'] = Variable<String>(operatorName.value);
@@ -609,6 +697,8 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
           ..write('id: $id, ')
           ..write('createdAt: $createdAt, ')
           ..write('callsign: $callsign, ')
+          ..write('via: $via, ')
+          ..write('frequency: $frequency, ')
           ..write('operatorName: $operatorName, ')
           ..write('location: $location, ')
           ..write('operatorGrid: $operatorGrid, ')
@@ -637,6 +727,8 @@ typedef $$LogEntriesTableCreateCompanionBuilder =
       Value<int> id,
       required DateTime createdAt,
       required String callsign,
+      Value<String> via,
+      Value<String> frequency,
       required String operatorName,
       required String location,
       required String operatorGrid,
@@ -650,6 +742,8 @@ typedef $$LogEntriesTableUpdateCompanionBuilder =
       Value<int> id,
       Value<DateTime> createdAt,
       Value<String> callsign,
+      Value<String> via,
+      Value<String> frequency,
       Value<String> operatorName,
       Value<String> location,
       Value<String> operatorGrid,
@@ -680,6 +774,16 @@ class $$LogEntriesTableFilterComposer
 
   ColumnFilters<String> get callsign => $composableBuilder(
     column: $table.callsign,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get via => $composableBuilder(
+    column: $table.via,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get frequency => $composableBuilder(
+    column: $table.frequency,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -743,6 +847,16 @@ class $$LogEntriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get via => $composableBuilder(
+    column: $table.via,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get frequency => $composableBuilder(
+    column: $table.frequency,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get operatorName => $composableBuilder(
     column: $table.operatorName,
     builder: (column) => ColumnOrderings(column),
@@ -796,6 +910,12 @@ class $$LogEntriesTableAnnotationComposer
 
   GeneratedColumn<String> get callsign =>
       $composableBuilder(column: $table.callsign, builder: (column) => column);
+
+  GeneratedColumn<String> get via =>
+      $composableBuilder(column: $table.via, builder: (column) => column);
+
+  GeneratedColumn<String> get frequency =>
+      $composableBuilder(column: $table.frequency, builder: (column) => column);
 
   GeneratedColumn<String> get operatorName => $composableBuilder(
     column: $table.operatorName,
@@ -863,6 +983,8 @@ class $$LogEntriesTableTableManager
                 Value<int> id = const Value.absent(),
                 Value<DateTime> createdAt = const Value.absent(),
                 Value<String> callsign = const Value.absent(),
+                Value<String> via = const Value.absent(),
+                Value<String> frequency = const Value.absent(),
                 Value<String> operatorName = const Value.absent(),
                 Value<String> location = const Value.absent(),
                 Value<String> operatorGrid = const Value.absent(),
@@ -874,6 +996,8 @@ class $$LogEntriesTableTableManager
                 id: id,
                 createdAt: createdAt,
                 callsign: callsign,
+                via: via,
+                frequency: frequency,
                 operatorName: operatorName,
                 location: location,
                 operatorGrid: operatorGrid,
@@ -887,6 +1011,8 @@ class $$LogEntriesTableTableManager
                 Value<int> id = const Value.absent(),
                 required DateTime createdAt,
                 required String callsign,
+                Value<String> via = const Value.absent(),
+                Value<String> frequency = const Value.absent(),
                 required String operatorName,
                 required String location,
                 required String operatorGrid,
@@ -898,6 +1024,8 @@ class $$LogEntriesTableTableManager
                 id: id,
                 createdAt: createdAt,
                 callsign: callsign,
+                via: via,
+                frequency: frequency,
                 operatorName: operatorName,
                 location: location,
                 operatorGrid: operatorGrid,

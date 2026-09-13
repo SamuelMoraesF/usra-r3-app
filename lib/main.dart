@@ -379,9 +379,13 @@ class HomePage extends StatefulWidget {
 }
 
 class _HomePageState extends State<HomePage> {
+  static const _repeaterFrequency = 'repeater';
+  static const _simplexFrequency = 'simplex';
   final formKey = GlobalKey<FormState>();
   final _callsignFocusNode = FocusNode();
   final callsign = TextEditingController();
+  final via = TextEditingController();
+  String frequency = _repeaterFrequency;
   final operator = TextEditingController();
   final location = TextEditingController();
   final power = TextEditingController();
@@ -395,6 +399,23 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _callsignFocusNode.addListener(_onCallsignFocusChanged);
+    _loadFrequency();
+  }
+
+  Future<void> _loadFrequency() async {
+    final preferences = await SharedPreferences.getInstance();
+    if (mounted) {
+      setState(
+        () => frequency =
+            preferences.getString('contact.frequency') ?? _repeaterFrequency,
+      );
+    }
+  }
+
+  Future<void> _setFrequency(String value) async {
+    setState(() => frequency = value);
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString('contact.frequency', value);
   }
 
   @override
@@ -408,6 +429,7 @@ class _HomePageState extends State<HomePage> {
     _callsignFocusNode.dispose();
     for (final c in [
       callsign,
+      via,
       operator,
       location,
       power,
@@ -463,14 +485,46 @@ class _HomePageState extends State<HomePage> {
               key: formKey,
               child: Column(
                 children: [
-                  TextFormField(
-                    controller: callsign,
-                    focusNode: _callsignFocusNode,
-                    textCapitalization: TextCapitalization.characters,
-                    inputFormatters: [UpperCaseFormatter()],
-                    textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(labelText: 'Indicativo'),
-                    validator: _required,
+                  SwitchListTile(
+                    contentPadding: EdgeInsets.zero,
+                    title: Text(
+                      frequency == _repeaterFrequency
+                          ? 'Repetidora (145.370 MHz)'
+                          : 'Simplex (146.520 MHz)',
+                    ),
+                    subtitle: const Text('Frequência ouvida'),
+                    value: frequency == _simplexFrequency,
+                    onChanged: (simplex) => _setFrequency(
+                      simplex ? _simplexFrequency : _repeaterFrequency,
+                    ),
+                  ),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: callsign,
+                          focusNode: _callsignFocusNode,
+                          textCapitalization: TextCapitalization.characters,
+                          inputFormatters: [UpperCaseFormatter()],
+                          textInputAction: TextInputAction.next,
+                          decoration: const InputDecoration(
+                            labelText: 'Indicativo',
+                          ),
+                          validator: _required,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextFormField(
+                          controller: via,
+                          textCapitalization: TextCapitalization.characters,
+                          inputFormatters: [UpperCaseFormatter()],
+                          textInputAction: TextInputAction.next,
+                          decoration: const InputDecoration(labelText: 'Via'),
+                        ),
+                      ),
+                    ],
                   ),
                   const SizedBox(height: 12),
                   TextFormField(
@@ -599,6 +653,11 @@ class _HomePageState extends State<HomePage> {
                                   height: 1.35,
                                 ),
                               ),
+                              Text(
+                                '${entry.frequency == _repeaterFrequency ? 'Repetidora' : 'Simplex'} · ${entry.frequency == _repeaterFrequency ? '145.370' : '146.520'} MHz',
+                              ),
+                              if (entry.via.isNotEmpty)
+                                Text('Via: ${entry.via}'),
                               if (entry.traffic == 'C' &&
                                   entry.trafficMessage.isNotEmpty)
                                 Text('Mensagem: ${entry.trafficMessage}'),
@@ -695,6 +754,8 @@ class _HomePageState extends State<HomePage> {
     final savedLocation = location.text.trim();
     await widget.database.saveLog(
       callsign: callsign.text.trim().toUpperCase(),
+      via: via.text.trim().toUpperCase(),
+      frequency: frequency,
       operatorName: operator.text.trim(),
       location: savedLocation,
       operatorGrid: widget.profile.grid,
@@ -708,6 +769,7 @@ class _HomePageState extends State<HomePage> {
         _lastMapFocusGrid = savedLocation;
         _mapFocusRequest++;
         callsign.clear();
+        via.clear();
         operator.clear();
         location.clear();
         power.clear();
@@ -737,7 +799,6 @@ class _HomePageState extends State<HomePage> {
     location.text = latest.location;
     power.text = latest.powerWatts.toString();
     station.text = latest.stationType;
-    traffic.text = latest.traffic;
   }
 
   String _formatDate(DateTime value) {
@@ -825,6 +886,7 @@ class _HomePageState extends State<HomePage> {
 
   Future<void> _editLog(LogEntry entry) async {
     final callsign = TextEditingController(text: entry.callsign);
+    final via = TextEditingController(text: entry.via);
     final operator = TextEditingController(text: entry.operatorName);
     final location = TextEditingController(text: entry.location);
     final power = TextEditingController(text: entry.powerWatts.toString());
@@ -856,6 +918,13 @@ class _HomePageState extends State<HomePage> {
                       labelText: 'Nome do operador',
                     ),
                     validator: _required,
+                  ),
+                  const SizedBox(height: 10),
+                  TextFormField(
+                    controller: via,
+                    textCapitalization: TextCapitalization.characters,
+                    inputFormatters: [UpperCaseFormatter()],
+                    decoration: const InputDecoration(labelText: 'Via'),
                   ),
                   const SizedBox(height: 10),
                   GridLocatorField(controller: location, allowInvalid: true),
@@ -914,6 +983,7 @@ class _HomePageState extends State<HomePage> {
                 await widget.database.updateLog(
                   id: entry.id,
                   callsign: callsign.text.trim().toUpperCase(),
+                  via: via.text.trim().toUpperCase(),
                   operatorName: operator.text.trim(),
                   location: location.text.trim(),
                   powerWatts: double.parse(power.text.replaceAll(',', '.')),
@@ -931,6 +1001,7 @@ class _HomePageState extends State<HomePage> {
     } finally {
       for (final controller in [
         callsign,
+        via,
         operator,
         location,
         power,
