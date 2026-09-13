@@ -971,19 +971,21 @@ class _ChoiceField extends StatelessWidget {
     ],
     decoration: InputDecoration(
       labelText: label,
-      suffixIcon: PopupMenuButton<String>(
-        onSelected: (value) {
-          controller.text = value;
-          onChanged?.call(value);
-        },
-        itemBuilder: (_) => values.entries
-            .map(
-              (e) => PopupMenuItem(
-                value: e.key,
-                child: Text('${e.key} — ${e.value}'),
-              ),
-            )
-            .toList(),
+      suffixIcon: ExcludeFocus(
+        child: PopupMenuButton<String>(
+          onSelected: (value) {
+            controller.text = value;
+            onChanged?.call(value);
+          },
+          itemBuilder: (_) => values.entries
+              .map(
+                (e) => PopupMenuItem(
+                  value: e.key,
+                  child: Text('${e.key} — ${e.value}'),
+                ),
+              )
+              .toList(),
+        ),
       ),
     ),
     validator: (value) => values.containsKey(value?.trim().toUpperCase())
