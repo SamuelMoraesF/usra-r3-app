@@ -11,6 +11,7 @@ import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
+import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'data/database.dart';
 import 'data/csv_transfer.dart';
@@ -19,9 +20,31 @@ import 'widgets/grid_locator_field.dart';
 import 'map/offline_map.dart';
 import 'map/map_settings.dart';
 
-void main() {
+Future<void> main() async {
+  WidgetsFlutterBinding.ensureInitialized();
   MapLibreMap.useHybridComposition = true;
-  runApp(const UsraR3App());
+  const dsn = String.fromEnvironment('SENTRY_DSN');
+  const release = String.fromEnvironment('SENTRY_RELEASE');
+  const dist = String.fromEnvironment('SENTRY_DIST');
+  const environment = String.fromEnvironment(
+    'SENTRY_ENVIRONMENT',
+    defaultValue: 'production',
+  );
+  if (dsn.trim().isEmpty) {
+    runApp(const UsraR3App());
+    return;
+  }
+  await SentryFlutter.init((options) {
+    options.dsn = dsn;
+    options.sendDefaultPii = false;
+    options.environment = environment;
+    if (release.trim().isNotEmpty) options.release = release;
+    if (dist.trim().isNotEmpty) options.dist = dist;
+    options.tracesSampleRate = 0.0;
+    // Profiling is disabled; this option is experimental in the SDK.
+    // ignore: experimental_member_use
+    options.profilesSampleRate = 0.0;
+  }, appRunner: () => runApp(const UsraR3App()));
 }
 
 enum AppTheme { system, light, dark }

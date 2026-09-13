@@ -15,6 +15,10 @@ jobs:
   package:
     runs-on: ubuntu-latest
     timeout-minutes: 45
+    env:
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+      SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -34,6 +38,7 @@ jobs:
       - run: flutter test
       - name: Build signed APK
         env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
           ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
           ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
           ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
@@ -48,10 +53,30 @@ jobs:
           trap 'rm -f "$ANDROID_KEYSTORE_PATH"' EXIT
           umask 077
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_PATH"
-          flutter build apk --release --build-name="$RELEASE_VERSION" --build-number="$RELEASE_BUILD"
+          flutter build apk --release --build-name="$RELEASE_VERSION" --build-number="$RELEASE_BUILD" \
+            --dart-define=SENTRY_DSN="$SENTRY_DSN" \
+            --dart-define=SENTRY_RELEASE="$RELEASE_VERSION" \
+            --dart-define=SENTRY_DIST="$RELEASE_BUILD" \
+            --dart-define=SENTRY_ENVIRONMENT=production
           APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
           "$APKSIGNER" verify --verbose build/app/outputs/flutter-apk/app-release.apk
-      - run: flutter build web --release --build-name="$RELEASE_VERSION" --build-number="$RELEASE_BUILD"
+      - name: Build web
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+        run: |
+          flutter build web --release --build-name="$RELEASE_VERSION" --build-number="$RELEASE_BUILD" \
+            --source-maps \
+            --dart-define=SENTRY_DSN="$SENTRY_DSN" \
+            --dart-define=SENTRY_RELEASE="$RELEASE_VERSION" \
+            --dart-define=SENTRY_DIST="$RELEASE_BUILD" \
+            --dart-define=SENTRY_ENVIRONMENT=production
+      - name: Upload Web source maps to Sentry
+        if: ${{ env.SENTRY_AUTH_TOKEN != '' && env.SENTRY_ORG != '' && env.SENTRY_PROJECT != '' }}
+        env:
+          SENTRY_RELEASE: ${{ env.RELEASE_VERSION }}
+        run: dart run sentry_dart_plugin
+      - name: Remove Web source maps from public artifacts
+        run: find build/web -type f \( -name '*.js.map' -o -name '*.wasm.map' \) -delete
       - name: Package web, source and APK
         run: |
           mkdir -p dist/bundle/web dist/bundle/source
