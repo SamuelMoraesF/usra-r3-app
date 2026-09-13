@@ -9,6 +9,7 @@ class LogEntries extends Table {
   TextColumn get callsign => text()();
   TextColumn get via => text().withDefault(const Constant(''))();
   TextColumn get frequency => text().withDefault(const Constant('repeater'))();
+  TextColumn get energy => text().withDefault(const Constant('B'))();
   TextColumn get operatorName => text()();
   TextColumn get location => text()();
   TextColumn get operatorGrid => text()();
@@ -34,7 +35,7 @@ class UsraDatabase extends _$UsraDatabase {
   UsraDatabase.test(super.e);
 
   @override
-  int get schemaVersion => 7;
+  int get schemaVersion => 8;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -63,6 +64,9 @@ class UsraDatabase extends _$UsraDatabase {
       if (from < 7) {
         await m.addColumn(logEntries, logEntries.frequency);
       }
+      if (from < 8) {
+        await m.addColumn(logEntries, logEntries.energy);
+      }
     },
   );
 
@@ -70,6 +74,7 @@ class UsraDatabase extends _$UsraDatabase {
     required String callsign,
     String via = '',
     String frequency = 'repeater',
+    String energy = 'B',
     required String operatorName,
     required String location,
     required String operatorGrid,
@@ -84,6 +89,7 @@ class UsraDatabase extends _$UsraDatabase {
         callsign: callsign,
         via: Value(via),
         frequency: Value(frequency),
+        energy: Value(energy),
         operatorName: operatorName,
         location: location,
         operatorGrid: operatorGrid,
@@ -107,6 +113,7 @@ class UsraDatabase extends _$UsraDatabase {
     required String callsign,
     String via = '',
     String frequency = 'repeater',
+    String energy = 'B',
     required String operatorName,
     required String location,
     required double powerWatts,
@@ -121,6 +128,7 @@ class UsraDatabase extends _$UsraDatabase {
             callsign: Value(callsign),
             via: Value(via),
             frequency: Value(frequency),
+            energy: Value(energy),
             operatorName: Value(operatorName),
             location: Value(location),
             powerWatts: Value(powerWatts),

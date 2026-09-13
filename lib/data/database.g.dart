@@ -66,6 +66,16 @@ class $LogEntriesTable extends LogEntries
     requiredDuringInsert: false,
     defaultValue: const Constant('repeater'),
   );
+  static const VerificationMeta _energyMeta = const VerificationMeta('energy');
+  @override
+  late final GeneratedColumn<String> energy = GeneratedColumn<String>(
+    'energy',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant('B'),
+  );
   static const VerificationMeta _operatorNameMeta = const VerificationMeta(
     'operatorName',
   );
@@ -151,6 +161,7 @@ class $LogEntriesTable extends LogEntries
     callsign,
     via,
     frequency,
+    energy,
     operatorName,
     location,
     operatorGrid,
@@ -200,6 +211,12 @@ class $LogEntriesTable extends LogEntries
       context.handle(
         _frequencyMeta,
         frequency.isAcceptableOrUnknown(data['frequency']!, _frequencyMeta),
+      );
+    }
+    if (data.containsKey('energy')) {
+      context.handle(
+        _energyMeta,
+        energy.isAcceptableOrUnknown(data['energy']!, _energyMeta),
       );
     }
     if (data.containsKey('operator_name')) {
@@ -297,6 +314,10 @@ class $LogEntriesTable extends LogEntries
         DriftSqlType.string,
         data['${effectivePrefix}frequency'],
       )!,
+      energy: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}energy'],
+      )!,
       operatorName: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}operator_name'],
@@ -340,6 +361,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
   final String callsign;
   final String via;
   final String frequency;
+  final String energy;
   final String operatorName;
   final String location;
   final String operatorGrid;
@@ -353,6 +375,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     required this.callsign,
     required this.via,
     required this.frequency,
+    required this.energy,
     required this.operatorName,
     required this.location,
     required this.operatorGrid,
@@ -369,6 +392,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     map['callsign'] = Variable<String>(callsign);
     map['via'] = Variable<String>(via);
     map['frequency'] = Variable<String>(frequency);
+    map['energy'] = Variable<String>(energy);
     map['operator_name'] = Variable<String>(operatorName);
     map['location'] = Variable<String>(location);
     map['operator_grid'] = Variable<String>(operatorGrid);
@@ -386,6 +410,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
       callsign: Value(callsign),
       via: Value(via),
       frequency: Value(frequency),
+      energy: Value(energy),
       operatorName: Value(operatorName),
       location: Value(location),
       operatorGrid: Value(operatorGrid),
@@ -407,6 +432,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
       callsign: serializer.fromJson<String>(json['callsign']),
       via: serializer.fromJson<String>(json['via']),
       frequency: serializer.fromJson<String>(json['frequency']),
+      energy: serializer.fromJson<String>(json['energy']),
       operatorName: serializer.fromJson<String>(json['operatorName']),
       location: serializer.fromJson<String>(json['location']),
       operatorGrid: serializer.fromJson<String>(json['operatorGrid']),
@@ -425,6 +451,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
       'callsign': serializer.toJson<String>(callsign),
       'via': serializer.toJson<String>(via),
       'frequency': serializer.toJson<String>(frequency),
+      'energy': serializer.toJson<String>(energy),
       'operatorName': serializer.toJson<String>(operatorName),
       'location': serializer.toJson<String>(location),
       'operatorGrid': serializer.toJson<String>(operatorGrid),
@@ -441,6 +468,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     String? callsign,
     String? via,
     String? frequency,
+    String? energy,
     String? operatorName,
     String? location,
     String? operatorGrid,
@@ -454,6 +482,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     callsign: callsign ?? this.callsign,
     via: via ?? this.via,
     frequency: frequency ?? this.frequency,
+    energy: energy ?? this.energy,
     operatorName: operatorName ?? this.operatorName,
     location: location ?? this.location,
     operatorGrid: operatorGrid ?? this.operatorGrid,
@@ -469,6 +498,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
       callsign: data.callsign.present ? data.callsign.value : this.callsign,
       via: data.via.present ? data.via.value : this.via,
       frequency: data.frequency.present ? data.frequency.value : this.frequency,
+      energy: data.energy.present ? data.energy.value : this.energy,
       operatorName: data.operatorName.present
           ? data.operatorName.value
           : this.operatorName,
@@ -497,6 +527,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
           ..write('callsign: $callsign, ')
           ..write('via: $via, ')
           ..write('frequency: $frequency, ')
+          ..write('energy: $energy, ')
           ..write('operatorName: $operatorName, ')
           ..write('location: $location, ')
           ..write('operatorGrid: $operatorGrid, ')
@@ -515,6 +546,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     callsign,
     via,
     frequency,
+    energy,
     operatorName,
     location,
     operatorGrid,
@@ -532,6 +564,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
           other.callsign == this.callsign &&
           other.via == this.via &&
           other.frequency == this.frequency &&
+          other.energy == this.energy &&
           other.operatorName == this.operatorName &&
           other.location == this.location &&
           other.operatorGrid == this.operatorGrid &&
@@ -547,6 +580,7 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
   final Value<String> callsign;
   final Value<String> via;
   final Value<String> frequency;
+  final Value<String> energy;
   final Value<String> operatorName;
   final Value<String> location;
   final Value<String> operatorGrid;
@@ -560,6 +594,7 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     this.callsign = const Value.absent(),
     this.via = const Value.absent(),
     this.frequency = const Value.absent(),
+    this.energy = const Value.absent(),
     this.operatorName = const Value.absent(),
     this.location = const Value.absent(),
     this.operatorGrid = const Value.absent(),
@@ -574,6 +609,7 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     required String callsign,
     this.via = const Value.absent(),
     this.frequency = const Value.absent(),
+    this.energy = const Value.absent(),
     required String operatorName,
     required String location,
     required String operatorGrid,
@@ -595,6 +631,7 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     Expression<String>? callsign,
     Expression<String>? via,
     Expression<String>? frequency,
+    Expression<String>? energy,
     Expression<String>? operatorName,
     Expression<String>? location,
     Expression<String>? operatorGrid,
@@ -609,6 +646,7 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
       if (callsign != null) 'callsign': callsign,
       if (via != null) 'via': via,
       if (frequency != null) 'frequency': frequency,
+      if (energy != null) 'energy': energy,
       if (operatorName != null) 'operator_name': operatorName,
       if (location != null) 'location': location,
       if (operatorGrid != null) 'operator_grid': operatorGrid,
@@ -625,6 +663,7 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     Value<String>? callsign,
     Value<String>? via,
     Value<String>? frequency,
+    Value<String>? energy,
     Value<String>? operatorName,
     Value<String>? location,
     Value<String>? operatorGrid,
@@ -639,6 +678,7 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
       callsign: callsign ?? this.callsign,
       via: via ?? this.via,
       frequency: frequency ?? this.frequency,
+      energy: energy ?? this.energy,
       operatorName: operatorName ?? this.operatorName,
       location: location ?? this.location,
       operatorGrid: operatorGrid ?? this.operatorGrid,
@@ -666,6 +706,9 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     }
     if (frequency.present) {
       map['frequency'] = Variable<String>(frequency.value);
+    }
+    if (energy.present) {
+      map['energy'] = Variable<String>(energy.value);
     }
     if (operatorName.present) {
       map['operator_name'] = Variable<String>(operatorName.value);
@@ -699,6 +742,7 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
           ..write('callsign: $callsign, ')
           ..write('via: $via, ')
           ..write('frequency: $frequency, ')
+          ..write('energy: $energy, ')
           ..write('operatorName: $operatorName, ')
           ..write('location: $location, ')
           ..write('operatorGrid: $operatorGrid, ')
@@ -729,6 +773,7 @@ typedef $$LogEntriesTableCreateCompanionBuilder =
       required String callsign,
       Value<String> via,
       Value<String> frequency,
+      Value<String> energy,
       required String operatorName,
       required String location,
       required String operatorGrid,
@@ -744,6 +789,7 @@ typedef $$LogEntriesTableUpdateCompanionBuilder =
       Value<String> callsign,
       Value<String> via,
       Value<String> frequency,
+      Value<String> energy,
       Value<String> operatorName,
       Value<String> location,
       Value<String> operatorGrid,
@@ -784,6 +830,11 @@ class $$LogEntriesTableFilterComposer
 
   ColumnFilters<String> get frequency => $composableBuilder(
     column: $table.frequency,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get energy => $composableBuilder(
+    column: $table.energy,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -857,6 +908,11 @@ class $$LogEntriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<String> get energy => $composableBuilder(
+    column: $table.energy,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get operatorName => $composableBuilder(
     column: $table.operatorName,
     builder: (column) => ColumnOrderings(column),
@@ -916,6 +972,9 @@ class $$LogEntriesTableAnnotationComposer
 
   GeneratedColumn<String> get frequency =>
       $composableBuilder(column: $table.frequency, builder: (column) => column);
+
+  GeneratedColumn<String> get energy =>
+      $composableBuilder(column: $table.energy, builder: (column) => column);
 
   GeneratedColumn<String> get operatorName => $composableBuilder(
     column: $table.operatorName,
@@ -985,6 +1044,7 @@ class $$LogEntriesTableTableManager
                 Value<String> callsign = const Value.absent(),
                 Value<String> via = const Value.absent(),
                 Value<String> frequency = const Value.absent(),
+                Value<String> energy = const Value.absent(),
                 Value<String> operatorName = const Value.absent(),
                 Value<String> location = const Value.absent(),
                 Value<String> operatorGrid = const Value.absent(),
@@ -998,6 +1058,7 @@ class $$LogEntriesTableTableManager
                 callsign: callsign,
                 via: via,
                 frequency: frequency,
+                energy: energy,
                 operatorName: operatorName,
                 location: location,
                 operatorGrid: operatorGrid,
@@ -1013,6 +1074,7 @@ class $$LogEntriesTableTableManager
                 required String callsign,
                 Value<String> via = const Value.absent(),
                 Value<String> frequency = const Value.absent(),
+                Value<String> energy = const Value.absent(),
                 required String operatorName,
                 required String location,
                 required String operatorGrid,
@@ -1026,6 +1088,7 @@ class $$LogEntriesTableTableManager
                 callsign: callsign,
                 via: via,
                 frequency: frequency,
+                energy: energy,
                 operatorName: operatorName,
                 location: location,
                 operatorGrid: operatorGrid,

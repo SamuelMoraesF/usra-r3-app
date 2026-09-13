@@ -391,6 +391,7 @@ class _HomePageState extends State<HomePage> {
   final power = TextEditingController();
   final station = TextEditingController(text: 'P');
   final traffic = TextEditingController(text: 'S');
+  final energy = TextEditingController(text: 'B');
   final trafficMessage = TextEditingController();
   int _mapFocusRequest = 0;
   String _lastMapFocusGrid = '';
@@ -435,6 +436,7 @@ class _HomePageState extends State<HomePage> {
       power,
       station,
       traffic,
+      energy,
       trafficMessage,
     ]) {
       c.dispose();
@@ -485,18 +487,19 @@ class _HomePageState extends State<HomePage> {
               key: formKey,
               child: Column(
                 children: [
-                  SwitchListTile(
-                    contentPadding: EdgeInsets.zero,
-                    title: Text(
-                      frequency == _repeaterFrequency
-                          ? 'Repetidora (145.370 MHz)'
-                          : 'Simplex (146.520 MHz)',
-                    ),
-                    subtitle: const Text('Frequência ouvida'),
-                    value: frequency == _simplexFrequency,
-                    onChanged: (simplex) => _setFrequency(
-                      simplex ? _simplexFrequency : _repeaterFrequency,
-                    ),
+                  SegmentedButton<String>(
+                    segments: const [
+                      ButtonSegment(
+                        value: _repeaterFrequency,
+                        label: Text('Repetidora\n145.370 MHz'),
+                      ),
+                      ButtonSegment(
+                        value: _simplexFrequency,
+                        label: Text('Simplex\n146.520 MHz'),
+                      ),
+                    ],
+                    selected: {frequency},
+                    onSelectionChanged: (value) => _setFrequency(value.first),
                   ),
                   Row(
                     crossAxisAlignment: CrossAxisAlignment.start,
@@ -567,7 +570,12 @@ class _HomePageState extends State<HomePage> {
                           },
                         ),
                       ),
-                      const SizedBox(width: 8),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
                       Expanded(
                         child: _ChoiceField(
                           controller: traffic,
@@ -578,6 +586,18 @@ class _HomePageState extends State<HomePage> {
                           },
                           onChanged: (_) => setState(() {}),
                           onSubmitted: (_) => _register(),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _ChoiceField(
+                          controller: energy,
+                          label: 'Energia',
+                          values: const {
+                            'B': 'Bateria',
+                            'G': 'Gerador',
+                            'AC': 'Rede elétrica',
+                          },
                         ),
                       ),
                     ],
@@ -655,6 +675,13 @@ class _HomePageState extends State<HomePage> {
                               ),
                               Text(
                                 '${entry.frequency == _repeaterFrequency ? 'Repetidora' : 'Simplex'} · ${entry.frequency == _repeaterFrequency ? '145.370' : '146.520'} MHz',
+                              ),
+                              Text(
+                                'Energia: ${entry.energy == 'B'
+                                    ? 'Bateria'
+                                    : entry.energy == 'G'
+                                    ? 'Gerador'
+                                    : 'Rede elétrica'}',
                               ),
                               if (entry.via.isNotEmpty)
                                 Text('Via: ${entry.via}'),
@@ -756,6 +783,7 @@ class _HomePageState extends State<HomePage> {
       callsign: callsign.text.trim().toUpperCase(),
       via: via.text.trim().toUpperCase(),
       frequency: frequency,
+      energy: energy.text.trim().toUpperCase(),
       operatorName: operator.text.trim(),
       location: savedLocation,
       operatorGrid: widget.profile.grid,
@@ -799,6 +827,7 @@ class _HomePageState extends State<HomePage> {
     location.text = latest.location;
     power.text = latest.powerWatts.toString();
     station.text = latest.stationType;
+    energy.text = latest.energy;
   }
 
   String _formatDate(DateTime value) {
@@ -892,6 +921,7 @@ class _HomePageState extends State<HomePage> {
     final power = TextEditingController(text: entry.powerWatts.toString());
     final station = TextEditingController(text: entry.stationType);
     final traffic = TextEditingController(text: entry.traffic);
+    final energy = TextEditingController(text: entry.energy);
     final trafficMessage = TextEditingController(text: entry.trafficMessage);
     final key = GlobalKey<FormState>();
     try {
@@ -952,6 +982,16 @@ class _HomePageState extends State<HomePage> {
                     label: 'Tráfego',
                     values: const {'S': 'Sem tráfego', 'C': 'Com tráfego'},
                   ),
+                  const SizedBox(height: 10),
+                  _ChoiceField(
+                    controller: energy,
+                    label: 'Energia',
+                    values: const {
+                      'B': 'Bateria',
+                      'G': 'Gerador',
+                      'AC': 'Rede elétrica',
+                    },
+                  ),
                   ValueListenableBuilder<TextEditingValue>(
                     valueListenable: traffic,
                     builder: (context, value, _) =>
@@ -989,6 +1029,7 @@ class _HomePageState extends State<HomePage> {
                   powerWatts: double.parse(power.text.replaceAll(',', '.')),
                   stationType: station.text.trim().toUpperCase(),
                   traffic: traffic.text.trim().toUpperCase(),
+                  energy: energy.text.trim().toUpperCase(),
                   trafficMessage: trafficMessage.text.trim(),
                 );
                 if (dialogContext.mounted) Navigator.pop(dialogContext);
@@ -1007,6 +1048,7 @@ class _HomePageState extends State<HomePage> {
         power,
         station,
         traffic,
+        energy,
         trafficMessage,
       ]) {
         controller.dispose();
@@ -1031,37 +1073,54 @@ class _ChoiceField extends StatelessWidget {
   final ValueChanged<String>? onSubmitted;
   final ValueChanged<String>? onChanged;
   @override
-  Widget build(BuildContext context) => TextFormField(
-    controller: controller,
-    onFieldSubmitted: onSubmitted,
-    onChanged: onChanged,
-    textCapitalization: TextCapitalization.characters,
-    inputFormatters: [
-      UpperCaseFormatter(),
-      LengthLimitingTextInputFormatter(1),
-    ],
-    decoration: InputDecoration(
-      labelText: label,
-      suffixIcon: ExcludeFocus(
-        child: PopupMenuButton<String>(
-          onSelected: (value) {
-            controller.text = value;
-            onChanged?.call(value);
-          },
-          itemBuilder: (_) => values.entries
-              .map(
-                (e) => PopupMenuItem(
-                  value: e.key,
-                  child: Text('${e.key} — ${e.value}'),
-                ),
-              )
-              .toList(),
+  Widget build(
+    BuildContext context,
+  ) => ValueListenableBuilder<TextEditingValue>(
+    valueListenable: controller,
+    builder: (context, value, _) => TextFormField(
+      controller: controller,
+      onFieldSubmitted: onSubmitted,
+      onChanged: onChanged,
+      textCapitalization: TextCapitalization.characters,
+      inputFormatters: [
+        UpperCaseFormatter(),
+        LengthLimitingTextInputFormatter(2),
+      ],
+      decoration: InputDecoration(
+        label: Text.rich(
+          TextSpan(
+            children: [
+              TextSpan(
+                text: value.text.trim().toUpperCase(),
+                style: const TextStyle(fontWeight: FontWeight.bold),
+              ),
+              TextSpan(
+                text: ' - ${values[value.text.trim().toUpperCase()] ?? label}',
+              ),
+            ],
+          ),
+        ),
+        suffixIcon: ExcludeFocus(
+          child: PopupMenuButton<String>(
+            onSelected: (value) {
+              controller.text = value;
+              onChanged?.call(value);
+            },
+            itemBuilder: (_) => values.entries
+                .map(
+                  (e) => PopupMenuItem(
+                    value: e.key,
+                    child: Text('${e.key} — ${e.value}'),
+                  ),
+                )
+                .toList(),
+          ),
         ),
       ),
+      validator: (value) => values.containsKey(value?.trim().toUpperCase())
+          ? null
+          : 'Use ${values.keys.join(', ')}',
     ),
-    validator: (value) => values.containsKey(value?.trim().toUpperCase())
-        ? null
-        : 'Use ${values.keys.join(', ')}',
   );
 }
 
