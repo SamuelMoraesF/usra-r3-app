@@ -18,7 +18,6 @@ import 'grid_locator.dart';
 import 'widgets/grid_locator_field.dart';
 import 'map/offline_map.dart';
 import 'map/map_settings.dart';
-import 'map/contact_scene.dart';
 
 void main() {
   MapLibreMap.useHybridComposition = true;
@@ -757,73 +756,130 @@ class _HomePageState extends State<HomePage> {
                     ),
                     const SizedBox(height: 8),
                     ...entries.map(
-                      (entry) => Card(
-                        margin: const EdgeInsets.only(bottom: 8),
-                        elevation: 0,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(14),
-                          side: BorderSide(
+                      (entry) => Dismissible(
+                        key: ValueKey('saved-log-${entry.id}'),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 20),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.errorContainer,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Icon(
+                            Icons.delete_outline,
                             color: Theme.of(
                               context,
-                            ).dividerColor.withValues(alpha: 0.55),
+                            ).colorScheme.onErrorContainer,
                           ),
                         ),
-                        child: ListTile(
-                          contentPadding: const EdgeInsets.symmetric(
-                            horizontal: 14,
-                            vertical: 4,
+                        confirmDismiss: (_) async {
+                          final confirmed = await _confirmDeleteLog(entry);
+                          if (confirmed) {
+                            await widget.database.deleteLog(entry.id);
+                          }
+                          return confirmed;
+                        },
+                        child: Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            side: BorderSide(
+                              color: Theme.of(
+                                context,
+                              ).dividerColor.withValues(alpha: 0.55),
+                            ),
                           ),
-                          title: Text(
-                            '${entry.callsign} · ${entry.operatorName}',
-                            style: const TextStyle(fontWeight: FontWeight.w700),
-                          ),
-                          subtitle: Column(
-                            crossAxisAlignment: CrossAxisAlignment.start,
-                            children: [
-                              Text(
-                                '${entry.location} · ${entry.powerWatts} W · ${entry.stationType} · ${entry.traffic}',
-                                style: TextStyle(
+                          child: ListTile(
+                            onTap: () => _editLog(entry),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 4,
+                            ),
+                            title: Row(
+                              children: [
+                                Expanded(
+                                  child: RichText(
+                                    overflow: TextOverflow.ellipsis,
+                                    text: TextSpan(
+                                      style: DefaultTextStyle.of(context).style,
+                                      children: [
+                                        TextSpan(
+                                          text:
+                                              '${entry.callsign} · ${entry.operatorName}',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                        ),
+                                        if (entry.via.trim().isNotEmpty) ...[
+                                          const TextSpan(text: '  '),
+                                          _viaTitleSpan(
+                                            context,
+                                            entries,
+                                            entry.via,
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Icon(
+                                  Icons.schedule,
+                                  size: 15,
                                   color: Theme.of(
                                     context,
                                   ).colorScheme.onSurfaceVariant,
-                                  height: 1.35,
                                 ),
-                              ),
-                              Text(
-                                '${entry.frequency == _repeaterFrequency ? 'Repetidora' : 'Simplex'} · ${contactFrequencyMhz(entry)} MHz',
-                              ),
-                              Text(
-                                'Energia: ${entry.energy == 'B'
-                                    ? 'Bateria'
-                                    : entry.energy == 'G'
-                                    ? 'Gerador'
-                                    : 'Rede elétrica'}',
-                              ),
-                              if (entry.via.isNotEmpty)
-                                Text('Via: ${entry.via}'),
-                              if (entry.traffic == 'C' &&
-                                  entry.trafficMessage.isNotEmpty)
-                                Text('Mensagem: ${entry.trafficMessage}'),
-                              const SizedBox(height: 4),
-                              _contactMeta(entry),
-                            ],
-                          ),
-                          trailing: PopupMenuButton<_LogAction>(
-                            icon: const Icon(Icons.more_vert),
-                            onSelected: (action) => switch (action) {
-                              _LogAction.edit => _editLog(entry),
-                              _LogAction.delete => _deleteLog(entry),
-                            },
-                            itemBuilder: (_) => const [
-                              PopupMenuItem(
-                                value: _LogAction.edit,
-                                child: Text('Editar'),
-                              ),
-                              PopupMenuItem(
-                                value: _LogAction.delete,
-                                child: Text('Remover'),
-                              ),
-                            ],
+                                const SizedBox(width: 3),
+                                Text(
+                                  _formatDate(entry.createdAt),
+                                  style: Theme.of(context).textTheme.labelSmall,
+                                ),
+                              ],
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(Icons.bolt, size: 16),
+                                    const SizedBox(width: 4),
+                                    Text(_energyLabel(entry.energy)),
+                                    const SizedBox(width: 8),
+                                    const Text('·'),
+                                    const SizedBox(width: 8),
+                                    const Icon(Icons.power, size: 16),
+                                    const SizedBox(width: 4),
+                                    Text('${entry.powerWatts} W'),
+                                  ],
+                                ),
+                                Row(
+                                  children: [
+                                    const Icon(Icons.radio, size: 16),
+                                    const SizedBox(width: 4),
+                                    Text(_stationLabel(entry.stationType)),
+                                    const SizedBox(width: 12),
+                                    const Icon(
+                                      Icons.message_outlined,
+                                      size: 16,
+                                    ),
+                                    const SizedBox(width: 4),
+                                    Text(_trafficLabel(entry.traffic)),
+                                  ],
+                                ),
+                                if (entry.traffic == 'C' &&
+                                    entry.trafficMessage.isNotEmpty)
+                                  Text('Mensagem: ${entry.trafficMessage}'),
+                                const SizedBox(height: 4),
+                                _contactMeta(entry),
+                              ],
+                            ),
                           ),
                         ),
                       ),
@@ -958,8 +1014,61 @@ class _HomePageState extends State<HomePage> {
   String _formatDate(DateTime value) {
     final local = value.toLocal();
     String two(int number) => number.toString().padLeft(2, '0');
-    return '${two(local.day)}/${two(local.month)}/${local.year} ${two(local.hour)}:${two(local.minute)}:${two(local.second)}';
+    final today = DateTime.now();
+    if (local.year == today.year &&
+        local.month == today.month &&
+        local.day == today.day) {
+      return '${two(local.hour)}:${two(local.minute)}:${two(local.second)}';
+    }
+    final year = local.year == today.year ? '' : '/${local.year}';
+    return '${two(local.day)}/${two(local.month)}$year ${two(local.hour)}:${two(local.minute)}:${two(local.second)}';
   }
+
+  String _operatorNameFor(List<LogEntry> entries, String callsign) {
+    final match = entries
+        .where(
+          (e) =>
+              e.callsign.trim().toUpperCase() == callsign.trim().toUpperCase(),
+        )
+        .toList();
+    return match.isEmpty ? '' : match.first.operatorName;
+  }
+
+  TextSpan _viaTitleSpan(
+    BuildContext context,
+    List<LogEntry> entries,
+    String callsign,
+  ) {
+    final normalized = callsign.trim().toUpperCase();
+    final name = _operatorNameFor(entries, normalized).trim();
+    return TextSpan(
+      text: name.isEmpty ? 'via $normalized' : 'via $normalized · $name',
+      style: TextStyle(
+        color: Theme.of(context).colorScheme.onSurfaceVariant,
+        fontWeight: FontWeight.normal,
+      ),
+    );
+  }
+
+  String _stationLabel(String code) => switch (code.trim().toUpperCase()) {
+    'P' => 'Portátil',
+    'M' => 'Móvel',
+    'F' => 'Fixa',
+    _ => code,
+  };
+
+  String _trafficLabel(String code) => switch (code.trim().toUpperCase()) {
+    'S' => 'Sem tráfego',
+    'C' => 'Com tráfego',
+    _ => code,
+  };
+
+  String _energyLabel(String code) => switch (code.trim().toUpperCase()) {
+    'B' => 'Bateria',
+    'G' => 'Gerador',
+    'AC' => 'Rede elétrica',
+    _ => code,
+  };
 
   String _distanceLabel(LogEntry entry) {
     final contact = GridLocator.bounds(entry.location);
@@ -1003,11 +1112,23 @@ class _HomePageState extends State<HomePage> {
       ]);
     }
     items.addAll([
-      Icon(Icons.schedule, size: 15, color: color),
+      Icon(Icons.public, size: 15, color: color),
+      const SizedBox(width: 3),
+      Flexible(child: Text(entry.location, overflow: TextOverflow.ellipsis)),
+      const SizedBox(width: 8),
+      Text('·', style: TextStyle(color: color)),
+      const SizedBox(width: 8),
+    ]);
+    items.addAll([
+      Icon(
+        entry.frequency == _repeaterFrequency ? Icons.cell_tower : Icons.radio,
+        size: 15,
+        color: color,
+      ),
       const SizedBox(width: 3),
       Flexible(
         child: Text(
-          _formatDate(entry.createdAt),
+          entry.frequency == _repeaterFrequency ? 'Repetidora' : 'Simplex',
           overflow: TextOverflow.ellipsis,
         ),
       ),
@@ -1015,27 +1136,27 @@ class _HomePageState extends State<HomePage> {
     return Row(mainAxisSize: MainAxisSize.min, children: items);
   }
 
-  Future<void> _deleteLog(LogEntry entry) async {
-    final confirmed = await showDialog<bool>(
-      context: context,
-      builder: (dialogContext) => AlertDialog(
-        title: const Text('Remover contato?'),
-        content: Text(
-          'O registro de ${entry.callsign} será removido permanentemente.',
-        ),
-        actions: [
-          TextButton(
-            onPressed: () => Navigator.pop(dialogContext, false),
-            child: const Text('Cancelar'),
+  Future<bool> _confirmDeleteLog(LogEntry entry) async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Remover contato?'),
+            content: Text(
+              'O registro de ${entry.callsign} será removido permanentemente.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Remover'),
+              ),
+            ],
           ),
-          FilledButton(
-            onPressed: () => Navigator.pop(dialogContext, true),
-            child: const Text('Remover'),
-          ),
-        ],
-      ),
-    );
-    if (confirmed == true) await widget.database.deleteLog(entry.id);
+        ) ??
+        false;
   }
 
   Future<void> _editLog(LogEntry entry) async {
@@ -1182,8 +1303,6 @@ class _HomePageState extends State<HomePage> {
     }
   }
 }
-
-enum _LogAction { edit, delete }
 
 String _choiceCode(String value) =>
     value.split(' - ').first.trim().toUpperCase();
