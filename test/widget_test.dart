@@ -64,6 +64,20 @@ void main() {
       {'simplex'},
     );
     expect(await database.allLogs(), isEmpty);
+    await tester.tap(find.text('Registrar log'));
+    await tester.pumpAndSettle();
+    for (final label in ['Indicativo', 'Nome do operador', 'Potência (W)']) {
+      expect(input(label).decoration!.errorText, 'Campo obrigatório');
+      await tester.enterText(
+        field(label),
+        label == 'Potência (W)' ? '5' : 'TESTE',
+      );
+      await tester.pump();
+      expect(input(label).decoration!.errorText, isNull);
+      await tester.enterText(field(label), '');
+      await tester.pump();
+      expect(input(label).decoration!.errorText, 'Campo obrigatório');
+    }
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
     debugDefaultTargetPlatformOverride = null;
