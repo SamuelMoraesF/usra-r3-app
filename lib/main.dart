@@ -387,6 +387,7 @@ class _HomePageState extends State<HomePage> {
   final power = TextEditingController();
   final station = TextEditingController(text: 'P');
   final traffic = TextEditingController(text: 'S');
+  final trafficMessage = TextEditingController();
   int _mapFocusRequest = 0;
   String _lastMapFocusGrid = '';
 
@@ -405,7 +406,15 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     _callsignFocusNode.removeListener(_onCallsignFocusChanged);
     _callsignFocusNode.dispose();
-    for (final c in [callsign, operator, location, power, station, traffic]) {
+    for (final c in [
+      callsign,
+      operator,
+      location,
+      power,
+      station,
+      traffic,
+      trafficMessage,
+    ]) {
       c.dispose();
     }
     super.dispose();
@@ -513,11 +522,22 @@ class _HomePageState extends State<HomePage> {
                             'S': 'Sem tráfego',
                             'C': 'Com tráfego',
                           },
+                          onChanged: (_) => setState(() {}),
                           onSubmitted: (_) => _register(),
                         ),
                       ),
                     ],
                   ),
+                  if (traffic.text.trim().toUpperCase() == 'C') ...[
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: trafficMessage,
+                      decoration: const InputDecoration(
+                        labelText: 'Mensagem (tráfego)',
+                      ),
+                      validator: _required,
+                    ),
+                  ],
                   const SizedBox(height: 18),
                   SizedBox(
                     width: double.infinity,
@@ -579,6 +599,9 @@ class _HomePageState extends State<HomePage> {
                                   height: 1.35,
                                 ),
                               ),
+                              if (entry.traffic == 'C' &&
+                                  entry.trafficMessage.isNotEmpty)
+                                Text('Mensagem: ${entry.trafficMessage}'),
                               const SizedBox(height: 4),
                               _contactMeta(entry),
                             ],
@@ -678,6 +701,7 @@ class _HomePageState extends State<HomePage> {
       powerWatts: double.parse(power.text.replaceAll(',', '.')),
       stationType: station.text.trim().toUpperCase(),
       traffic: traffic.text.trim().toUpperCase(),
+      trafficMessage: trafficMessage.text.trim(),
     );
     if (mounted) {
       setState(() {
@@ -689,6 +713,7 @@ class _HomePageState extends State<HomePage> {
         power.clear();
         station.text = 'P';
         traffic.text = 'S';
+        trafficMessage.clear();
       });
     }
   }
@@ -805,6 +830,7 @@ class _HomePageState extends State<HomePage> {
     final power = TextEditingController(text: entry.powerWatts.toString());
     final station = TextEditingController(text: entry.stationType);
     final traffic = TextEditingController(text: entry.traffic);
+    final trafficMessage = TextEditingController(text: entry.trafficMessage);
     final key = GlobalKey<FormState>();
     try {
       await showDialog<void>(
@@ -857,6 +883,22 @@ class _HomePageState extends State<HomePage> {
                     label: 'Tráfego',
                     values: const {'S': 'Sem tráfego', 'C': 'Com tráfego'},
                   ),
+                  ValueListenableBuilder<TextEditingValue>(
+                    valueListenable: traffic,
+                    builder: (context, value, _) =>
+                        value.text.trim().toUpperCase() == 'C'
+                        ? Padding(
+                            padding: const EdgeInsets.only(top: 10),
+                            child: TextFormField(
+                              controller: trafficMessage,
+                              decoration: const InputDecoration(
+                                labelText: 'Mensagem (tráfego)',
+                              ),
+                              validator: _required,
+                            ),
+                          )
+                        : const SizedBox.shrink(),
+                  ),
                 ],
               ),
             ),
@@ -877,6 +919,7 @@ class _HomePageState extends State<HomePage> {
                   powerWatts: double.parse(power.text.replaceAll(',', '.')),
                   stationType: station.text.trim().toUpperCase(),
                   traffic: traffic.text.trim().toUpperCase(),
+                  trafficMessage: trafficMessage.text.trim(),
                 );
                 if (dialogContext.mounted) Navigator.pop(dialogContext);
               },
@@ -893,6 +936,7 @@ class _HomePageState extends State<HomePage> {
         power,
         station,
         traffic,
+        trafficMessage,
       ]) {
         controller.dispose();
       }
@@ -908,15 +952,18 @@ class _ChoiceField extends StatelessWidget {
     required this.label,
     required this.values,
     this.onSubmitted,
+    this.onChanged,
   });
   final TextEditingController controller;
   final String label;
   final Map<String, String> values;
   final ValueChanged<String>? onSubmitted;
+  final ValueChanged<String>? onChanged;
   @override
   Widget build(BuildContext context) => TextFormField(
     controller: controller,
     onFieldSubmitted: onSubmitted,
+    onChanged: onChanged,
     textCapitalization: TextCapitalization.characters,
     inputFormatters: [
       UpperCaseFormatter(),
@@ -925,7 +972,10 @@ class _ChoiceField extends StatelessWidget {
     decoration: InputDecoration(
       labelText: label,
       suffixIcon: PopupMenuButton<String>(
-        onSelected: (value) => controller.text = value,
+        onSelected: (value) {
+          controller.text = value;
+          onChanged?.call(value);
+        },
         itemBuilder: (_) => values.entries
             .map(
               (e) => PopupMenuItem(
