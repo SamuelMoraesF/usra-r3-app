@@ -224,6 +224,12 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
             ),
             minMaxZoomPreference: const MinMaxZoomPreference(8, 15),
             trackCameraPosition: true,
+            annotationOrder: const [
+              AnnotationType.fill,
+              AnnotationType.line,
+              AnnotationType.symbol,
+              AnnotationType.circle,
+            ],
             cameraTargetBounds: CameraTargetBounds(
               LatLngBounds(
                 southwest: const LatLng(-30.15, -54.00),
@@ -280,6 +286,23 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
                   ),
                 ),
                 IconButton(
+                  tooltip: 'Mostrar precisão dos pontos',
+                  isSelected: widget.settings.showPrecision,
+                  color: widget.settings.showPrecision
+                      ? Theme.of(context).colorScheme.primary
+                      : Colors.grey,
+                  icon: const Icon(Icons.circle),
+                  onPressed: () => widget.onSettingsChanged?.call(
+                    MapSettings(
+                      showLines: widget.settings.showLines,
+                      showAll: widget.settings.showAll,
+                      showPrecision: !widget.settings.showPrecision,
+                      showCompass: widget.settings.showCompass,
+                      repeaterGrid: widget.settings.repeaterGrid,
+                    ),
+                  ),
+                ),
+                IconButton(
                   tooltip: 'Mostrar todas as frequências',
                   isSelected: widget.settings.showAll,
                   color: widget.settings.showAll
@@ -290,6 +313,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
                     MapSettings(
                       showLines: widget.settings.showLines,
                       showAll: !widget.settings.showAll,
+                      showPrecision: widget.settings.showPrecision,
                       showCompass: widget.settings.showCompass,
                       repeaterGrid: widget.settings.repeaterGrid,
                     ),
@@ -399,6 +423,10 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
     final colors = _mapColors!;
     await map.clearCircles();
     await map.clearLines();
+    await map.clearFills();
+    if (widget.settings.showPrecision) {
+      await _drawPrecisionAreas(map, scene);
+    }
     for (final route in scene.routes) {
       await map.addLine(
         LineOptions(
@@ -431,6 +459,43 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
       );
       assert(circle.id.isNotEmpty);
     }
+  }
+
+  Future<void> _drawPrecisionAreas(
+    MapLibreMapController map,
+    ContactScene scene,
+  ) async {
+    final seen = <String>{};
+    final areas = <FillOptions>[];
+    final grids = [
+      ...scene.markers.map((marker) => marker.grid),
+      ...scene.routes.expand((route) => route.grids),
+    ];
+    for (final rawGrid in grids) {
+      final grid = GridLocator.inspect(rawGrid).normalized;
+      if (!seen.add(grid)) continue;
+      final bounds = GridLocator.bounds(grid);
+      if (bounds == null) continue;
+      // Log coordinates are Maidenhead grids, so their precision is an area
+      // (the grid tile) rather than a radial accuracy value.
+      areas.add(
+        FillOptions(
+          geometry: [
+            [
+              LatLng(bounds.minLatitude, bounds.minLongitude),
+              LatLng(bounds.minLatitude, bounds.maxLongitude),
+              LatLng(bounds.maxLatitude, bounds.maxLongitude),
+              LatLng(bounds.maxLatitude, bounds.minLongitude),
+              LatLng(bounds.minLatitude, bounds.minLongitude),
+            ],
+          ],
+          fillColor: '#42A5F5',
+          fillOpacity: 0.12,
+          fillOutlineColor: '#64B5F6',
+        ),
+      );
+    }
+    if (areas.isNotEmpty) await map.addFills(areas);
   }
 
   Future<void> _drawDistances(

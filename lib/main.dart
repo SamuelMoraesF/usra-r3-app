@@ -240,6 +240,7 @@ class _UsraR3AppState extends State<UsraR3App> {
         MapSettings(
           showLines: mapSettings.showLines,
           showAll: mapSettings.showAll,
+          showPrecision: mapSettings.showPrecision,
           showCompass: result.showCompass,
           repeaterGrid: result.repeaterGrid,
         ),
