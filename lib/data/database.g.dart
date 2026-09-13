@@ -110,6 +110,18 @@ class $LogEntriesTable extends LogEntries
     type: DriftSqlType.string,
     requiredDuringInsert: true,
   );
+  static const VerificationMeta _trafficMessageMeta = const VerificationMeta(
+    'trafficMessage',
+  );
+  @override
+  late final GeneratedColumn<String> trafficMessage = GeneratedColumn<String>(
+    'traffic_message',
+    aliasedName,
+    false,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+    defaultValue: const Constant(''),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -121,6 +133,7 @@ class $LogEntriesTable extends LogEntries
     powerWatts,
     stationType,
     traffic,
+    trafficMessage,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -210,6 +223,15 @@ class $LogEntriesTable extends LogEntries
     } else if (isInserting) {
       context.missing(_trafficMeta);
     }
+    if (data.containsKey('traffic_message')) {
+      context.handle(
+        _trafficMessageMeta,
+        trafficMessage.isAcceptableOrUnknown(
+          data['traffic_message']!,
+          _trafficMessageMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -255,6 +277,10 @@ class $LogEntriesTable extends LogEntries
         DriftSqlType.string,
         data['${effectivePrefix}traffic'],
       )!,
+      trafficMessage: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}traffic_message'],
+      )!,
     );
   }
 
@@ -274,6 +300,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
   final double powerWatts;
   final String stationType;
   final String traffic;
+  final String trafficMessage;
   const LogEntry({
     required this.id,
     required this.createdAt,
@@ -284,6 +311,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     required this.powerWatts,
     required this.stationType,
     required this.traffic,
+    required this.trafficMessage,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -297,6 +325,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     map['power_watts'] = Variable<double>(powerWatts);
     map['station_type'] = Variable<String>(stationType);
     map['traffic'] = Variable<String>(traffic);
+    map['traffic_message'] = Variable<String>(trafficMessage);
     return map;
   }
 
@@ -311,6 +340,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
       powerWatts: Value(powerWatts),
       stationType: Value(stationType),
       traffic: Value(traffic),
+      trafficMessage: Value(trafficMessage),
     );
   }
 
@@ -329,6 +359,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
       powerWatts: serializer.fromJson<double>(json['powerWatts']),
       stationType: serializer.fromJson<String>(json['stationType']),
       traffic: serializer.fromJson<String>(json['traffic']),
+      trafficMessage: serializer.fromJson<String>(json['trafficMessage']),
     );
   }
   @override
@@ -344,6 +375,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
       'powerWatts': serializer.toJson<double>(powerWatts),
       'stationType': serializer.toJson<String>(stationType),
       'traffic': serializer.toJson<String>(traffic),
+      'trafficMessage': serializer.toJson<String>(trafficMessage),
     };
   }
 
@@ -357,6 +389,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     double? powerWatts,
     String? stationType,
     String? traffic,
+    String? trafficMessage,
   }) => LogEntry(
     id: id ?? this.id,
     createdAt: createdAt ?? this.createdAt,
@@ -367,6 +400,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     powerWatts: powerWatts ?? this.powerWatts,
     stationType: stationType ?? this.stationType,
     traffic: traffic ?? this.traffic,
+    trafficMessage: trafficMessage ?? this.trafficMessage,
   );
   LogEntry copyWithCompanion(LogEntriesCompanion data) {
     return LogEntry(
@@ -387,6 +421,9 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
           ? data.stationType.value
           : this.stationType,
       traffic: data.traffic.present ? data.traffic.value : this.traffic,
+      trafficMessage: data.trafficMessage.present
+          ? data.trafficMessage.value
+          : this.trafficMessage,
     );
   }
 
@@ -401,7 +438,8 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
           ..write('operatorGrid: $operatorGrid, ')
           ..write('powerWatts: $powerWatts, ')
           ..write('stationType: $stationType, ')
-          ..write('traffic: $traffic')
+          ..write('traffic: $traffic, ')
+          ..write('trafficMessage: $trafficMessage')
           ..write(')'))
         .toString();
   }
@@ -417,6 +455,7 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     powerWatts,
     stationType,
     traffic,
+    trafficMessage,
   );
   @override
   bool operator ==(Object other) =>
@@ -430,7 +469,8 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
           other.operatorGrid == this.operatorGrid &&
           other.powerWatts == this.powerWatts &&
           other.stationType == this.stationType &&
-          other.traffic == this.traffic);
+          other.traffic == this.traffic &&
+          other.trafficMessage == this.trafficMessage);
 }
 
 class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
@@ -443,6 +483,7 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
   final Value<double> powerWatts;
   final Value<String> stationType;
   final Value<String> traffic;
+  final Value<String> trafficMessage;
   const LogEntriesCompanion({
     this.id = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -453,6 +494,7 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     this.powerWatts = const Value.absent(),
     this.stationType = const Value.absent(),
     this.traffic = const Value.absent(),
+    this.trafficMessage = const Value.absent(),
   });
   LogEntriesCompanion.insert({
     this.id = const Value.absent(),
@@ -464,6 +506,7 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     required double powerWatts,
     required String stationType,
     required String traffic,
+    this.trafficMessage = const Value.absent(),
   }) : createdAt = Value(createdAt),
        callsign = Value(callsign),
        operatorName = Value(operatorName),
@@ -482,6 +525,7 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     Expression<double>? powerWatts,
     Expression<String>? stationType,
     Expression<String>? traffic,
+    Expression<String>? trafficMessage,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -493,6 +537,7 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
       if (powerWatts != null) 'power_watts': powerWatts,
       if (stationType != null) 'station_type': stationType,
       if (traffic != null) 'traffic': traffic,
+      if (trafficMessage != null) 'traffic_message': trafficMessage,
     });
   }
 
@@ -506,6 +551,7 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     Value<double>? powerWatts,
     Value<String>? stationType,
     Value<String>? traffic,
+    Value<String>? trafficMessage,
   }) {
     return LogEntriesCompanion(
       id: id ?? this.id,
@@ -517,6 +563,7 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
       powerWatts: powerWatts ?? this.powerWatts,
       stationType: stationType ?? this.stationType,
       traffic: traffic ?? this.traffic,
+      trafficMessage: trafficMessage ?? this.trafficMessage,
     );
   }
 
@@ -550,6 +597,9 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     if (traffic.present) {
       map['traffic'] = Variable<String>(traffic.value);
     }
+    if (trafficMessage.present) {
+      map['traffic_message'] = Variable<String>(trafficMessage.value);
+    }
     return map;
   }
 
@@ -564,7 +614,8 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
           ..write('operatorGrid: $operatorGrid, ')
           ..write('powerWatts: $powerWatts, ')
           ..write('stationType: $stationType, ')
-          ..write('traffic: $traffic')
+          ..write('traffic: $traffic, ')
+          ..write('trafficMessage: $trafficMessage')
           ..write(')'))
         .toString();
   }
@@ -592,6 +643,7 @@ typedef $$LogEntriesTableCreateCompanionBuilder =
       required double powerWatts,
       required String stationType,
       required String traffic,
+      Value<String> trafficMessage,
     });
 typedef $$LogEntriesTableUpdateCompanionBuilder =
     LogEntriesCompanion Function({
@@ -604,6 +656,7 @@ typedef $$LogEntriesTableUpdateCompanionBuilder =
       Value<double> powerWatts,
       Value<String> stationType,
       Value<String> traffic,
+      Value<String> trafficMessage,
     });
 
 class $$LogEntriesTableFilterComposer
@@ -657,6 +710,11 @@ class $$LogEntriesTableFilterComposer
 
   ColumnFilters<String> get traffic => $composableBuilder(
     column: $table.traffic,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get trafficMessage => $composableBuilder(
+    column: $table.trafficMessage,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -714,6 +772,11 @@ class $$LogEntriesTableOrderingComposer
     column: $table.traffic,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<String> get trafficMessage => $composableBuilder(
+    column: $table.trafficMessage,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$LogEntriesTableAnnotationComposer
@@ -759,6 +822,11 @@ class $$LogEntriesTableAnnotationComposer
 
   GeneratedColumn<String> get traffic =>
       $composableBuilder(column: $table.traffic, builder: (column) => column);
+
+  GeneratedColumn<String> get trafficMessage => $composableBuilder(
+    column: $table.trafficMessage,
+    builder: (column) => column,
+  );
 }
 
 class $$LogEntriesTableTableManager
@@ -801,6 +869,7 @@ class $$LogEntriesTableTableManager
                 Value<double> powerWatts = const Value.absent(),
                 Value<String> stationType = const Value.absent(),
                 Value<String> traffic = const Value.absent(),
+                Value<String> trafficMessage = const Value.absent(),
               }) => LogEntriesCompanion(
                 id: id,
                 createdAt: createdAt,
@@ -811,6 +880,7 @@ class $$LogEntriesTableTableManager
                 powerWatts: powerWatts,
                 stationType: stationType,
                 traffic: traffic,
+                trafficMessage: trafficMessage,
               ),
           createCompanionCallback:
               ({
@@ -823,6 +893,7 @@ class $$LogEntriesTableTableManager
                 required double powerWatts,
                 required String stationType,
                 required String traffic,
+                Value<String> trafficMessage = const Value.absent(),
               }) => LogEntriesCompanion.insert(
                 id: id,
                 createdAt: createdAt,
@@ -833,6 +904,7 @@ class $$LogEntriesTableTableManager
                 powerWatts: powerWatts,
                 stationType: stationType,
                 traffic: traffic,
+                trafficMessage: trafficMessage,
               ),
           withReferenceMapper: (p0) => p0
               .map(

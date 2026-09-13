@@ -13,6 +13,7 @@ class LogEntries extends Table {
   RealColumn get powerWatts => real()();
   TextColumn get stationType => text()();
   TextColumn get traffic => text()();
+  TextColumn get trafficMessage => text().withDefault(const Constant(''))();
 }
 
 @DriftDatabase(tables: [LogEntries])
@@ -31,7 +32,7 @@ class UsraDatabase extends _$UsraDatabase {
   UsraDatabase.test(super.e);
 
   @override
-  int get schemaVersion => 4;
+  int get schemaVersion => 5;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -51,6 +52,9 @@ class UsraDatabase extends _$UsraDatabase {
           await m.addColumn(logEntries, logEntries.operatorGrid);
         }
       }
+      if (from < 5) {
+        await m.addColumn(logEntries, logEntries.trafficMessage);
+      }
     },
   );
 
@@ -62,6 +66,7 @@ class UsraDatabase extends _$UsraDatabase {
     required double powerWatts,
     required String stationType,
     required String traffic,
+    String trafficMessage = '',
   }) {
     return into(logEntries).insert(
       LogEntriesCompanion.insert(
@@ -73,6 +78,7 @@ class UsraDatabase extends _$UsraDatabase {
         powerWatts: powerWatts,
         stationType: stationType,
         traffic: traffic,
+        trafficMessage: Value(trafficMessage),
       ),
     );
   }
@@ -92,6 +98,7 @@ class UsraDatabase extends _$UsraDatabase {
     required double powerWatts,
     required String stationType,
     required String traffic,
+    String trafficMessage = '',
   }) async {
     return await (update(
           logEntries,
@@ -103,6 +110,7 @@ class UsraDatabase extends _$UsraDatabase {
             powerWatts: Value(powerWatts),
             stationType: Value(stationType),
             traffic: Value(traffic),
+            trafficMessage: Value(trafficMessage),
           ),
         ) >
         0;
