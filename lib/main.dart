@@ -241,6 +241,7 @@ class _UsraR3AppState extends State<UsraR3App> {
           showLines: mapSettings.showLines,
           showAll: mapSettings.showAll,
           showPrecision: mapSettings.showPrecision,
+          showElevation: mapSettings.showElevation,
           showCompass: result.showCompass,
           repeaterGrid: result.repeaterGrid,
         ),

@@ -12,6 +12,7 @@ import 'map_settings.dart';
 import 'route_distance.dart';
 import 'map_palette.dart';
 import 'map_compass.dart';
+import 'elevation.dart';
 import 'pmtiles_registration_stub.dart'
     if (dart.library.js_interop) 'pmtiles_registration_web.dart';
 import 'offline_map_style_stub.dart'
@@ -63,6 +64,13 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
   bool _distanceLayerReady = false;
   final _distanceImages = <String, String>{};
   final _mapBearing = ValueNotifier<double>(0);
+  final _elevationRange = ValueNotifier<ElevationRange?>(null);
+  ElevationGrid? _elevationGrid;
+  Future<ElevationGrid?>? _elevationFuture;
+  Timer? _elevationDebounce;
+  bool _elevationLayerReady = false;
+  bool _elevationDrawing = false;
+  bool _elevationRedrawRequested = false;
 
   @override
   void didChangeDependencies() {
@@ -82,6 +90,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
     super.initState();
     _refreshContacts();
     _loadStyle();
+    _elevationFuture = _loadElevation();
     _prepareWeb();
   }
 
@@ -102,6 +111,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
         oldWidget.maxAgeHours != widget.maxAgeHours) {
       _refreshContacts();
       _drawContacts();
+      _scheduleElevationRedraw(immediate: true);
     }
     _fitInitialPoints();
   }
@@ -178,6 +188,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
     );
     contacts = _scene.contacts;
     _expiryTimer?.cancel();
+    _elevationDebounce?.cancel();
     final expirations =
         widget.entries
             .map(
@@ -204,6 +215,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
     map?.onCircleTapped.remove(_onCircleTapped);
     map?.removeListener(_onMapControllerChanged);
     _mapBearing.dispose();
+    _elevationRange.dispose();
     super.dispose();
   }
 
@@ -244,6 +256,8 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
             onStyleLoadedCallback: () {
               _distanceLayerReady = false;
               _distanceImages.clear();
+              _elevationLayerReady = false;
+              _elevationRange.value = null;
               _styleReady = true;
               _drawContacts();
               _fitInitialPoints();
@@ -280,6 +294,8 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
                     MapSettings(
                       showLines: !widget.settings.showLines,
                       showAll: widget.settings.showAll,
+                      showPrecision: widget.settings.showPrecision,
+                      showElevation: widget.settings.showElevation,
                       showCompass: widget.settings.showCompass,
                       repeaterGrid: widget.settings.repeaterGrid,
                     ),
@@ -297,6 +313,25 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
                       showLines: widget.settings.showLines,
                       showAll: widget.settings.showAll,
                       showPrecision: !widget.settings.showPrecision,
+                      showElevation: widget.settings.showElevation,
+                      showCompass: widget.settings.showCompass,
+                      repeaterGrid: widget.settings.repeaterGrid,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Mostrar altitudes',
+                  isSelected: widget.settings.showElevation,
+                  color: widget.settings.showElevation
+                      ? Theme.of(context).colorScheme.primary
+                      : Colors.grey,
+                  icon: const Icon(Icons.terrain),
+                  onPressed: () => widget.onSettingsChanged?.call(
+                    MapSettings(
+                      showLines: widget.settings.showLines,
+                      showAll: widget.settings.showAll,
+                      showPrecision: widget.settings.showPrecision,
+                      showElevation: !widget.settings.showElevation,
                       showCompass: widget.settings.showCompass,
                       repeaterGrid: widget.settings.repeaterGrid,
                     ),
@@ -314,6 +349,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
                       showLines: widget.settings.showLines,
                       showAll: !widget.settings.showAll,
                       showPrecision: widget.settings.showPrecision,
+                      showElevation: widget.settings.showElevation,
                       showCompass: widget.settings.showCompass,
                       repeaterGrid: widget.settings.repeaterGrid,
                     ),
@@ -323,6 +359,15 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
             ),
           ),
         ),
+        if (widget.settings.showElevation)
+          Positioned(
+            right: 12,
+            bottom: 12,
+            child: ValueListenableBuilder<ElevationRange?>(
+              valueListenable: _elevationRange,
+              builder: (context, range, child) => ElevationLegend(range: range),
+            ),
+          ),
       ],
     );
   }
@@ -337,6 +382,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
   void _onCameraMove(CameraPosition position) {
     if (!mounted) return;
     _updateMapBearing(position.bearing);
+    _scheduleElevationRedraw();
   }
 
   void _onMapControllerChanged() {
@@ -351,12 +397,16 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
     final cached = map.cameraPosition;
     if (cached != null) {
       _updateMapBearing(cached.bearing);
+      _scheduleElevationRedraw(immediate: true);
       return;
     }
     // Keep the compass working on platform implementations that do not cache
     // camera positions unless tracking is enabled.
     map.queryCameraPosition().then((position) {
-      if (mounted && position != null) _updateMapBearing(position.bearing);
+      if (mounted && position != null) {
+        _updateMapBearing(position.bearing);
+        _scheduleElevationRedraw(immediate: true);
+      }
     });
   }
 
@@ -379,7 +429,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
   void _onCircleTapped(Circle circle) {
     final index = circle.data?['contactIndex'];
     if (index is int && index >= 0 && index < contacts.length) {
-      _showContact(contacts[index]);
+      unawaited(_showContact(contacts[index]));
     }
   }
 
@@ -427,6 +477,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
     if (widget.settings.showPrecision) {
       await _drawPrecisionAreas(map, scene);
     }
+    await _drawElevation();
     for (final route in scene.routes) {
       await map.addLine(
         LineOptions(
@@ -460,6 +511,171 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
       assert(circle.id.isNotEmpty);
     }
   }
+
+  Future<ElevationGrid?> _loadElevation() async {
+    try {
+      final grid = await ElevationGrid.load();
+      if (mounted) {
+        _elevationGrid = grid;
+        if (widget.settings.showElevation) {
+          _scheduleElevationRedraw(immediate: true);
+        }
+      }
+      return grid;
+    } catch (_) {
+      return null;
+    }
+  }
+
+  void _scheduleElevationRedraw({bool immediate = false}) {
+    if (!widget.settings.showElevation || !mounted || !_styleReady) return;
+    _elevationDebounce?.cancel();
+    if (immediate) {
+      unawaited(_drawElevation());
+    } else {
+      _elevationDebounce = Timer(const Duration(milliseconds: 140), () {
+        if (mounted) unawaited(_drawElevation());
+      });
+    }
+  }
+
+  Future<void> _drawElevation() async {
+    final map = controller;
+    if (map == null || !mounted || !_styleReady) {
+      return;
+    }
+    if (!widget.settings.showElevation) {
+      _elevationRange.value = null;
+      if (_elevationLayerReady) {
+        await map.setGeoJsonSource('elevation-grid', _emptyFeatureCollection());
+      }
+      return;
+    }
+    if (_elevationDrawing) {
+      _elevationRedrawRequested = true;
+      return;
+    }
+    _elevationDrawing = true;
+    try {
+      do {
+        _elevationRedrawRequested = false;
+        final grid = _elevationGrid ?? await _elevationFuture;
+        if (grid == null || !mounted || !widget.settings.showElevation) return;
+        final visible = await map.getVisibleRegion();
+        final samples = grid.samplesIn(
+          minLatitude: visible.southwest.latitude,
+          maxLatitude: visible.northeast.latitude,
+          minLongitude: visible.southwest.longitude,
+          maxLongitude: visible.northeast.longitude,
+        );
+        if (samples.isEmpty) {
+          _elevationRange.value = null;
+          if (_elevationLayerReady) {
+            await map.setGeoJsonSource(
+              'elevation-grid',
+              _emptyFeatureCollection(),
+            );
+          }
+          continue;
+        }
+        var minimum = samples.first.meters;
+        var maximum = minimum;
+        for (final sample in samples.skip(1)) {
+          if (sample.meters < minimum) minimum = sample.meters;
+          if (sample.meters > maximum) maximum = sample.meters;
+        }
+        _elevationRange.value = ElevationRange(minimum, maximum);
+        final camera = await map.queryCameraPosition();
+        final zoom = camera?.zoom ?? 12;
+        final latitude =
+            (visible.southwest.latitude + visible.northeast.latitude) / 2;
+        final metersPerPixel =
+            156543.03392 * _cosine(latitude) / (1 << zoom.round());
+        final intensity = metersPerPixel < 40 ? 1.15 : 1.35;
+        final data = <String, dynamic>{
+          'type': 'FeatureCollection',
+          'features': samples
+              .map(
+                (sample) => <String, dynamic>{
+                  'type': 'Feature',
+                  'geometry': {
+                    'type': 'Point',
+                    'coordinates': [sample.longitude, sample.latitude],
+                  },
+                  'properties': {
+                    // The native heatmap aggregates nearby samples instead
+                    // of rendering one visible dot per elevation cell.
+                    'weight': maximum <= minimum
+                        ? .5
+                        : .2 +
+                              ((sample.meters - minimum) /
+                                      (maximum - minimum)) *
+                                  .8,
+                  },
+                },
+              )
+              .toList(),
+        };
+        if (_elevationLayerReady) {
+          await map.setGeoJsonSource('elevation-grid', data);
+        } else {
+          await map.addGeoJsonSource('elevation-grid', data);
+          await map.addHeatmapLayer(
+            'elevation-grid',
+            'elevation-grid-layer',
+            HeatmapLayerProperties(
+              heatmapRadius: const [
+                'interpolate',
+                ['linear'],
+                ['zoom'],
+                8,
+                18,
+                12,
+                28,
+                15,
+                42,
+              ],
+              heatmapWeight: const ['get', 'weight'],
+              heatmapIntensity: intensity,
+              heatmapColor: const [
+                'interpolate',
+                ['linear'],
+                ['heatmap-density'],
+                0,
+                'rgba(21, 101, 192, 0)',
+                .15,
+                '#1565c0',
+                .35,
+                '#00a9c7',
+                .55,
+                '#43a047',
+                .75,
+                '#ffd600',
+                1,
+                '#d32f2f',
+              ],
+              heatmapOpacity: .60,
+            ),
+          );
+          _elevationLayerReady = true;
+        }
+      } while (_elevationRedrawRequested && mounted);
+    } finally {
+      _elevationDrawing = false;
+    }
+  }
+
+  double _cosine(double degrees) {
+    final radians = degrees * 3.141592653589793 / 180;
+    // A short Taylor approximation avoids adding another dependency here.
+    final squared = radians * radians;
+    return 1 - squared / 2 + squared * squared / 24;
+  }
+
+  Map<String, dynamic> _emptyFeatureCollection() => const {
+    'type': 'FeatureCollection',
+    'features': <dynamic>[],
+  };
 
   Future<void> _drawPrecisionAreas(
     MapLibreMapController map,
@@ -583,7 +799,13 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
     }
   }
 
-  void _showContact(MapContact contact) {
+  Future<void> _showContact(MapContact contact) async {
+    final grid = _elevationGrid ?? await _elevationFuture;
+    if (!mounted) return;
+    final location = GridLocator.bounds(contact.latest.location);
+    final altitude = location == null
+        ? null
+        : grid?.elevationAt(location.centerLatitude, location.centerLongitude);
     showModalBottomSheet<void>(
       context: context,
       isScrollControlled: true,
@@ -644,6 +866,12 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
                   runSpacing: 8,
                   children: [
                     _detailChip(Icons.grid_3x3, contact.latest.location),
+                    _detailChip(
+                      Icons.terrain,
+                      altitude == null
+                          ? 'Altitude indisponível'
+                          : '${altitude.round()} m',
+                    ),
                     _detailChip(Icons.bolt, '${contact.latest.powerWatts} W'),
                     _detailChip(Icons.cell_tower, switch (contact
                         .latest

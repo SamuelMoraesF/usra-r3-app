@@ -1,0 +1,15 @@
+{
+  "version": 1,
+  "source": "NASA SRTM 1 arc-second (USGS/NASA) via elevation-tiles-prod",
+  "west": -55.171814,
+  "north": -28.65108,
+  "east": -52.48181400000011,
+  "south": -30.90357999999991,
+  "stepLongitude": 0.0008333333333333,
+  "stepLatitude": 0.0008333333333333,
+  "columns": 3228,
+  "rows": 2703,
+  "nodata": -32768,
+  "minimum": 9.0,
+  "maximum": 739.0
+}

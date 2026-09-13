@@ -7,6 +7,7 @@ class MapSettings {
     this.showLines = false,
     this.showAll = false,
     this.showPrecision = false,
+    this.showElevation = false,
     this.showCompass = true,
     this.repeaterGrid = defaultRepeaterGrid,
   });
@@ -14,6 +15,7 @@ class MapSettings {
   final bool showLines;
   final bool showAll;
   final bool showPrecision;
+  final bool showElevation;
   final bool showCompass;
   final String repeaterGrid;
 
@@ -21,6 +23,7 @@ class MapSettings {
     showLines: preferences.getBool('map.showLines') ?? false,
     showAll: preferences.getBool('map.showAll') ?? false,
     showPrecision: preferences.getBool('map.showPrecision') ?? false,
+    showElevation: preferences.getBool('map.showElevation') ?? false,
     showCompass: preferences.getBool('map.showCompass') ?? true,
     repeaterGrid:
         preferences.getString('map.repeaterGrid') ?? defaultRepeaterGrid,
@@ -30,6 +33,7 @@ class MapSettings {
     await preferences.setBool('map.showLines', showLines);
     await preferences.setBool('map.showAll', showAll);
     await preferences.setBool('map.showPrecision', showPrecision);
+    await preferences.setBool('map.showElevation', showElevation);
     await preferences.setBool('map.showCompass', showCompass);
     await preferences.setString('map.repeaterGrid', repeaterGrid);
   }
