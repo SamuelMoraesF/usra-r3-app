@@ -4,7 +4,12 @@
     {
       "id": "santa-maria-rs",
       "name": "Santa Maria, RS",
-      "bbox": [-54.0, -30.15, -53.55, -29.55],
+      "bbox": [
+        -55.171814,
+        -30.903987,
+        -52.481922,
+        -28.65108
+      ],
       "minzoom": 8,
       "maxzoom": 17,
       "output": "assets/maps/santa-maria-rs.pmtiles"
