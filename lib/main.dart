@@ -9,6 +9,7 @@ import 'package:file_picker/file_picker.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
+import 'package:wakelock_plus/wakelock_plus.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
 import 'data/database.dart';
@@ -48,6 +49,7 @@ class _UsraR3AppState extends State<UsraR3App> {
   bool mergePrecision = true;
   bool lastOnly = false;
   int mapMaxAgeHours = 24;
+  bool keepScreenOn = true;
 
   @override
   void initState() {
@@ -159,8 +161,10 @@ class _UsraR3AppState extends State<UsraR3App> {
       mergePrecision = preferences.getBool('map.mergePrecision') ?? true;
       lastOnly = preferences.getBool('map.lastOnly') ?? false;
       mapMaxAgeHours = preferences.getInt('map.maxAgeHours') ?? 24;
+      keepScreenOn = preferences.getBool('keepScreenOn') ?? true;
       loading = false;
     });
+    await WakelockPlus.toggle(enable: keepScreenOn);
   }
 
   Future<void> _completeSetup(OperatorProfile value) async {
@@ -189,6 +193,7 @@ class _UsraR3AppState extends State<UsraR3App> {
           mergePrecision: mergePrecision,
           lastOnly: lastOnly,
           mapMaxAgeHours: mapMaxAgeHours,
+          keepScreenOn: keepScreenOn,
           database: database,
         ),
       ),
@@ -200,6 +205,8 @@ class _UsraR3AppState extends State<UsraR3App> {
       await preferences.setBool('map.mergePrecision', result.mergePrecision);
       await preferences.setBool('map.lastOnly', result.lastOnly);
       await preferences.setInt('map.maxAgeHours', result.mapMaxAgeHours);
+      await preferences.setBool('keepScreenOn', result.keepScreenOn);
+      await WakelockPlus.toggle(enable: result.keepScreenOn);
       if (mounted) {
         setState(() {
           profile = result.profile;
@@ -207,6 +214,7 @@ class _UsraR3AppState extends State<UsraR3App> {
           mergePrecision = result.mergePrecision;
           lastOnly = result.lastOnly;
           mapMaxAgeHours = result.mapMaxAgeHours;
+          keepScreenOn = result.keepScreenOn;
         });
       }
     }
@@ -942,6 +950,7 @@ class SettingsPage extends StatefulWidget {
     required this.mergePrecision,
     required this.lastOnly,
     required this.mapMaxAgeHours,
+    required this.keepScreenOn,
     required this.database,
   });
   final OperatorProfile profile;
@@ -949,6 +958,7 @@ class SettingsPage extends StatefulWidget {
   final bool mergePrecision;
   final bool lastOnly;
   final int mapMaxAgeHours;
+  final bool keepScreenOn;
   final UsraDatabase database;
   @override
   State<SettingsPage> createState() => _SettingsPageState();
@@ -962,6 +972,7 @@ class _SettingsPageState extends State<SettingsPage> {
   bool locating = false;
   late bool mergePrecision = widget.mergePrecision;
   late bool lastOnly = widget.lastOnly;
+  late bool keepScreenOn = widget.keepScreenOn;
   late final maxAgeHours = TextEditingController(
     text: widget.mapMaxAgeHours.toString(),
   );
@@ -1013,6 +1024,15 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           value: lastOnly,
           onChanged: (value) => setState(() => lastOnly = value),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Manter a tela ativa'),
+          subtitle: const Text(
+            'Impede que a tela desligue enquanto o aplicativo estiver aberto.',
+          ),
+          value: keepScreenOn,
+          onChanged: (value) => setState(() => keepScreenOn = value),
         ),
         const SizedBox(height: 12),
         TextField(
@@ -1150,6 +1170,7 @@ class _SettingsPageState extends State<SettingsPage> {
         1,
         int.tryParse(maxAgeHours.text.trim()) ?? widget.mapMaxAgeHours,
       ),
+      keepScreenOn,
     ),
   );
   Future<void> _useGps() async {
@@ -1183,12 +1204,14 @@ class _SettingsResult {
     this.mergePrecision,
     this.lastOnly,
     this.mapMaxAgeHours,
+    this.keepScreenOn,
   );
   final OperatorProfile profile;
   final AppTheme theme;
   final bool mergePrecision;
   final bool lastOnly;
   final int mapMaxAgeHours;
+  final bool keepScreenOn;
 }
 
 class _Brand extends StatelessWidget {
