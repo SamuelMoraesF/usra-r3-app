@@ -6,6 +6,7 @@ class GridLocatorField extends StatefulWidget {
   const GridLocatorField({
     super.key,
     this.controller,
+    this.focusNode,
     this.allowInvalid = false,
     this.labelText = 'Localização ou grid',
     this.onChanged,
@@ -13,6 +14,7 @@ class GridLocatorField extends StatefulWidget {
   });
 
   final TextEditingController? controller;
+  final FocusNode? focusNode;
   final bool allowInvalid;
   final String labelText;
   final ValueChanged<String>? onChanged;
@@ -25,7 +27,8 @@ class GridLocatorField extends StatefulWidget {
 class _GridLocatorFieldState extends State<GridLocatorField> {
   late final TextEditingController _controller =
       widget.controller ?? TextEditingController();
-  late final FocusNode _focusNode = FocusNode()..addListener(_handleFocus);
+  late final FocusNode _focusNode = (widget.focusNode ?? FocusNode())
+    ..addListener(_handleFocus);
   GridLocatorInfo _info = const GridLocatorInfo.invalid();
 
   @override
@@ -37,9 +40,8 @@ class _GridLocatorFieldState extends State<GridLocatorField> {
 
   @override
   void dispose() {
-    _focusNode
-      ..removeListener(_handleFocus)
-      ..dispose();
+    _focusNode.removeListener(_handleFocus);
+    if (widget.focusNode == null) _focusNode.dispose();
     _controller.removeListener(_handleText);
     if (widget.controller == null) _controller.dispose();
     super.dispose();

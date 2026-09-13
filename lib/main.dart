@@ -383,6 +383,13 @@ class _HomePageState extends State<HomePage> {
   static const _simplexFrequency = 'simplex';
   final formKey = GlobalKey<FormState>();
   final _callsignFocusNode = FocusNode();
+  final _viaFocusNode = FocusNode();
+  final _operatorFocusNode = FocusNode();
+  final _locationFocusNode = FocusNode();
+  final _powerFocusNode = FocusNode();
+  final _stationFocusNode = FocusNode();
+  final _energyFocusNode = FocusNode();
+  final _trafficFocusNode = FocusNode();
   final callsign = TextEditingController();
   final via = TextEditingController();
   String frequency = _repeaterFrequency;
@@ -428,6 +435,17 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     _callsignFocusNode.removeListener(_onCallsignFocusChanged);
     _callsignFocusNode.dispose();
+    _viaFocusNode.dispose();
+    for (final node in [
+      _operatorFocusNode,
+      _locationFocusNode,
+      _powerFocusNode,
+      _stationFocusNode,
+      _energyFocusNode,
+      _trafficFocusNode,
+    ]) {
+      node.dispose();
+    }
     for (final c in [
       callsign,
       via,
@@ -483,161 +501,169 @@ class _HomePageState extends State<HomePage> {
               ),
             ),
             const SizedBox(height: 22),
-            FocusTraversalGroup(
-              child: Focus(
-                onKeyEvent: _handleTabKey,
-                child: Form(
-                  key: formKey,
-                  child: Column(
-                    children: [
-                      SizedBox(
-                        width: double.infinity,
-                        child: SegmentedButton<String>(
-                          segments: const [
-                            ButtonSegment(
-                              value: _repeaterFrequency,
-                              label: _FrequencyLabel('Repetidora', '145.37'),
-                            ),
-                            ButtonSegment(
-                              value: _simplexFrequency,
-                              label: _FrequencyLabel('Simplex', '146.52'),
-                            ),
-                          ],
-                          selected: {frequency},
-                          onSelectionChanged: (value) =>
-                              _setFrequency(value.first),
+            Form(
+              key: formKey,
+              child: Column(
+                children: [
+                  SizedBox(
+                    width: double.infinity,
+                    child: SegmentedButton<String>(
+                      segments: const [
+                        ButtonSegment(
+                          value: _repeaterFrequency,
+                          label: _FrequencyLabel('Repetidora', '145.37'),
                         ),
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: callsign,
-                              focusNode: _callsignFocusNode,
-                              textCapitalization: TextCapitalization.characters,
-                              inputFormatters: [UpperCaseFormatter()],
-                              textInputAction: TextInputAction.next,
-                              decoration: const InputDecoration(
-                                labelText: 'Indicativo',
-                              ),
-                              validator: _required,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: TextFormField(
-                              controller: via,
-                              textCapitalization: TextCapitalization.characters,
-                              inputFormatters: [UpperCaseFormatter()],
-                              textInputAction: TextInputAction.next,
-                              decoration: const InputDecoration(
-                                labelText: 'Via',
-                              ),
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: operator,
-                        textInputAction: TextInputAction.next,
-                        decoration: const InputDecoration(
-                          labelText: 'Nome do operador',
-                        ),
-                        validator: _required,
-                      ),
-                      const SizedBox(height: 12),
-                      GridLocatorField(
-                        controller: location,
-                        allowInvalid: true,
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: TextFormField(
-                              controller: power,
-                              keyboardType:
-                                  const TextInputType.numberWithOptions(
-                                    decimal: true,
-                                  ),
-                              inputFormatters: [PowerFormatter()],
-                              textInputAction: TextInputAction.next,
-                              decoration: const InputDecoration(
-                                labelText: 'Potência (W)',
-                              ),
-                              validator: _required,
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _ChoiceField(
-                              controller: station,
-                              label: 'Estação',
-                              values: const {
-                                'P': 'Portátil',
-                                'M': 'Móvel',
-                                'F': 'Fixa',
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      const SizedBox(height: 12),
-                      Row(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            child: _ChoiceField(
-                              controller: traffic,
-                              label: 'Tráfego',
-                              values: const {
-                                'S': 'Sem tráfego',
-                                'C': 'Com tráfego',
-                              },
-                              onChanged: (_) => setState(() {}),
-                              onSubmitted: (_) => _register(),
-                            ),
-                          ),
-                          const SizedBox(width: 8),
-                          Expanded(
-                            child: _ChoiceField(
-                              controller: energy,
-                              label: 'Energia',
-                              values: const {
-                                'B': 'Bateria',
-                                'G': 'Gerador',
-                                'AC': 'Rede elétrica',
-                              },
-                            ),
-                          ),
-                        ],
-                      ),
-                      if (_choiceCode(traffic.text) == 'C') ...[
-                        const SizedBox(height: 12),
-                        TextFormField(
-                          controller: trafficMessage,
-                          decoration: const InputDecoration(
-                            labelText: 'Mensagem (tráfego)',
-                          ),
-                          validator: _required,
+                        ButtonSegment(
+                          value: _simplexFrequency,
+                          label: _FrequencyLabel('Simplex', '146.52'),
                         ),
                       ],
-                      const SizedBox(height: 18),
-                      SizedBox(
-                        width: double.infinity,
-                        child: FilledButton.icon(
-                          onPressed: _register,
-                          icon: const Icon(Icons.add),
-                          label: const Text('Registrar log'),
+                      selected: {frequency},
+                      onSelectionChanged: (value) => _setFrequency(value.first),
+                    ),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: callsign,
+                          focusNode: _callsignFocusNode,
+                          textCapitalization: TextCapitalization.characters,
+                          inputFormatters: [UpperCaseFormatter()],
+                          textInputAction: TextInputAction.next,
+                          decoration: const InputDecoration(
+                            labelText: 'Indicativo',
+                          ),
+                          onFieldSubmitted: (_) => _viaFocusNode.requestFocus(),
+                          validator: _required,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: TextFormField(
+                          controller: via,
+                          focusNode: _viaFocusNode,
+                          textCapitalization: TextCapitalization.characters,
+                          inputFormatters: [UpperCaseFormatter()],
+                          textInputAction: TextInputAction.next,
+                          decoration: const InputDecoration(labelText: 'Via'),
+                          onFieldSubmitted: (_) =>
+                              _operatorFocusNode.requestFocus(),
                         ),
                       ),
                     ],
                   ),
-                ),
+                  const SizedBox(height: 12),
+                  TextFormField(
+                    controller: operator,
+                    focusNode: _operatorFocusNode,
+                    textInputAction: TextInputAction.next,
+                    decoration: const InputDecoration(
+                      labelText: 'Nome do operador',
+                    ),
+                    onFieldSubmitted: (_) => _locationFocusNode.requestFocus(),
+                    validator: _required,
+                  ),
+                  const SizedBox(height: 12),
+                  GridLocatorField(
+                    controller: location,
+                    focusNode: _locationFocusNode,
+                    allowInvalid: true,
+                    onSubmitted: (_) => _powerFocusNode.requestFocus(),
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: TextFormField(
+                          controller: power,
+                          focusNode: _powerFocusNode,
+                          keyboardType: const TextInputType.numberWithOptions(
+                            decimal: true,
+                          ),
+                          inputFormatters: [PowerFormatter()],
+                          textInputAction: TextInputAction.next,
+                          onFieldSubmitted: (_) =>
+                              _stationFocusNode.requestFocus(),
+                          decoration: const InputDecoration(
+                            labelText: 'Potência (W)',
+                          ),
+                          validator: _required,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _ChoiceField(
+                          controller: station,
+                          focusNode: _stationFocusNode,
+                          label: 'Estação',
+                          values: const {
+                            'P': 'Portátil',
+                            'M': 'Móvel',
+                            'F': 'Fixa',
+                          },
+                          onSubmitted: (_) => _energyFocusNode.requestFocus(),
+                        ),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: 12),
+                  Row(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Expanded(
+                        child: _ChoiceField(
+                          controller: energy,
+                          focusNode: _energyFocusNode,
+                          label: 'Energia',
+                          values: const {
+                            'B': 'Bateria',
+                            'G': 'Gerador',
+                            'AC': 'Rede elétrica',
+                          },
+                          onSubmitted: (_) => _trafficFocusNode.requestFocus(),
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Expanded(
+                        child: _ChoiceField(
+                          controller: traffic,
+                          focusNode: _trafficFocusNode,
+                          label: 'Tráfego',
+                          values: const {
+                            'S': 'Sem tráfego',
+                            'C': 'Com tráfego',
+                          },
+                          onChanged: (_) => setState(() {}),
+                          onSubmitted: (_) =>
+                              FocusScope.of(context).nextFocus(),
+                        ),
+                      ),
+                    ],
+                  ),
+                  if (_choiceCode(traffic.text) == 'C') ...[
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: trafficMessage,
+                      decoration: const InputDecoration(
+                        labelText: 'Mensagem (tráfego)',
+                      ),
+                      validator: _required,
+                    ),
+                  ],
+                  const SizedBox(height: 18),
+                  SizedBox(
+                    width: double.infinity,
+                    child: FilledButton.icon(
+                      onPressed: _register,
+                      icon: const Icon(Icons.add),
+                      label: const Text('Registrar log'),
+                    ),
+                  ),
+                ],
               ),
             ),
             const SizedBox(height: 28),
@@ -792,18 +818,6 @@ class _HomePageState extends State<HomePage> {
 
   String? _required(String? value) =>
       value == null || value.trim().isEmpty ? 'Campo obrigatório' : null;
-
-  KeyEventResult _handleTabKey(FocusNode node, KeyEvent event) {
-    if (event is KeyDownEvent && event.logicalKey == LogicalKeyboardKey.tab) {
-      if (HardwareKeyboard.instance.isShiftPressed) {
-        node.previousFocus();
-      } else {
-        node.nextFocus();
-      }
-      return KeyEventResult.handled;
-    }
-    return KeyEventResult.ignored;
-  }
 
   Future<void> _register() async {
     if (!formKey.currentState!.validate()) return;
@@ -1114,12 +1128,14 @@ class _FrequencyLabel extends StatelessWidget {
 class _ChoiceField extends StatelessWidget {
   const _ChoiceField({
     required this.controller,
+    this.focusNode,
     required this.label,
     required this.values,
     this.onSubmitted,
     this.onChanged,
   });
   final TextEditingController controller;
+  final FocusNode? focusNode;
   final String label;
   final Map<String, String> values;
   final ValueChanged<String>? onSubmitted;
@@ -1130,6 +1146,7 @@ class _ChoiceField extends StatelessWidget {
         valueListenable: controller,
         builder: (context, value, _) => TextFormField(
           controller: controller,
+          focusNode: focusNode,
           onFieldSubmitted: onSubmitted,
           onChanged: onChanged,
           onEditingComplete: () {
