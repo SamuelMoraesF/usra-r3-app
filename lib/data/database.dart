@@ -128,6 +128,8 @@ class UsraDatabase extends _$UsraDatabase {
     required String callsign,
     String via = '',
     String? frequency,
+    double? frequencyMhz,
+    String? repeaterGrid,
     String energy = 'B',
     required String operatorName,
     required String location,
@@ -145,6 +147,13 @@ class UsraDatabase extends _$UsraDatabase {
             frequency: frequency == null
                 ? const Value.absent()
                 : Value(frequency),
+            frequencyMhz: frequencyMhz == null
+                ? const Value.absent()
+                : Value(frequencyMhz),
+            // Null preserves the existing snapshot; an empty value clears it.
+            repeaterGrid: repeaterGrid == null
+                ? const Value.absent()
+                : Value(repeaterGrid.isEmpty ? null : repeaterGrid),
             energy: Value(energy),
             operatorName: Value(operatorName),
             location: Value(location),

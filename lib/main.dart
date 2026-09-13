@@ -1070,6 +1070,12 @@ class _HomePageState extends State<HomePage> {
     _ => code,
   };
 
+  String _trafficLabel(String code) => switch (code.trim().toUpperCase()) {
+    'S' => 'Sem tráfego',
+    'C' => 'Com tráfego',
+    _ => code,
+  };
+
   String _energyLabel(String code) => switch (code.trim().toUpperCase()) {
     'B' => 'Bateria',
     'G' => 'Gerador',
@@ -1127,11 +1133,7 @@ class _HomePageState extends State<HomePage> {
       const SizedBox(width: 8),
     ]);
     items.addAll([
-      Icon(
-        Icons.graphic_eq,
-        size: 15,
-        color: color,
-      ),
+      Icon(Icons.graphic_eq, size: 15, color: color),
       const SizedBox(width: 3),
       Flexible(
         child: Text(
@@ -1172,126 +1174,196 @@ class _HomePageState extends State<HomePage> {
     final operator = TextEditingController(text: entry.operatorName);
     final location = TextEditingController(text: entry.location);
     final power = TextEditingController(text: entry.powerWatts.toString());
-    final station = TextEditingController(text: entry.stationType);
-    final traffic = TextEditingController(text: entry.traffic);
-    final energy = TextEditingController(text: entry.energy);
+    final station = TextEditingController(
+      text: '${entry.stationType} - ${_stationLabel(entry.stationType)}',
+    );
+    final traffic = TextEditingController(
+      text: '${entry.traffic} - ${_trafficLabel(entry.traffic)}',
+    );
+    final energy = TextEditingController(
+      text: '${entry.energy} - ${_energyLabel(entry.energy)}',
+    );
     final trafficMessage = TextEditingController(text: entry.trafficMessage);
     final key = GlobalKey<FormState>();
+    var editFrequency = entry.frequency;
     try {
       await showDialog<void>(
         context: context,
-        builder: (dialogContext) => AlertDialog(
-          title: const Text('Editar contato'),
-          content: SingleChildScrollView(
-            child: Form(
-              key: key,
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                children: [
-                  TextFormField(
-                    controller: callsign,
-                    inputFormatters: [UpperCaseFormatter()],
-                    decoration: const InputDecoration(labelText: 'Indicativo'),
-                    validator: _required,
-                  ),
-                  const SizedBox(height: 10),
-                  TextFormField(
-                    controller: operator,
-                    decoration: const InputDecoration(
-                      labelText: 'Nome do operador',
+        builder: (dialogContext) => StatefulBuilder(
+          builder: (context, setDialogState) => AlertDialog(
+            title: const Text('Editar contato'),
+            content: SingleChildScrollView(
+              child: Form(
+                key: key,
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    SegmentedButton<String>(
+                      segments: const [
+                        ButtonSegment(
+                          value: _repeaterFrequency,
+                          label: _FrequencyLabel('Repetidora', '145.37'),
+                        ),
+                        ButtonSegment(
+                          value: _simplexFrequency,
+                          label: _FrequencyLabel('Simplex', '146.52'),
+                        ),
+                      ],
+                      selected: {editFrequency},
+                      onSelectionChanged: (value) =>
+                          setDialogState(() => editFrequency = value.first),
                     ),
-                    validator: _required,
-                  ),
-                  const SizedBox(height: 10),
-                  TextFormField(
-                    controller: via,
-                    textCapitalization: TextCapitalization.characters,
-                    inputFormatters: [UpperCaseFormatter()],
-                    decoration: const InputDecoration(labelText: 'Via'),
-                  ),
-                  const SizedBox(height: 10),
-                  GridLocatorField(controller: location, allowInvalid: true),
-                  const SizedBox(height: 10),
-                  TextFormField(
-                    controller: power,
-                    inputFormatters: [PowerFormatter()],
-                    keyboardType: const TextInputType.numberWithOptions(
-                      decimal: true,
-                    ),
-                    decoration: const InputDecoration(
-                      labelText: 'Potência (W)',
-                    ),
-                    validator: _required,
-                  ),
-                  const SizedBox(height: 10),
-                  _ChoiceField(
-                    controller: station,
-                    label: 'Tipo de estação',
-                    values: const {'P': 'Portátil', 'M': 'Móvel', 'F': 'Fixa'},
-                  ),
-                  const SizedBox(height: 10),
-                  _ChoiceField(
-                    controller: traffic,
-                    label: 'Tráfego',
-                    values: const {'S': 'Sem tráfego', 'C': 'Com tráfego'},
-                  ),
-                  const SizedBox(height: 10),
-                  _ChoiceField(
-                    controller: energy,
-                    label: 'Energia',
-                    values: const {
-                      'B': 'Bateria',
-                      'G': 'Gerador',
-                      'AC': 'Rede elétrica',
-                    },
-                  ),
-                  ValueListenableBuilder<TextEditingValue>(
-                    valueListenable: traffic,
-                    builder: (context, value, _) =>
-                        _choiceCode(value.text) == 'C'
-                        ? Padding(
-                            padding: const EdgeInsets.only(top: 10),
-                            child: TextFormField(
-                              controller: trafficMessage,
-                              inputFormatters: [UpperCaseFormatter()],
-                              decoration: const InputDecoration(
-                                labelText: 'Mensagem (tráfego)',
-                              ),
-                              validator: _required,
+                    const SizedBox(height: 12),
+                    Row(
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: callsign,
+                            textCapitalization: TextCapitalization.characters,
+                            inputFormatters: [UpperCaseFormatter()],
+                            textInputAction: TextInputAction.next,
+                            decoration: const InputDecoration(
+                              labelText: 'Indicativo',
                             ),
-                          )
-                        : const SizedBox.shrink(),
-                  ),
-                ],
+                            validator: _required,
+                            autovalidateMode:
+                                AutovalidateMode.onUserInteraction,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextFormField(
+                            controller: via,
+                            textCapitalization: TextCapitalization.characters,
+                            inputFormatters: [UpperCaseFormatter()],
+                            textInputAction: TextInputAction.next,
+                            decoration: const InputDecoration(labelText: 'Via'),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    TextFormField(
+                      controller: operator,
+                      decoration: const InputDecoration(
+                        labelText: 'Nome do operador',
+                      ),
+                      validator: _required,
+                      autovalidateMode: AutovalidateMode.onUserInteraction,
+                    ),
+                    const SizedBox(height: 10),
+                    GridLocatorField(controller: location, allowInvalid: true),
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: power,
+                            inputFormatters: [PowerFormatter()],
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            decoration: const InputDecoration(
+                              labelText: 'Potência (W)',
+                            ),
+                            validator: _required,
+                            autovalidateMode:
+                                AutovalidateMode.onUserInteraction,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _ChoiceField(
+                            controller: station,
+                            label: 'Estação',
+                            values: const {
+                              'P': 'Portátil',
+                              'M': 'Móvel',
+                              'F': 'Fixa',
+                            },
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _ChoiceField(
+                            controller: energy,
+                            label: 'Energia',
+                            values: const {
+                              'B': 'Bateria',
+                              'G': 'Gerador',
+                              'AC': 'Rede elétrica',
+                            },
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _ChoiceField(
+                            controller: traffic,
+                            label: 'Tráfego',
+                            values: const {
+                              'S': 'Sem tráfego',
+                              'C': 'Com tráfego',
+                            },
+                            onChanged: (_) => setDialogState(() {}),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_choiceCode(traffic.text) == 'C') ...[
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: trafficMessage,
+                        inputFormatters: [UpperCaseFormatter()],
+                        decoration: const InputDecoration(
+                          labelText: 'Mensagem (tráfego)',
+                        ),
+                        validator: _required,
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
+                      ),
+                    ],
+                  ],
+                ),
               ),
             ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: () async {
+                  if (!key.currentState!.validate()) return;
+                  await widget.database.updateLog(
+                    id: entry.id,
+                    frequency: editFrequency,
+                    frequencyMhz: editFrequency == _simplexFrequency
+                        ? 146.52
+                        : 145.37,
+                    repeaterGrid: editFrequency == _simplexFrequency
+                        ? ''
+                        : (entry.repeaterGrid ?? ''),
+                    callsign: callsign.text.trim().toUpperCase(),
+                    via: via.text.trim().toUpperCase(),
+                    operatorName: operator.text.trim(),
+                    location: location.text.trim(),
+                    powerWatts: double.parse(power.text.replaceAll(',', '.')),
+                    stationType: _choiceCode(station.text),
+                    traffic: _choiceCode(traffic.text),
+                    energy: _choiceCode(energy.text),
+                    trafficMessage: trafficMessage.text.trim(),
+                  );
+                  if (dialogContext.mounted) Navigator.pop(dialogContext);
+                },
+                child: const Text('Salvar'),
+              ),
+            ],
           ),
-          actions: [
-            TextButton(
-              onPressed: () => Navigator.pop(dialogContext),
-              child: const Text('Cancelar'),
-            ),
-            FilledButton(
-              onPressed: () async {
-                if (!key.currentState!.validate()) return;
-                await widget.database.updateLog(
-                  id: entry.id,
-                  frequency: entry.frequency,
-                  callsign: callsign.text.trim().toUpperCase(),
-                  via: via.text.trim().toUpperCase(),
-                  operatorName: operator.text.trim(),
-                  location: location.text.trim(),
-                  powerWatts: double.parse(power.text.replaceAll(',', '.')),
-                  stationType: _choiceCode(station.text),
-                  traffic: _choiceCode(traffic.text),
-                  energy: _choiceCode(energy.text),
-                  trafficMessage: trafficMessage.text.trim(),
-                );
-                if (dialogContext.mounted) Navigator.pop(dialogContext);
-              },
-              child: const Text('Salvar'),
-            ),
-          ],
         ),
       );
     } finally {
