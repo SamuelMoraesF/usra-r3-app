@@ -1,4 +1,5 @@
 import 'database.dart';
+import 'package:drift/drift.dart' show Value;
 
 const csvHeaders = [
   'created_at',
@@ -9,6 +10,12 @@ const csvHeaders = [
   'power_watts',
   'station_type',
   'traffic',
+  'via',
+  'frequency',
+  'frequency_mhz',
+  'repeater_grid',
+  'energy',
+  'traffic_message',
 ];
 
 String logsToCsv(List<LogEntry> entries) {
@@ -23,6 +30,12 @@ String logsToCsv(List<LogEntry> entries) {
       entry.powerWatts.toString(),
       entry.stationType,
       entry.traffic,
+      entry.via,
+      entry.frequency,
+      entry.frequencyMhz?.toString() ?? '',
+      entry.repeaterGrid ?? '',
+      entry.energy,
+      entry.trafficMessage,
     ]);
   }
   return rows.map((row) => row.map(_escapeCsv).join(',')).join('\r\n');
@@ -30,20 +43,29 @@ String logsToCsv(List<LogEntry> entries) {
 
 List<LogEntriesCompanion> csvToLogCompanions(String source) {
   final rows = _parseCsv(source);
-  if (rows.isEmpty ||
-      rows.first.map(_normalizeHeader).toList().join(',') !=
-          csvHeaders.join(',')) {
+  final headers = rows.isEmpty
+      ? <String>[]
+      : rows.first.map(_normalizeHeader).toList();
+  final legacy = headers.join(',') == csvHeaders.take(8).join(',');
+  if (rows.isEmpty || (!legacy && headers.join(',') != csvHeaders.join(','))) {
     throw const FormatException('Cabeçalho CSV inválido.');
   }
   final result = <LogEntriesCompanion>[];
   for (var index = 1; index < rows.length; index++) {
     final row = rows[index];
     if (row.length == 1 && row.first.trim().isEmpty) continue;
-    if (row.length != csvHeaders.length) {
+    if (row.length != headers.length) {
       throw FormatException('Linha ${index + 1} inválida.');
     }
     final createdAt = DateTime.tryParse(row[0]);
     final power = double.tryParse(row[5].replaceAll(',', '.'));
+    final mhz = legacy || row[10].isEmpty ? null : double.tryParse(row[10]);
+    if (!legacy &&
+        (!['simplex', 'repeater'].contains(row[9]) ||
+            (row[10].isNotEmpty &&
+                (mhz == null || !mhz.isFinite || mhz <= 0)))) {
+      throw FormatException('Frequência inválida na linha ${index + 1}.');
+    }
     if (createdAt == null || power == null || row[1].trim().isEmpty) {
       throw FormatException('Dados inválidos na linha ${index + 1}.');
     }
@@ -57,6 +79,14 @@ List<LogEntriesCompanion> csvToLogCompanions(String source) {
         powerWatts: power,
         stationType: row[6].trim().toUpperCase(),
         traffic: row[7].trim().toUpperCase(),
+        via: legacy ? const Value.absent() : Value(row[8].trim().toUpperCase()),
+        frequency: legacy ? const Value.absent() : Value(row[9]),
+        frequencyMhz: Value(mhz),
+        repeaterGrid: Value(
+          legacy || row[11].isEmpty ? null : row[11].trim().toUpperCase(),
+        ),
+        energy: legacy ? const Value.absent() : Value(row[12]),
+        trafficMessage: legacy ? const Value.absent() : Value(row[13]),
       ),
     );
   }

@@ -1,3 +1,5 @@
+import 'dart:async';
+import 'dart:ui' as ui;
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
@@ -5,6 +7,9 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 import '../data/database.dart';
 import '../grid_locator.dart';
 import 'contact_aggregation.dart';
+import 'contact_scene.dart';
+import 'map_settings.dart';
+import 'route_distance.dart';
 import 'map_palette.dart';
 import 'pmtiles_registration_stub.dart'
     if (dart.library.js_interop) 'pmtiles_registration_web.dart';
@@ -22,6 +27,10 @@ class OfflineContactsMap extends StatefulWidget {
     this.lastOnly = false,
     this.maxAgeHours = 24,
     this.entriesLoaded = true,
+    this.selectedMode = 'repeater',
+    this.selectedFrequencyMhz = 145.37,
+    this.settings = const MapSettings(),
+    this.onSettingsChanged,
   });
   final List<LogEntry> entries;
   final String operatorGrid;
@@ -31,6 +40,10 @@ class OfflineContactsMap extends StatefulWidget {
   final bool lastOnly;
   final int maxAgeHours;
   final bool entriesLoaded;
+  final String selectedMode;
+  final double selectedFrequencyMhz;
+  final MapSettings settings;
+  final ValueChanged<MapSettings>? onSettingsChanged;
 
   @override
   State<OfflineContactsMap> createState() => _OfflineContactsMapState();
@@ -42,6 +55,12 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
   ColorScheme? _mapColors;
   bool _styleReady = false;
   bool _initialCameraSet = false;
+  late ContactScene _scene;
+  Timer? _expiryTimer;
+  bool _drawing = false;
+  bool _redrawRequested = false;
+  bool _distanceLayerReady = false;
+  final _distanceImages = <String, String>{};
 
   @override
   void didChangeDependencies() {
@@ -75,6 +94,9 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
         oldWidget.operatorGrid != widget.operatorGrid ||
         oldWidget.mergePrecision != widget.mergePrecision ||
         oldWidget.lastOnly != widget.lastOnly ||
+        oldWidget.selectedMode != widget.selectedMode ||
+        oldWidget.selectedFrequencyMhz != widget.selectedFrequencyMhz ||
+        oldWidget.settings != widget.settings ||
         oldWidget.maxAgeHours != widget.maxAgeHours) {
       _refreshContacts();
       _drawContacts();
@@ -94,7 +116,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
     _initialCameraSet = true;
     final bounds = [
       GridLocator.bounds(widget.operatorGrid),
-      ...contacts.map((contact) => contact.bounds),
+      ..._scene.markers.map((marker) => GridLocator.bounds(marker.grid)),
     ].nonNulls.toList();
     if (bounds.isEmpty) return;
     var south = bounds.first.centerLatitude;
@@ -138,17 +160,46 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
   }
 
   void _refreshContacts() {
-    final cutoff = DateTime.now().toUtc().subtract(
-      Duration(hours: widget.maxAgeHours),
-    );
-    final visibleEntries = widget.entries
-        .where((entry) => !entry.createdAt.isBefore(cutoff))
-        .toList();
-    contacts = aggregateMapContacts(
-      visibleEntries,
+    final now = DateTime.now().toUtc();
+    _scene = buildContactScene(
+      widget.entries,
+      now: now,
+      maxAgeHours: widget.maxAgeHours,
+      operatorGrid: widget.operatorGrid,
+      repeaterGrid: widget.settings.repeaterGrid,
+      selectedMode: widget.selectedMode,
+      selectedFrequencyMhz: widget.selectedFrequencyMhz,
+      showAll: widget.settings.showAll,
+      showLines: widget.settings.showLines,
       mergePrecision: widget.mergePrecision,
-      lastOnlyByCallsign: widget.lastOnly,
+      lastOnly: widget.lastOnly,
     );
+    contacts = _scene.contacts;
+    _expiryTimer?.cancel();
+    final expirations =
+        widget.entries
+            .map(
+              (e) => e.createdAt
+                  .add(Duration(hours: widget.maxAgeHours))
+                  .add(const Duration(milliseconds: 1)),
+            )
+            .where((time) => time.isAfter(now))
+            .toList()
+          ..sort();
+    if (expirations.isNotEmpty) {
+      _expiryTimer = Timer(expirations.first.difference(now), () {
+        if (!mounted) return;
+        _refreshContacts();
+        _drawContacts();
+      });
+    }
+  }
+
+  @override
+  void dispose() {
+    _expiryTimer?.cancel();
+    controller?.onCircleTapped.remove(_onCircleTapped);
+    super.dispose();
   }
 
   @override
@@ -157,27 +208,78 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
     if (style == null || !_webReady) {
       return const Center(child: CircularProgressIndicator());
     }
-    return MapLibreMap(
-      styleString: style,
-      initialCameraPosition: const CameraPosition(
-        target: LatLng(-29.6868, -53.8069),
-        zoom: 12,
-      ),
-      minMaxZoomPreference: const MinMaxZoomPreference(8, 15),
-      cameraTargetBounds: CameraTargetBounds(
-        LatLngBounds(
-          southwest: const LatLng(-30.15, -54.00),
-          northeast: const LatLng(-29.55, -53.55),
+    return Stack(
+      children: [
+        Positioned.fill(
+          child: MapLibreMap(
+            styleString: style,
+            initialCameraPosition: const CameraPosition(
+              target: LatLng(-29.6868, -53.8069),
+              zoom: 12,
+            ),
+            minMaxZoomPreference: const MinMaxZoomPreference(8, 15),
+            cameraTargetBounds: CameraTargetBounds(
+              LatLngBounds(
+                southwest: const LatLng(-30.15, -54.00),
+                northeast: const LatLng(-29.55, -53.55),
+              ),
+            ),
+            compassEnabled: true,
+            myLocationEnabled: false,
+            onMapCreated: _onMapCreated,
+            onStyleLoadedCallback: () {
+              _distanceLayerReady = false;
+              _distanceImages.clear();
+              _styleReady = true;
+              _drawContacts();
+              _fitInitialPoints();
+            },
+          ),
         ),
-      ),
-      compassEnabled: true,
-      myLocationEnabled: false,
-      onMapCreated: _onMapCreated,
-      onStyleLoadedCallback: () {
-        _styleReady = true;
-        _drawContacts();
-        _fitInitialPoints();
-      },
+        Positioned(
+          top: 12,
+          right: 12,
+          child: Material(
+            elevation: 3,
+            borderRadius: BorderRadius.circular(12),
+            child: Column(
+              mainAxisSize: MainAxisSize.min,
+              children: [
+                IconButton(
+                  tooltip: 'Mostrar linhas de distância',
+                  isSelected: widget.settings.showLines,
+                  color: widget.settings.showLines
+                      ? Theme.of(context).colorScheme.primary
+                      : Colors.grey,
+                  icon: const Icon(Icons.straighten),
+                  onPressed: () => widget.onSettingsChanged?.call(
+                    MapSettings(
+                      showLines: !widget.settings.showLines,
+                      showAll: widget.settings.showAll,
+                      repeaterGrid: widget.settings.repeaterGrid,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Mostrar todas as frequências',
+                  isSelected: widget.settings.showAll,
+                  color: widget.settings.showAll
+                      ? Theme.of(context).colorScheme.primary
+                      : Colors.grey,
+                  icon: const Icon(Icons.cell_tower),
+                  onPressed: () => widget.onSettingsChanged?.call(
+                    MapSettings(
+                      showLines: widget.settings.showLines,
+                      showAll: !widget.settings.showAll,
+                      repeaterGrid: widget.settings.repeaterGrid,
+                    ),
+                  ),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ],
     );
   }
 
@@ -211,44 +313,144 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
   Future<void> _drawContacts() async {
     final map = controller;
     if (map == null || !mounted || !_styleReady) return;
+    if (_drawing) {
+      _redrawRequested = true;
+      return;
+    }
+    _drawing = true;
+    try {
+      do {
+        _redrawRequested = false;
+        await _renderScene(map, _scene);
+      } while (_redrawRequested && mounted && _styleReady);
+    } finally {
+      _drawing = false;
+    }
+  }
+
+  Future<void> _renderScene(
+    MapLibreMapController map,
+    ContactScene scene,
+  ) async {
     final colors = _mapColors!;
     await map.clearCircles();
-    final operatorBounds = GridLocator.bounds(widget.operatorGrid);
-    if (operatorBounds != null) {
-      await map.addCircle(
-        CircleOptions(
-          geometry: LatLng(
-            operatorBounds.centerLatitude,
-            operatorBounds.centerLongitude,
-          ),
-          circleColor: mapColor(colors.primary),
-          circleRadius: 8,
-          circleBlur: 0,
-          circleOpacity: 1,
-          circleStrokeColor: mapColor(colors.surface),
-          circleStrokeWidth: 3,
-          circleStrokeOpacity: 1,
+    await map.clearLines();
+    for (final route in scene.routes) {
+      await map.addLine(
+        LineOptions(
+          geometry: route.grids.map((grid) {
+            final bounds = GridLocator.bounds(grid)!;
+            return LatLng(bounds.centerLatitude, bounds.centerLongitude);
+          }).toList(),
+          lineColor: route.color,
+          lineOpacity: route.opacity,
+          lineWidth: 3.5,
         ),
       );
     }
-    for (var index = 0; index < contacts.length; index++) {
-      final contact = contacts[index];
-      final bounds = contact.bounds;
+    await _drawDistances(map, scene);
+    for (final marker in scene.markers) {
+      final bounds = GridLocator.bounds(marker.grid);
       if (bounds == null) continue;
       final circle = await map.addCircle(
         CircleOptions(
           geometry: LatLng(bounds.centerLatitude, bounds.centerLongitude),
-          circleColor: mapColor(colors.tertiary),
-          circleRadius: 6,
+          circleColor: marker.color,
+          circleRadius: marker.radius,
           circleBlur: 0,
           circleOpacity: 1,
           circleStrokeColor: mapColor(colors.surface),
           circleStrokeWidth: 2,
           circleStrokeOpacity: 1,
         ),
-        {'contactIndex': index},
+        {'contactIndex': marker.contactIndex},
       );
       assert(circle.id.isNotEmpty);
+    }
+  }
+
+  Future<void> _drawDistances(
+    MapLibreMapController map,
+    ContactScene scene,
+  ) async {
+    final features = <Map<String, dynamic>>[];
+    for (final distance in routeDistances(scene.routes)) {
+      final label = distance.label;
+      var imageId = _distanceImages[label];
+      if (imageId == null) {
+        imageId = 'distance-${_distanceImages.length}';
+        // Rasterize locally: the offline map has no network glyph source.
+        final painter = TextPainter(
+          text: TextSpan(
+            text: label,
+            style: TextStyle(
+              fontSize: 16,
+              fontWeight: FontWeight.w600,
+              color: _mapColors!.onSurface,
+            ),
+          ),
+          textDirection: TextDirection.ltr,
+        )..layout();
+        final recorder = ui.PictureRecorder();
+        final canvas = Canvas(recorder)..scale(2);
+        final size = Size(painter.width + 12, painter.height + 6);
+        canvas.drawRRect(
+          RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(4)),
+          Paint()..color = _mapColors!.surface.withValues(alpha: 0.94),
+        );
+        painter.paint(canvas, const Offset(6, 3));
+        final picture = recorder.endRecording();
+        final bitmap = await picture.toImage(
+          (size.width * 2).ceil(),
+          (size.height * 2).ceil(),
+        );
+        final bytes = await bitmap.toByteData(format: ui.ImageByteFormat.png);
+        await map.addImage(imageId, bytes!.buffer.asUint8List());
+        bitmap.dispose();
+        picture.dispose();
+        painter.dispose();
+        _distanceImages[label] = imageId;
+      }
+      features.add({
+        'type': 'Feature',
+        'geometry': {
+          'type': 'Point',
+          'coordinates': [distance.longitude, distance.latitude],
+        },
+        'properties': {'image': imageId},
+      });
+    }
+    final data = <String, dynamic>{
+      'type': 'FeatureCollection',
+      'features': features,
+    };
+    if (_distanceLayerReady) {
+      await map.setGeoJsonSource('route-distances', data);
+    } else {
+      await map.addGeoJsonSource('route-distances', data);
+      await map.addSymbolLayer(
+        'route-distances',
+        'route-distance-labels',
+        const SymbolLayerProperties(
+          iconImage: ['get', 'image'],
+          iconSize: [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            11,
+            0.625,
+            13,
+            0.8125,
+            15,
+            1.0,
+          ],
+          iconAllowOverlap: false,
+          iconIgnorePlacement: false,
+        ),
+        minzoom: 11,
+        enableInteraction: false,
+      );
+      _distanceLayerReady = true;
     }
   }
 

@@ -17,6 +17,8 @@ import 'data/csv_transfer.dart';
 import 'grid_locator.dart';
 import 'widgets/grid_locator_field.dart';
 import 'map/offline_map.dart';
+import 'map/map_settings.dart';
+import 'map/contact_scene.dart';
 
 void main() {
   MapLibreMap.useHybridComposition = true;
@@ -50,6 +52,7 @@ class _UsraR3AppState extends State<UsraR3App> {
   bool lastOnly = false;
   int mapMaxAgeHours = 24;
   bool keepScreenOn = true;
+  MapSettings mapSettings = const MapSettings();
 
   @override
   void initState() {
@@ -101,6 +104,8 @@ class _UsraR3AppState extends State<UsraR3App> {
               mergePrecision: mergePrecision,
               lastOnly: lastOnly,
               mapMaxAgeHours: mapMaxAgeHours,
+              mapSettings: mapSettings,
+              onMapSettingsChanged: _setMapSettings,
               onOpenSettings: _openSettings,
             )
           : SetupWizard(onComplete: _completeSetup),
@@ -161,6 +166,7 @@ class _UsraR3AppState extends State<UsraR3App> {
       mergePrecision = preferences.getBool('map.mergePrecision') ?? true;
       lastOnly = preferences.getBool('map.lastOnly') ?? false;
       mapMaxAgeHours = preferences.getInt('map.maxAgeHours') ?? 24;
+      mapSettings = MapSettings.read(preferences);
       keepScreenOn = preferences.getBool('keepScreenOn') ?? true;
       loading = false;
     });
@@ -195,6 +201,7 @@ class _UsraR3AppState extends State<UsraR3App> {
           mapMaxAgeHours: mapMaxAgeHours,
           keepScreenOn: keepScreenOn,
           database: database,
+          repeaterGrid: mapSettings.repeaterGrid,
         ),
       ),
     );
@@ -206,6 +213,13 @@ class _UsraR3AppState extends State<UsraR3App> {
       await preferences.setBool('map.lastOnly', result.lastOnly);
       await preferences.setInt('map.maxAgeHours', result.mapMaxAgeHours);
       await preferences.setBool('keepScreenOn', result.keepScreenOn);
+      await _setMapSettings(
+        MapSettings(
+          showLines: mapSettings.showLines,
+          showAll: mapSettings.showAll,
+          repeaterGrid: result.repeaterGrid,
+        ),
+      );
       await WakelockPlus.toggle(enable: result.keepScreenOn);
       if (mounted) {
         setState(() {
@@ -218,6 +232,11 @@ class _UsraR3AppState extends State<UsraR3App> {
         });
       }
     }
+  }
+
+  Future<void> _setMapSettings(MapSettings value) async {
+    setState(() => mapSettings = value);
+    await value.save(await SharedPreferences.getInstance());
   }
 }
 
@@ -366,6 +385,8 @@ class HomePage extends StatefulWidget {
     required this.mergePrecision,
     required this.lastOnly,
     required this.mapMaxAgeHours,
+    this.mapSettings = const MapSettings(),
+    this.onMapSettingsChanged,
   });
   final OperatorProfile profile;
   final UsraDatabase database;
@@ -373,6 +394,8 @@ class HomePage extends StatefulWidget {
   final bool mergePrecision;
   final bool lastOnly;
   final int mapMaxAgeHours;
+  final MapSettings mapSettings;
+  final ValueChanged<MapSettings>? onMapSettingsChanged;
 
   @override
   State<HomePage> createState() => _HomePageState();
@@ -397,9 +420,9 @@ class _HomePageState extends State<HomePage> {
   final operator = TextEditingController();
   final location = TextEditingController();
   final power = TextEditingController();
-  final station = TextEditingController(text: 'P');
-  final traffic = TextEditingController(text: 'S');
-  final energy = TextEditingController(text: 'B');
+  final station = TextEditingController(text: 'P - Portátil');
+  final traffic = TextEditingController(text: 'S - Sem tráfego');
+  final energy = TextEditingController(text: 'B - Bateria');
   final trafficMessage = TextEditingController();
   int _mapFocusRequest = 0;
   String _lastMapFocusGrid = '';
@@ -739,7 +762,7 @@ class _HomePageState extends State<HomePage> {
                                 ),
                               ),
                               Text(
-                                '${entry.frequency == _repeaterFrequency ? 'Repetidora' : 'Simplex'} · ${entry.frequency == _repeaterFrequency ? '145.37' : '146.52'} MHz',
+                                '${entry.frequency == _repeaterFrequency ? 'Repetidora' : 'Simplex'} · ${contactFrequencyMhz(entry)} MHz',
                               ),
                               Text(
                                 'Energia: ${entry.energy == 'B'
@@ -834,6 +857,12 @@ class _HomePageState extends State<HomePage> {
           maxAgeHours: widget.mapMaxAgeHours,
           mergePrecision: widget.mergePrecision,
           lastOnly: widget.lastOnly,
+          selectedMode: frequency,
+          selectedFrequencyMhz: frequency == _simplexFrequency
+              ? 146.52
+              : 145.37,
+          settings: widget.mapSettings,
+          onSettingsChanged: widget.onMapSettingsChanged,
         ),
       ),
     ),
@@ -849,6 +878,8 @@ class _HomePageState extends State<HomePage> {
       callsign: callsign.text.trim().toUpperCase(),
       via: via.text.trim().toUpperCase(),
       frequency: frequency,
+      frequencyMhz: frequency == _simplexFrequency ? 146.52 : 145.37,
+      repeaterGrid: widget.mapSettings.repeaterGrid,
       energy: _choiceCode(energy.text),
       operatorName: operator.text.trim(),
       location: savedLocation,
@@ -867,8 +898,8 @@ class _HomePageState extends State<HomePage> {
         operator.clear();
         location.clear();
         power.clear();
-        station.text = 'P';
-        traffic.text = 'S';
+        station.text = 'P - Portátil';
+        traffic.text = 'S - Sem tráfego';
         trafficMessage.clear();
       });
     }
@@ -1088,6 +1119,7 @@ class _HomePageState extends State<HomePage> {
                 if (!key.currentState!.validate()) return;
                 await widget.database.updateLog(
                   id: entry.id,
+                  frequency: entry.frequency,
                   callsign: callsign.text.trim().toUpperCase(),
                   via: via.text.trim().toUpperCase(),
                   operatorName: operator.text.trim(),
@@ -1249,6 +1281,7 @@ class SettingsPage extends StatefulWidget {
     required this.mapMaxAgeHours,
     required this.keepScreenOn,
     required this.database,
+    this.repeaterGrid = defaultRepeaterGrid,
   });
   final OperatorProfile profile;
   final AppTheme theme;
@@ -1257,11 +1290,13 @@ class SettingsPage extends StatefulWidget {
   final int mapMaxAgeHours;
   final bool keepScreenOn;
   final UsraDatabase database;
+  final String repeaterGrid;
   @override
   State<SettingsPage> createState() => _SettingsPageState();
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  late final repeaterGrid = TextEditingController(text: widget.repeaterGrid);
   late final callsign = TextEditingController(text: widget.profile.callsign);
   late final name = TextEditingController(text: widget.profile.name);
   late final grid = TextEditingController(text: widget.profile.grid);
@@ -1279,6 +1314,7 @@ class _SettingsPageState extends State<SettingsPage> {
     name.dispose();
     grid.dispose();
     maxAgeHours.dispose();
+    repeaterGrid.dispose();
     super.dispose();
   }
 
@@ -1342,6 +1378,16 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         ),
         const SizedBox(height: 12),
+        Text(
+          'Localização da repetidora',
+          style: Theme.of(context).textTheme.titleMedium,
+        ),
+        const SizedBox(height: 12),
+        GridLocatorField(
+          controller: repeaterGrid,
+          labelText: 'Grid da repetidora',
+        ),
+        const SizedBox(height: 24),
         Text(
           'Dados do operador',
           style: Theme.of(
@@ -1452,24 +1498,36 @@ class _SettingsPageState extends State<SettingsPage> {
     ).showSnackBar(SnackBar(content: Text('Falha na transferência: $error')));
   }
 
-  void _save() => Navigator.pop(
-    context,
-    _SettingsResult(
-      OperatorProfile(
-        callsign: callsign.text.trim().toUpperCase(),
-        name: name.text.trim(),
-        grid: grid.text.trim().toUpperCase(),
+  void _save() {
+    if (!GridLocator.inspect(repeaterGrid.text).isValid) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text('Informe um grid válido para a repetidora.'),
+        ),
+      );
+      return;
+    }
+    Navigator.pop(
+      context,
+      _SettingsResult(
+        OperatorProfile(
+          callsign: callsign.text.trim().toUpperCase(),
+          name: name.text.trim(),
+          grid: grid.text.trim().toUpperCase(),
+        ),
+        theme,
+        mergePrecision,
+        lastOnly,
+        math.max(
+          1,
+          int.tryParse(maxAgeHours.text.trim()) ?? widget.mapMaxAgeHours,
+        ),
+        keepScreenOn,
+        GridLocator.inspect(repeaterGrid.text).normalized,
       ),
-      theme,
-      mergePrecision,
-      lastOnly,
-      math.max(
-        1,
-        int.tryParse(maxAgeHours.text.trim()) ?? widget.mapMaxAgeHours,
-      ),
-      keepScreenOn,
-    ),
-  );
+    );
+  }
+
   Future<void> _useGps() async {
     setState(() => locating = true);
     try {
@@ -1502,6 +1560,7 @@ class _SettingsResult {
     this.lastOnly,
     this.mapMaxAgeHours,
     this.keepScreenOn,
+    this.repeaterGrid,
   );
   final OperatorProfile profile;
   final AppTheme theme;
@@ -1509,6 +1568,7 @@ class _SettingsResult {
   final bool lastOnly;
   final int mapMaxAgeHours;
   final bool keepScreenOn;
+  final String repeaterGrid;
 }
 
 class _Brand extends StatelessWidget {

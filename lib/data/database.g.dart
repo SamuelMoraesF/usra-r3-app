@@ -66,6 +66,28 @@ class $LogEntriesTable extends LogEntries
     requiredDuringInsert: false,
     defaultValue: const Constant('repeater'),
   );
+  static const VerificationMeta _frequencyMhzMeta = const VerificationMeta(
+    'frequencyMhz',
+  );
+  @override
+  late final GeneratedColumn<double> frequencyMhz = GeneratedColumn<double>(
+    'frequency_mhz',
+    aliasedName,
+    true,
+    type: DriftSqlType.double,
+    requiredDuringInsert: false,
+  );
+  static const VerificationMeta _repeaterGridMeta = const VerificationMeta(
+    'repeaterGrid',
+  );
+  @override
+  late final GeneratedColumn<String> repeaterGrid = GeneratedColumn<String>(
+    'repeater_grid',
+    aliasedName,
+    true,
+    type: DriftSqlType.string,
+    requiredDuringInsert: false,
+  );
   static const VerificationMeta _energyMeta = const VerificationMeta('energy');
   @override
   late final GeneratedColumn<String> energy = GeneratedColumn<String>(
@@ -161,6 +183,8 @@ class $LogEntriesTable extends LogEntries
     callsign,
     via,
     frequency,
+    frequencyMhz,
+    repeaterGrid,
     energy,
     operatorName,
     location,
@@ -211,6 +235,24 @@ class $LogEntriesTable extends LogEntries
       context.handle(
         _frequencyMeta,
         frequency.isAcceptableOrUnknown(data['frequency']!, _frequencyMeta),
+      );
+    }
+    if (data.containsKey('frequency_mhz')) {
+      context.handle(
+        _frequencyMhzMeta,
+        frequencyMhz.isAcceptableOrUnknown(
+          data['frequency_mhz']!,
+          _frequencyMhzMeta,
+        ),
+      );
+    }
+    if (data.containsKey('repeater_grid')) {
+      context.handle(
+        _repeaterGridMeta,
+        repeaterGrid.isAcceptableOrUnknown(
+          data['repeater_grid']!,
+          _repeaterGridMeta,
+        ),
       );
     }
     if (data.containsKey('energy')) {
@@ -314,6 +356,14 @@ class $LogEntriesTable extends LogEntries
         DriftSqlType.string,
         data['${effectivePrefix}frequency'],
       )!,
+      frequencyMhz: attachedDatabase.typeMapping.read(
+        DriftSqlType.double,
+        data['${effectivePrefix}frequency_mhz'],
+      ),
+      repeaterGrid: attachedDatabase.typeMapping.read(
+        DriftSqlType.string,
+        data['${effectivePrefix}repeater_grid'],
+      ),
       energy: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}energy'],
@@ -361,6 +411,8 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
   final String callsign;
   final String via;
   final String frequency;
+  final double? frequencyMhz;
+  final String? repeaterGrid;
   final String energy;
   final String operatorName;
   final String location;
@@ -375,6 +427,8 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     required this.callsign,
     required this.via,
     required this.frequency,
+    this.frequencyMhz,
+    this.repeaterGrid,
     required this.energy,
     required this.operatorName,
     required this.location,
@@ -392,6 +446,12 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     map['callsign'] = Variable<String>(callsign);
     map['via'] = Variable<String>(via);
     map['frequency'] = Variable<String>(frequency);
+    if (!nullToAbsent || frequencyMhz != null) {
+      map['frequency_mhz'] = Variable<double>(frequencyMhz);
+    }
+    if (!nullToAbsent || repeaterGrid != null) {
+      map['repeater_grid'] = Variable<String>(repeaterGrid);
+    }
     map['energy'] = Variable<String>(energy);
     map['operator_name'] = Variable<String>(operatorName);
     map['location'] = Variable<String>(location);
@@ -410,6 +470,12 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
       callsign: Value(callsign),
       via: Value(via),
       frequency: Value(frequency),
+      frequencyMhz: frequencyMhz == null && nullToAbsent
+          ? const Value.absent()
+          : Value(frequencyMhz),
+      repeaterGrid: repeaterGrid == null && nullToAbsent
+          ? const Value.absent()
+          : Value(repeaterGrid),
       energy: Value(energy),
       operatorName: Value(operatorName),
       location: Value(location),
@@ -432,6 +498,8 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
       callsign: serializer.fromJson<String>(json['callsign']),
       via: serializer.fromJson<String>(json['via']),
       frequency: serializer.fromJson<String>(json['frequency']),
+      frequencyMhz: serializer.fromJson<double?>(json['frequencyMhz']),
+      repeaterGrid: serializer.fromJson<String?>(json['repeaterGrid']),
       energy: serializer.fromJson<String>(json['energy']),
       operatorName: serializer.fromJson<String>(json['operatorName']),
       location: serializer.fromJson<String>(json['location']),
@@ -451,6 +519,8 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
       'callsign': serializer.toJson<String>(callsign),
       'via': serializer.toJson<String>(via),
       'frequency': serializer.toJson<String>(frequency),
+      'frequencyMhz': serializer.toJson<double?>(frequencyMhz),
+      'repeaterGrid': serializer.toJson<String?>(repeaterGrid),
       'energy': serializer.toJson<String>(energy),
       'operatorName': serializer.toJson<String>(operatorName),
       'location': serializer.toJson<String>(location),
@@ -468,6 +538,8 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     String? callsign,
     String? via,
     String? frequency,
+    Value<double?> frequencyMhz = const Value.absent(),
+    Value<String?> repeaterGrid = const Value.absent(),
     String? energy,
     String? operatorName,
     String? location,
@@ -482,6 +554,8 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     callsign: callsign ?? this.callsign,
     via: via ?? this.via,
     frequency: frequency ?? this.frequency,
+    frequencyMhz: frequencyMhz.present ? frequencyMhz.value : this.frequencyMhz,
+    repeaterGrid: repeaterGrid.present ? repeaterGrid.value : this.repeaterGrid,
     energy: energy ?? this.energy,
     operatorName: operatorName ?? this.operatorName,
     location: location ?? this.location,
@@ -498,6 +572,12 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
       callsign: data.callsign.present ? data.callsign.value : this.callsign,
       via: data.via.present ? data.via.value : this.via,
       frequency: data.frequency.present ? data.frequency.value : this.frequency,
+      frequencyMhz: data.frequencyMhz.present
+          ? data.frequencyMhz.value
+          : this.frequencyMhz,
+      repeaterGrid: data.repeaterGrid.present
+          ? data.repeaterGrid.value
+          : this.repeaterGrid,
       energy: data.energy.present ? data.energy.value : this.energy,
       operatorName: data.operatorName.present
           ? data.operatorName.value
@@ -527,6 +607,8 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
           ..write('callsign: $callsign, ')
           ..write('via: $via, ')
           ..write('frequency: $frequency, ')
+          ..write('frequencyMhz: $frequencyMhz, ')
+          ..write('repeaterGrid: $repeaterGrid, ')
           ..write('energy: $energy, ')
           ..write('operatorName: $operatorName, ')
           ..write('location: $location, ')
@@ -546,6 +628,8 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     callsign,
     via,
     frequency,
+    frequencyMhz,
+    repeaterGrid,
     energy,
     operatorName,
     location,
@@ -564,6 +648,8 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
           other.callsign == this.callsign &&
           other.via == this.via &&
           other.frequency == this.frequency &&
+          other.frequencyMhz == this.frequencyMhz &&
+          other.repeaterGrid == this.repeaterGrid &&
           other.energy == this.energy &&
           other.operatorName == this.operatorName &&
           other.location == this.location &&
@@ -580,6 +666,8 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
   final Value<String> callsign;
   final Value<String> via;
   final Value<String> frequency;
+  final Value<double?> frequencyMhz;
+  final Value<String?> repeaterGrid;
   final Value<String> energy;
   final Value<String> operatorName;
   final Value<String> location;
@@ -594,6 +682,8 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     this.callsign = const Value.absent(),
     this.via = const Value.absent(),
     this.frequency = const Value.absent(),
+    this.frequencyMhz = const Value.absent(),
+    this.repeaterGrid = const Value.absent(),
     this.energy = const Value.absent(),
     this.operatorName = const Value.absent(),
     this.location = const Value.absent(),
@@ -609,6 +699,8 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     required String callsign,
     this.via = const Value.absent(),
     this.frequency = const Value.absent(),
+    this.frequencyMhz = const Value.absent(),
+    this.repeaterGrid = const Value.absent(),
     this.energy = const Value.absent(),
     required String operatorName,
     required String location,
@@ -631,6 +723,8 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     Expression<String>? callsign,
     Expression<String>? via,
     Expression<String>? frequency,
+    Expression<double>? frequencyMhz,
+    Expression<String>? repeaterGrid,
     Expression<String>? energy,
     Expression<String>? operatorName,
     Expression<String>? location,
@@ -646,6 +740,8 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
       if (callsign != null) 'callsign': callsign,
       if (via != null) 'via': via,
       if (frequency != null) 'frequency': frequency,
+      if (frequencyMhz != null) 'frequency_mhz': frequencyMhz,
+      if (repeaterGrid != null) 'repeater_grid': repeaterGrid,
       if (energy != null) 'energy': energy,
       if (operatorName != null) 'operator_name': operatorName,
       if (location != null) 'location': location,
@@ -663,6 +759,8 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     Value<String>? callsign,
     Value<String>? via,
     Value<String>? frequency,
+    Value<double?>? frequencyMhz,
+    Value<String?>? repeaterGrid,
     Value<String>? energy,
     Value<String>? operatorName,
     Value<String>? location,
@@ -678,6 +776,8 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
       callsign: callsign ?? this.callsign,
       via: via ?? this.via,
       frequency: frequency ?? this.frequency,
+      frequencyMhz: frequencyMhz ?? this.frequencyMhz,
+      repeaterGrid: repeaterGrid ?? this.repeaterGrid,
       energy: energy ?? this.energy,
       operatorName: operatorName ?? this.operatorName,
       location: location ?? this.location,
@@ -706,6 +806,12 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     }
     if (frequency.present) {
       map['frequency'] = Variable<String>(frequency.value);
+    }
+    if (frequencyMhz.present) {
+      map['frequency_mhz'] = Variable<double>(frequencyMhz.value);
+    }
+    if (repeaterGrid.present) {
+      map['repeater_grid'] = Variable<String>(repeaterGrid.value);
     }
     if (energy.present) {
       map['energy'] = Variable<String>(energy.value);
@@ -742,6 +848,8 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
           ..write('callsign: $callsign, ')
           ..write('via: $via, ')
           ..write('frequency: $frequency, ')
+          ..write('frequencyMhz: $frequencyMhz, ')
+          ..write('repeaterGrid: $repeaterGrid, ')
           ..write('energy: $energy, ')
           ..write('operatorName: $operatorName, ')
           ..write('location: $location, ')
@@ -773,6 +881,8 @@ typedef $$LogEntriesTableCreateCompanionBuilder =
       required String callsign,
       Value<String> via,
       Value<String> frequency,
+      Value<double?> frequencyMhz,
+      Value<String?> repeaterGrid,
       Value<String> energy,
       required String operatorName,
       required String location,
@@ -789,6 +899,8 @@ typedef $$LogEntriesTableUpdateCompanionBuilder =
       Value<String> callsign,
       Value<String> via,
       Value<String> frequency,
+      Value<double?> frequencyMhz,
+      Value<String?> repeaterGrid,
       Value<String> energy,
       Value<String> operatorName,
       Value<String> location,
@@ -830,6 +942,16 @@ class $$LogEntriesTableFilterComposer
 
   ColumnFilters<String> get frequency => $composableBuilder(
     column: $table.frequency,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<double> get frequencyMhz => $composableBuilder(
+    column: $table.frequencyMhz,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<String> get repeaterGrid => $composableBuilder(
+    column: $table.repeaterGrid,
     builder: (column) => ColumnFilters(column),
   );
 
@@ -908,6 +1030,16 @@ class $$LogEntriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
+  ColumnOrderings<double> get frequencyMhz => $composableBuilder(
+    column: $table.frequencyMhz,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<String> get repeaterGrid => $composableBuilder(
+    column: $table.repeaterGrid,
+    builder: (column) => ColumnOrderings(column),
+  );
+
   ColumnOrderings<String> get energy => $composableBuilder(
     column: $table.energy,
     builder: (column) => ColumnOrderings(column),
@@ -972,6 +1104,16 @@ class $$LogEntriesTableAnnotationComposer
 
   GeneratedColumn<String> get frequency =>
       $composableBuilder(column: $table.frequency, builder: (column) => column);
+
+  GeneratedColumn<double> get frequencyMhz => $composableBuilder(
+    column: $table.frequencyMhz,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<String> get repeaterGrid => $composableBuilder(
+    column: $table.repeaterGrid,
+    builder: (column) => column,
+  );
 
   GeneratedColumn<String> get energy =>
       $composableBuilder(column: $table.energy, builder: (column) => column);
@@ -1044,6 +1186,8 @@ class $$LogEntriesTableTableManager
                 Value<String> callsign = const Value.absent(),
                 Value<String> via = const Value.absent(),
                 Value<String> frequency = const Value.absent(),
+                Value<double?> frequencyMhz = const Value.absent(),
+                Value<String?> repeaterGrid = const Value.absent(),
                 Value<String> energy = const Value.absent(),
                 Value<String> operatorName = const Value.absent(),
                 Value<String> location = const Value.absent(),
@@ -1058,6 +1202,8 @@ class $$LogEntriesTableTableManager
                 callsign: callsign,
                 via: via,
                 frequency: frequency,
+                frequencyMhz: frequencyMhz,
+                repeaterGrid: repeaterGrid,
                 energy: energy,
                 operatorName: operatorName,
                 location: location,
@@ -1074,6 +1220,8 @@ class $$LogEntriesTableTableManager
                 required String callsign,
                 Value<String> via = const Value.absent(),
                 Value<String> frequency = const Value.absent(),
+                Value<double?> frequencyMhz = const Value.absent(),
+                Value<String?> repeaterGrid = const Value.absent(),
                 Value<String> energy = const Value.absent(),
                 required String operatorName,
                 required String location,
@@ -1088,6 +1236,8 @@ class $$LogEntriesTableTableManager
                 callsign: callsign,
                 via: via,
                 frequency: frequency,
+                frequencyMhz: frequencyMhz,
+                repeaterGrid: repeaterGrid,
                 energy: energy,
                 operatorName: operatorName,
                 location: location,

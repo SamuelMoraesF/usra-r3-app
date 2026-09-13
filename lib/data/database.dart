@@ -9,6 +9,8 @@ class LogEntries extends Table {
   TextColumn get callsign => text()();
   TextColumn get via => text().withDefault(const Constant(''))();
   TextColumn get frequency => text().withDefault(const Constant('repeater'))();
+  RealColumn get frequencyMhz => real().nullable()();
+  TextColumn get repeaterGrid => text().nullable()();
   TextColumn get energy => text().withDefault(const Constant('B'))();
   TextColumn get operatorName => text()();
   TextColumn get location => text()();
@@ -35,7 +37,7 @@ class UsraDatabase extends _$UsraDatabase {
   UsraDatabase.test(super.e);
 
   @override
-  int get schemaVersion => 8;
+  int get schemaVersion => 9;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -67,6 +69,13 @@ class UsraDatabase extends _$UsraDatabase {
       if (from < 8) {
         await m.addColumn(logEntries, logEntries.energy);
       }
+      if (from < 9) {
+        await m.addColumn(logEntries, logEntries.frequencyMhz);
+        await m.addColumn(logEntries, logEntries.repeaterGrid);
+        await customStatement(
+          "UPDATE log_entries SET frequency_mhz = CASE frequency WHEN 'simplex' THEN 146.52 WHEN 'repeater' THEN 145.37 END",
+        );
+      }
     },
   );
 
@@ -74,6 +83,8 @@ class UsraDatabase extends _$UsraDatabase {
     required String callsign,
     String via = '',
     String frequency = 'repeater',
+    double? frequencyMhz,
+    String? repeaterGrid,
     String energy = 'B',
     required String operatorName,
     required String location,
@@ -89,6 +100,10 @@ class UsraDatabase extends _$UsraDatabase {
         callsign: callsign,
         via: Value(via),
         frequency: Value(frequency),
+        frequencyMhz: Value(
+          frequencyMhz ?? (frequency == 'simplex' ? 146.52 : 145.37),
+        ),
+        repeaterGrid: Value(frequency == 'repeater' ? repeaterGrid : null),
         energy: Value(energy),
         operatorName: operatorName,
         location: location,
@@ -112,7 +127,7 @@ class UsraDatabase extends _$UsraDatabase {
     required int id,
     required String callsign,
     String via = '',
-    String frequency = 'repeater',
+    String? frequency,
     String energy = 'B',
     required String operatorName,
     required String location,
@@ -127,7 +142,9 @@ class UsraDatabase extends _$UsraDatabase {
           LogEntriesCompanion(
             callsign: Value(callsign),
             via: Value(via),
-            frequency: Value(frequency),
+            frequency: frequency == null
+                ? const Value.absent()
+                : Value(frequency),
             energy: Value(energy),
             operatorName: Value(operatorName),
             location: Value(location),
