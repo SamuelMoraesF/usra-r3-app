@@ -720,6 +720,7 @@ class _HomePageState extends State<HomePage> {
                       controller: trafficMessage,
                       focusNode: _trafficMessageFocusNode,
                       textInputAction: TextInputAction.done,
+                      inputFormatters: [UpperCaseFormatter()],
                       decoration: const InputDecoration(
                         labelText: 'Mensagem (tráfego)',
                       ),
@@ -857,27 +858,39 @@ class _HomePageState extends State<HomePage> {
                                     const Icon(Icons.power, size: 16),
                                     const SizedBox(width: 4),
                                     Text('${entry.powerWatts} W'),
-                                  ],
-                                ),
-                                Row(
-                                  children: [
+                                    const SizedBox(width: 8),
+                                    const Text('·'),
+                                    const SizedBox(width: 8),
                                     const Icon(Icons.radio, size: 16),
                                     const SizedBox(width: 4),
                                     Text(_stationLabel(entry.stationType)),
-                                    const SizedBox(width: 12),
-                                    const Icon(
-                                      Icons.message_outlined,
-                                      size: 16,
-                                    ),
-                                    const SizedBox(width: 4),
-                                    Text(_trafficLabel(entry.traffic)),
                                   ],
                                 ),
-                                if (entry.traffic == 'C' &&
-                                    entry.trafficMessage.isNotEmpty)
-                                  Text('Mensagem: ${entry.trafficMessage}'),
                                 const SizedBox(height: 4),
                                 _contactMeta(entry),
+                                if (entry.traffic == 'C' &&
+                                    entry.trafficMessage.isNotEmpty)
+                                  Container(
+                                    margin: const EdgeInsets.only(top: 8),
+                                    padding: const EdgeInsets.only(top: 8),
+                                    decoration: BoxDecoration(
+                                      border: Border(
+                                        top: BorderSide(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.outlineVariant,
+                                          width: 1,
+                                        ),
+                                      ),
+                                    ),
+                                    width: double.infinity,
+                                    child: Text(
+                                      entry.trafficMessage,
+                                      style: const TextStyle(
+                                        fontFamily: 'monospace',
+                                      ),
+                                    ),
+                                  ),
                               ],
                             ),
                           ),
@@ -1057,12 +1070,6 @@ class _HomePageState extends State<HomePage> {
     _ => code,
   };
 
-  String _trafficLabel(String code) => switch (code.trim().toUpperCase()) {
-    'S' => 'Sem tráfego',
-    'C' => 'Com tráfego',
-    _ => code,
-  };
-
   String _energyLabel(String code) => switch (code.trim().toUpperCase()) {
     'B' => 'Bateria',
     'G' => 'Gerador',
@@ -1121,7 +1128,7 @@ class _HomePageState extends State<HomePage> {
     ]);
     items.addAll([
       Icon(
-        entry.frequency == _repeaterFrequency ? Icons.cell_tower : Icons.radio,
+        Icons.graphic_eq,
         size: 15,
         color: color,
       ),
@@ -1246,6 +1253,7 @@ class _HomePageState extends State<HomePage> {
                             padding: const EdgeInsets.only(top: 10),
                             child: TextFormField(
                               controller: trafficMessage,
+                              inputFormatters: [UpperCaseFormatter()],
                               decoration: const InputDecoration(
                                 labelText: 'Mensagem (tráfego)',
                               ),
