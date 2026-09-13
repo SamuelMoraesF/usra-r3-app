@@ -390,6 +390,7 @@ class _HomePageState extends State<HomePage> {
   final _stationFocusNode = FocusNode();
   final _energyFocusNode = FocusNode();
   final _trafficFocusNode = FocusNode();
+  final _trafficMessageFocusNode = FocusNode();
   final callsign = TextEditingController();
   final via = TextEditingController();
   String frequency = _repeaterFrequency;
@@ -407,7 +408,23 @@ class _HomePageState extends State<HomePage> {
   void initState() {
     super.initState();
     _callsignFocusNode.addListener(_onCallsignFocusChanged);
+    FocusManager.instance.addListener(_scrollToFocusedField);
     _loadFrequency();
+  }
+
+  void _scrollToFocusedField() {
+    final context = FocusManager.instance.primaryFocus?.context;
+    if (context == null) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && context.mounted) {
+        Scrollable.ensureVisible(
+          context,
+          duration: const Duration(milliseconds: 250),
+          curve: Curves.easeOut,
+          alignment: 0.2,
+        );
+      }
+    });
   }
 
   Future<void> _loadFrequency() async {
@@ -434,6 +451,7 @@ class _HomePageState extends State<HomePage> {
   @override
   void dispose() {
     _callsignFocusNode.removeListener(_onCallsignFocusChanged);
+    FocusManager.instance.removeListener(_scrollToFocusedField);
     _callsignFocusNode.dispose();
     _viaFocusNode.dispose();
     for (final node in [
@@ -443,6 +461,7 @@ class _HomePageState extends State<HomePage> {
       _stationFocusNode,
       _energyFocusNode,
       _trafficFocusNode,
+      _trafficMessageFocusNode,
     ]) {
       node.dispose();
     }
@@ -632,14 +651,16 @@ class _HomePageState extends State<HomePage> {
                         child: _ChoiceField(
                           controller: traffic,
                           focusNode: _trafficFocusNode,
+                          textInputAction: TextInputAction.next,
                           label: 'Tráfego',
                           values: const {
                             'S': 'Sem tráfego',
                             'C': 'Com tráfego',
                           },
                           onChanged: (_) => setState(() {}),
-                          onSubmitted: (_) =>
-                              FocusScope.of(context).nextFocus(),
+                          onSubmitted: (_) => _choiceCode(traffic.text) == 'C'
+                              ? _trafficMessageFocusNode.requestFocus()
+                              : FocusScope.of(context).nextFocus(),
                         ),
                       ),
                     ],
@@ -648,6 +669,8 @@ class _HomePageState extends State<HomePage> {
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: trafficMessage,
+                      focusNode: _trafficMessageFocusNode,
+                      textInputAction: TextInputAction.done,
                       decoration: const InputDecoration(
                         labelText: 'Mensagem (tráfego)',
                       ),
@@ -1133,6 +1156,7 @@ class _ChoiceField extends StatelessWidget {
     required this.values,
     this.onSubmitted,
     this.onChanged,
+    this.textInputAction,
   });
   final TextEditingController controller;
   final FocusNode? focusNode;
@@ -1140,6 +1164,7 @@ class _ChoiceField extends StatelessWidget {
   final Map<String, String> values;
   final ValueChanged<String>? onSubmitted;
   final ValueChanged<String>? onChanged;
+  final TextInputAction? textInputAction;
   @override
   Widget build(BuildContext context) =>
       ValueListenableBuilder<TextEditingValue>(
@@ -1147,13 +1172,27 @@ class _ChoiceField extends StatelessWidget {
         builder: (context, value, _) => TextFormField(
           controller: controller,
           focusNode: focusNode,
-          onFieldSubmitted: onSubmitted,
+          onFieldSubmitted: (value) {
+            final code = _choiceCode(value);
+            if (values.containsKey(code)) {
+              onSubmitted?.call(value);
+            } else {
+              if (focusNode != null) {
+                FocusScope.of(context).requestFocus(focusNode);
+              }
+            }
+          },
           onChanged: onChanged,
+          textInputAction: textInputAction ?? TextInputAction.next,
           onEditingComplete: () {
             final code = _choiceCode(controller.text);
-            if (values.containsKey(code)) {
-              controller.text = '$code - ${values[code]}';
+            if (!values.containsKey(code)) {
+              if (focusNode != null) {
+                FocusScope.of(context).requestFocus(focusNode);
+              }
+              return;
             }
+            controller.text = '$code - ${values[code]}';
             FocusScope.of(context).nextFocus();
           },
           textCapitalization: TextCapitalization.characters,
@@ -1192,7 +1231,8 @@ class _ChoiceField extends StatelessWidget {
               ),
             ),
           ),
-          validator: (value) => values.containsKey(value?.trim().toUpperCase())
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+          validator: (value) => values.containsKey(_choiceCode(value ?? ''))
               ? null
               : 'Use ${values.keys.join(', ')}',
         ),
