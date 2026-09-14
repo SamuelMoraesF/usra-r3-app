@@ -25,6 +25,11 @@ import 'widgets/contact_form_layout.dart';
 import 'map/offline_map.dart';
 import 'map/map_settings.dart';
 
+bool _defaultKeyboardOptimized() =>
+    kIsWeb ||
+    (defaultTargetPlatform != TargetPlatform.iOS &&
+        defaultTargetPlatform != TargetPlatform.android);
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MapLibreMap.useHybridComposition = true;
@@ -82,7 +87,7 @@ class _UsraR3AppState extends State<UsraR3App> {
   bool lastOnly = false;
   int mapMaxAgeHours = 24;
   bool keepScreenOn = true;
-  bool keyboardOptimized = false;
+  bool keyboardOptimized = _defaultKeyboardOptimized();
   HomeLayout homeLayout = HomeLayout.bottomPanels;
   MapSettings mapSettings = const MapSettings();
 
@@ -206,7 +211,9 @@ class _UsraR3AppState extends State<UsraR3App> {
       mapSettings = MapSettings.read(preferences);
       displayTimeZone = DisplayTimeZone.read(preferences);
       keepScreenOn = preferences.getBool('keepScreenOn') ?? true;
-      keyboardOptimized = preferences.getBool('keyboardOptimized') ?? false;
+      keyboardOptimized =
+          preferences.getBool('keyboardOptimized') ??
+          _defaultKeyboardOptimized();
       homeLayout = HomeLayout.values.firstWhere(
         (value) => value.name == preferences.getString('homeLayout'),
         orElse: () => HomeLayout.bottomPanels,
