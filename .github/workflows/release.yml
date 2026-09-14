@@ -96,6 +96,10 @@ jobs:
           cp -a build/web/. dist/bundle/web/
           git archive HEAD | tar -x -C dist/bundle/source
           cp build/app/outputs/flutter-apk/app-release.apk "dist/${ARTIFACT_STEM}.apk"
+          # The APK and Web files are already copied into dist. Remove the
+          # large intermediate build trees before creating the ZIP so the
+          # temporary archive does not exhaust the runner disk.
+          rm -rf build/app build/web
           cp "dist/${ARTIFACT_STEM}.apk" dist/bundle/
           (cd dist/bundle && zip -qr "../${ARTIFACT_STEM}.zip" .)
           (cd dist && sha256sum "${ARTIFACT_STEM}.apk" "${ARTIFACT_STEM}.zip" > "$CHECKSUM_FILE")
