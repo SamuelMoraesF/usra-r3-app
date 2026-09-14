@@ -9,6 +9,27 @@ import 'package:usra_r3/data/database.dart';
 import 'package:usra_r3/main.dart';
 
 void main() {
+  test('capitalizes every operator-name word initial', () {
+    final formatter = CapitalizeWordsFormatter();
+    final pasted = formatter.formatEditUpdate(
+      const TextEditingValue(),
+      const TextEditingValue(text: 'joão da silva'),
+    );
+    expect(pasted.text, 'João da Silva');
+
+    final typedAfterSpace = formatter.formatEditUpdate(
+      const TextEditingValue(text: 'João '),
+      const TextEditingValue(text: 'João d'),
+    );
+    expect(typedAfterSpace.text, 'João D');
+
+    final uppercaseConnectors = formatter.formatEditUpdate(
+      const TextEditingValue(),
+      const TextEditingValue(text: 'JOÃO DAS SILVA E SANTOS'),
+    );
+    expect(uppercaseConnectors.text, 'JOÃO das SILVA e SANTOS');
+  });
+
   testWidgets('Ctrl+N clears the contact and focuses callsign without saving', (
     tester,
   ) async {

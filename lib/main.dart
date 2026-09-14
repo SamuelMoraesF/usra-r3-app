@@ -330,6 +330,7 @@ class _SetupWizardState extends State<SetupWizard> {
                   TextFormField(
                     controller: name,
                     textCapitalization: TextCapitalization.words,
+                    inputFormatters: [CapitalizeWordsFormatter()],
                     decoration: const InputDecoration(
                       labelText: 'Nome do operador',
                     ),
@@ -365,7 +366,7 @@ class _SetupWizardState extends State<SetupWizard> {
       widget.onComplete(
         OperatorProfile(
           callsign: callsign.text.trim().toUpperCase(),
-          name: name.text.trim(),
+          name: capitalizeWordInitials(name.text.trim()),
           grid: grid.text.trim().toUpperCase(),
         ),
       );
@@ -654,6 +655,8 @@ class _HomePageState extends State<HomePage> {
                   TextFormField(
                     controller: operator,
                     focusNode: _operatorFocusNode,
+                    textCapitalization: TextCapitalization.words,
+                    inputFormatters: [CapitalizeWordsFormatter()],
                     textInputAction: TextInputAction.next,
                     decoration: const InputDecoration(
                       labelText: 'Nome do operador',
@@ -1010,7 +1013,7 @@ class _HomePageState extends State<HomePage> {
       frequencyMhz: frequency == _simplexFrequency ? 146.52 : 145.37,
       repeaterGrid: widget.mapSettings.repeaterGrid,
       energy: _choiceCode(energy.text),
-      operatorName: operator.text.trim(),
+      operatorName: capitalizeWordInitials(operator.text.trim()),
       location: savedLocation,
       operatorGrid: widget.profile.grid,
       powerWatts: double.parse(power.text.replaceAll(',', '.')),
@@ -1049,7 +1052,7 @@ class _HomePageState extends State<HomePage> {
         latest == null) {
       return;
     }
-    operator.text = latest.operatorName;
+    operator.text = capitalizeWordInitials(latest.operatorName);
     location.text = latest.location;
     power.text = latest.powerWatts.toString();
     station.text = latest.stationType;
@@ -1203,7 +1206,9 @@ class _HomePageState extends State<HomePage> {
   Future<void> _editLog(LogEntry entry) async {
     final callsign = TextEditingController(text: entry.callsign);
     final via = TextEditingController(text: entry.via);
-    final operator = TextEditingController(text: entry.operatorName);
+    final operator = TextEditingController(
+      text: capitalizeWordInitials(entry.operatorName),
+    );
     final location = TextEditingController(text: entry.location);
     final power = TextEditingController(text: entry.powerWatts.toString());
     final station = TextEditingController(
@@ -1277,6 +1282,8 @@ class _HomePageState extends State<HomePage> {
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: operator,
+                      textCapitalization: TextCapitalization.words,
+                      inputFormatters: [CapitalizeWordsFormatter()],
                       decoration: const InputDecoration(
                         labelText: 'Nome do operador',
                       ),
@@ -1382,7 +1389,7 @@ class _HomePageState extends State<HomePage> {
                         : (entry.repeaterGrid ?? ''),
                     callsign: callsign.text.trim().toUpperCase(),
                     via: via.text.trim().toUpperCase(),
-                    operatorName: operator.text.trim(),
+                    operatorName: capitalizeWordInitials(operator.text.trim()),
                     location: location.text.trim(),
                     powerWatts: double.parse(power.text.replaceAll(',', '.')),
                     stationType: _choiceCode(station.text),
@@ -1676,6 +1683,8 @@ class _SettingsPageState extends State<SettingsPage> {
         const SizedBox(height: 12),
         TextField(
           controller: name,
+          textCapitalization: TextCapitalization.words,
+          inputFormatters: [CapitalizeWordsFormatter()],
           decoration: const InputDecoration(labelText: 'Nome'),
         ),
         const SizedBox(height: 12),
@@ -1816,7 +1825,7 @@ class _SettingsPageState extends State<SettingsPage> {
       _SettingsResult(
         OperatorProfile(
           callsign: callsign.text.trim().toUpperCase(),
-          name: name.text.trim(),
+          name: capitalizeWordInitials(name.text.trim()),
           grid: grid.text.trim().toUpperCase(),
         ),
         theme,
@@ -1909,6 +1918,96 @@ class UpperCaseFormatter extends TextInputFormatter {
     text: newValue.text.toUpperCase(),
     selection: newValue.selection,
   );
+}
+
+const _lowercaseNameConnectors = <String>{
+  'a',
+  'ante',
+  'ao',
+  'aos',
+  'após',
+  'as',
+  'até',
+  'com',
+  'contra',
+  'da',
+  'das',
+  'de',
+  'do',
+  'dos',
+  'dum',
+  'duma',
+  'dumas',
+  'duns',
+  'e',
+  'em',
+  'entre',
+  'mas',
+  'na',
+  'nas',
+  'nem',
+  'no',
+  'nos',
+  'o',
+  'os',
+  'para',
+  'pelo',
+  'pelos',
+  'pela',
+  'pelas',
+  'perante',
+  'por',
+  'que',
+  'se',
+  'sem',
+  'sob',
+  'sobre',
+  'trás',
+  'um',
+  'uma',
+  'umas',
+  'uns',
+  'ou',
+  'num',
+  'numa',
+  'numas',
+  'nuns',
+  'à',
+  'às',
+};
+
+String capitalizeWordInitials(String value) {
+  final wordPattern = RegExp(r'\S+');
+  return value.replaceAllMapped(wordPattern, (match) {
+    final word = match.group(0)!;
+    final lowercaseWord = word.toLowerCase();
+    if (_lowercaseNameConnectors.contains(lowercaseWord)) {
+      return lowercaseWord;
+    }
+    return _capitalizeFirstLetter(word);
+  });
+}
+
+String _capitalizeFirstLetter(String value) {
+  var offset = 0;
+  for (final rune in value.runes) {
+    final character = String.fromCharCode(rune);
+    final length = character.length;
+    final isLetter = character.toUpperCase() != character.toLowerCase();
+    if (isLetter) {
+      return '${value.substring(0, offset)}${character.toUpperCase()}${value.substring(offset + length)}';
+    }
+    offset += length;
+  }
+  return value;
+}
+
+class CapitalizeWordsFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) => newValue.copyWith(text: capitalizeWordInitials(newValue.text));
 }
 
 class PowerFormatter extends TextInputFormatter {
