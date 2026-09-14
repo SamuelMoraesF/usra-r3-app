@@ -71,8 +71,25 @@ class _ContactWorkspaceState extends State<ContactWorkspace> {
                         }
                       },
                       child: Padding(
-                        padding: const EdgeInsets.all(20),
-                        child: widget.form,
+                        padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
+                        child: Theme(
+                          data: Theme.of(context).copyWith(
+                            inputDecorationTheme: Theme.of(context)
+                                .inputDecorationTheme
+                                .copyWith(
+                                  isDense: true,
+                                  contentPadding: const EdgeInsets.symmetric(
+                                    horizontal: 12,
+                                    vertical: 8,
+                                  ),
+                                  suffixIconConstraints: const BoxConstraints(
+                                    minWidth: 40,
+                                    minHeight: 40,
+                                  ),
+                                ),
+                          ),
+                          child: widget.form,
+                        ),
                       ),
                     ),
                   ),

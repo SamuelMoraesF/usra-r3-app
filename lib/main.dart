@@ -825,9 +825,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         );
         final contactTitle = Text(
           'Novo contato',
-          style: Theme.of(
-            context,
-          ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+          style:
+              (useBottomPanels
+                      ? Theme.of(context).textTheme.titleLarge
+                      : Theme.of(context).textTheme.headlineSmall)
+                  ?.copyWith(fontWeight: FontWeight.w700),
         );
         final frequencySwitch = SegmentedButton<String>(
           segments: const [
@@ -844,35 +846,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           onSelectionChanged: (value) => _setFrequency(value.first),
         );
         final formChildren = <Widget>[
-          if (useBottomPanels)
-            Row(
-              crossAxisAlignment: CrossAxisAlignment.center,
-              children: [
-                Expanded(child: contactTitle),
-                const SizedBox(width: 12),
-                Flexible(
-                  flex: 2,
-                  child: Align(
-                    alignment: Alignment.centerRight,
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerRight,
-                      child: frequencySwitch,
-                    ),
-                  ),
-                ),
-              ],
-            )
-          else
-            contactTitle,
-          const SizedBox(height: 6),
-          Text(
-            'Registre uma comunicação rapidamente.',
-            style: TextStyle(
-              color: Theme.of(context).colorScheme.onSurfaceVariant,
+          contactTitle,
+          if (!useBottomPanels) ...[
+            const SizedBox(height: 6),
+            Text(
+              'Registre uma comunicação rapidamente.',
+              style: TextStyle(
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
             ),
-          ),
-          const SizedBox(height: 22),
+            const SizedBox(height: 22),
+          ] else
+            const SizedBox(height: 4),
           if (_networkStartedAt == null)
             SizedBox(
               width: double.infinity,
@@ -1246,7 +1231,25 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               ),
               logs: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [header, const SizedBox(height: 20), logs],
+                children: [
+                  header,
+                  const SizedBox(height: 8),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: frequencySwitch,
+                    ),
+                  ),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    width: double.infinity,
+                    child: _buildCloseNetworkButton(true),
+                  ),
+                  const SizedBox(height: 20),
+                  logs,
+                ],
               ),
               formScrollController: _panelScrollController,
             ),
@@ -1289,6 +1292,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     key: formKey,
     child: ContactFormLayout(
       fourColumns: fourColumns,
+      compact: fourColumns,
+      submitInLastColumn: fourColumns,
+      showCloseButton: !fourColumns,
       fields: [
         TextFormField(
           controller: callsign,
@@ -1385,20 +1391,29 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               autovalidateMode: AutovalidateMode.onUserInteraction,
             )
           : null,
-      closeButton: OutlinedButton.icon(
-        onPressed: _closeNetwork,
-        icon: const Icon(Icons.power_settings_new),
-        label: Text(fourColumns ? 'Fechar rede' : 'Fazer encerramento da rede'),
-        style: OutlinedButton.styleFrom(
-          backgroundColor: Colors.white,
-          foregroundColor: Theme.of(context).colorScheme.primary,
-        ),
-      ),
+      closeButton: _buildCloseNetworkButton(fourColumns),
       submitButton: FilledButton.icon(
         onPressed: _register,
         icon: const Icon(Icons.add),
         label: Text(fourColumns ? 'Adicionar log' : 'Registrar log'),
+        style: fourColumns
+            ? FilledButton.styleFrom(
+                minimumSize: const Size.fromHeight(40),
+                maximumSize: const Size.fromHeight(40),
+                padding: const EdgeInsets.symmetric(horizontal: 16),
+              )
+            : null,
       ),
+    ),
+  );
+
+  Widget _buildCloseNetworkButton(bool compact) => OutlinedButton.icon(
+    onPressed: _closeNetwork,
+    icon: const Icon(Icons.power_settings_new),
+    label: Text(compact ? 'Fechar rede' : 'Fazer encerramento da rede'),
+    style: OutlinedButton.styleFrom(
+      backgroundColor: Colors.white,
+      foregroundColor: Theme.of(context).colorScheme.primary,
     ),
   );
 

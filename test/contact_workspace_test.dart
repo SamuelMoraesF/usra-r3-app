@@ -49,8 +49,8 @@ void main() {
       const Offset(0, -600),
     );
     await tester.pumpAndSettle();
-    // 460 pixels of form plus the panel's 40 pixels of vertical padding.
-    expect(tester.getSize(form).height, 500);
+    // 460 pixels of form plus the panel's 16 pixels of vertical padding.
+    expect(tester.getSize(form).height, 476);
     expect(tester.getSize(map).height, greaterThan(0));
     await tester.drag(
       find.byKey(const ValueKey('form-resize')),
@@ -101,12 +101,12 @@ void main() {
       const Offset(0, -600),
     );
     await tester.pumpAndSettle();
-    expect(tester.getSize(form).height, 640);
+    expect(tester.getSize(form).height, 616);
     await showForm(100);
-    expect(tester.getSize(form).height, 140);
+    expect(tester.getSize(form).height, 116);
     tester.view.physicalSize = const Size(1200, 300);
     await tester.pumpAndSettle();
-    expect(tester.getSize(form).height, lessThanOrEqualTo(124));
+    expect(tester.getSize(form).height, lessThanOrEqualTo(116));
     expect(tester.takeException(), isNull);
     await tester.pumpWidget(const SizedBox.shrink());
   });
