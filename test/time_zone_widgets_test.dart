@@ -113,17 +113,10 @@ void main() {
     await tester.pumpAndSettle();
     await tester.tap(find.text('UTC').last);
     await tester.pumpAndSettle();
-    await tester.scrollUntilVisible(
-      find.text('Salvar alterações'),
-      400,
-      scrollable: find
-          .descendant(
-            of: find.byType(ListView),
-            matching: find.byType(Scrollable),
-          )
-          .first,
-    );
-    await tester.tap(find.text('Salvar alterações'));
+    final saveButton = find.text('Salvar alterações');
+    await tester.ensureVisible(saveButton);
+    await tester.pumpAndSettle();
+    await tester.tap(saveButton);
     await tester.pumpAndSettle();
     expect(savedZone, DisplayTimeZone.utc);
   });
