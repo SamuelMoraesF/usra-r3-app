@@ -510,11 +510,36 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _closeNetwork() async {
     final started = _networkStartedAt;
     if (started == null) return;
+    final confirmed = await _confirmCloseNetwork();
+    if (!confirmed) return;
     final ended = DateTime.now().toUtc();
     await widget.database.closeNetwork(started, ended);
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString('network.closedAt', ended.toIso8601String());
     if (mounted) setState(() => _networkStartedAt = null);
+  }
+
+  Future<bool> _confirmCloseNetwork() async {
+    return await showDialog<bool>(
+          context: context,
+          builder: (dialogContext) => AlertDialog(
+            title: const Text('Encerrar rede?'),
+            content: const Text(
+              'A rede será encerrada e não será mais possível registrar novos contatos nela.',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.pop(dialogContext, false),
+                child: const Text('Cancelar'),
+              ),
+              FilledButton(
+                onPressed: () => Navigator.pop(dialogContext, true),
+                child: const Text('Encerrar'),
+              ),
+            ],
+          ),
+        ) ??
+        false;
   }
 
   void _scrollToFocusedField() {
