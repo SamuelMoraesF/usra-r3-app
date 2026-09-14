@@ -90,6 +90,40 @@ void main() {
   });
 
   test(
+    'looks up the latest callsign power within the selected frequency',
+    () async {
+      await database.importLogs(
+        csvToLogCompanions(
+          '${csvHeaders.join(',')}\n'
+          '2026-09-13T12:00:00Z,PY3AA,Nome,GG30CH,GG30DH,5,P,S,,repeater,145.37,,B,\n'
+          '2026-09-13T13:00:00Z,PY3AA,Nome,GG30CH,GG30DH,10,P,S,,repeater,145.37,,B,\n'
+          '2026-09-13T14:00:00Z,PY3AA,Nome,GG30CH,GG30DH,50,P,S,,simplex,146.52,,B,\n'
+          '2026-09-13T15:00:00Z,PY3BB,Nome,GG30CH,GG30DH,25,P,S,,repeater,145.37,,B,',
+        ),
+      );
+      expect((await database.latestLogForCallsign('PY3AA'))!.powerWatts, 50);
+      expect(
+        (await database.latestLogForCallsign(
+          ' py3aa ',
+          frequency: 'repeater',
+        ))!.powerWatts,
+        10,
+      );
+      expect(
+        (await database.latestLogForCallsign(
+          'PY3AA',
+          frequency: 'simplex',
+        ))!.powerWatts,
+        50,
+      );
+      expect(
+        await database.latestLogForCallsign('PY3BB', frequency: 'simplex'),
+        isNull,
+      );
+    },
+  );
+
+  test(
     'version 8 migration preserves records and backfills known MHz without inventing repeater grids',
     () async {
       await database.close();

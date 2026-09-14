@@ -1144,15 +1144,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _fillFromPreviousContact() async {
     final value = callsign.text.trim().toUpperCase();
     if (value.isEmpty) return;
+    final selectedFrequency = frequency;
     final latest = await widget.database.latestLogForCallsign(value);
+    final latestOnFrequency = await widget.database.latestLogForCallsign(
+      value,
+      frequency: selectedFrequency,
+    );
     if (!mounted ||
         callsign.text.trim().toUpperCase() != value ||
+        frequency != selectedFrequency ||
         latest == null) {
       return;
     }
     operator.text = capitalizeWordInitials(latest.operatorName);
     location.text = latest.location;
-    power.text = latest.powerWatts.toString();
+    power.text = latestOnFrequency?.powerWatts.toString() ?? '';
     station.text = latest.stationType;
     energy.text = latest.energy;
   }

@@ -170,10 +170,18 @@ class UsraDatabase extends _$UsraDatabase {
     logEntries,
   )..orderBy([(entry) => OrderingTerm.desc(entry.createdAt)])).watch();
 
-  Future<LogEntry?> latestLogForCallsign(String value) {
+  Future<LogEntry?> latestLogForCallsign(String value, {String? frequency}) {
     return (select(logEntries)
           ..where((entry) => entry.callsign.equals(value.trim().toUpperCase()))
-          ..orderBy([(entry) => OrderingTerm.desc(entry.createdAt)])
+          ..where(
+            (entry) => frequency == null
+                ? const Constant(true)
+                : entry.frequency.equals(frequency),
+          )
+          ..orderBy([
+            (entry) => OrderingTerm.desc(entry.createdAt),
+            (entry) => OrderingTerm.desc(entry.id),
+          ])
           ..limit(1))
         .getSingleOrNull();
   }
