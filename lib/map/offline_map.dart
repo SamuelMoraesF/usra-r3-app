@@ -134,6 +134,25 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     }
   }
 
+  Future<void> _handleStyleLoaded() async {
+    _styleReloadFallback?.cancel();
+    _distanceLayerReady = false;
+    _callsignLayerReady = false;
+    _labelImages.clear();
+    _warningImages.clear();
+    _elevationLayerReady = false;
+    _elevationRange.value = null;
+    _styleReady = true;
+
+    // Wait one turn after MapLibre reports the style as loaded. On some
+    // platforms annotation operations issued directly from the callback race
+    // the style's final internal refresh and are discarded.
+    await Future<void>.delayed(const Duration(milliseconds: 60));
+    if (!mounted || !_styleReady) return;
+    await _drawContacts();
+    await _fitInitialPoints();
+  }
+
   @override
   void initState() {
     super.initState();
@@ -322,18 +341,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
             onMapCreated: _onMapCreated,
             onCameraMove: _onCameraMove,
             onCameraIdle: _onCameraIdle,
-            onStyleLoadedCallback: () {
-              _styleReloadFallback?.cancel();
-              _distanceLayerReady = false;
-              _callsignLayerReady = false;
-              _labelImages.clear();
-              _warningImages.clear();
-              _elevationLayerReady = false;
-              _elevationRange.value = null;
-              _styleReady = true;
-              _drawContacts();
-              _fitInitialPoints();
-            },
+            onStyleLoadedCallback: () => unawaited(_handleStyleLoaded()),
           ),
         ),
         if (widget.settings.showCompass)
