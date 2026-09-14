@@ -30,6 +30,12 @@ bool _defaultKeyboardOptimized() =>
     (defaultTargetPlatform != TargetPlatform.iOS &&
         defaultTargetPlatform != TargetPlatform.android);
 
+HomeLayout _defaultHomeLayout() =>
+    defaultTargetPlatform == TargetPlatform.android ||
+        defaultTargetPlatform == TargetPlatform.iOS
+    ? HomeLayout.sidebar
+    : HomeLayout.bottomPanels;
+
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
   MapLibreMap.useHybridComposition = true;
@@ -88,7 +94,7 @@ class _UsraR3AppState extends State<UsraR3App> {
   int mapMaxAgeHours = 24;
   bool keepScreenOn = true;
   bool keyboardOptimized = _defaultKeyboardOptimized();
-  HomeLayout homeLayout = HomeLayout.bottomPanels;
+  HomeLayout homeLayout = _defaultHomeLayout();
   MapSettings mapSettings = const MapSettings();
 
   @override
@@ -216,7 +222,7 @@ class _UsraR3AppState extends State<UsraR3App> {
           _defaultKeyboardOptimized();
       homeLayout = HomeLayout.values.firstWhere(
         (value) => value.name == preferences.getString('homeLayout'),
-        orElse: () => HomeLayout.bottomPanels,
+        orElse: _defaultHomeLayout,
       );
       loading = false;
     });
