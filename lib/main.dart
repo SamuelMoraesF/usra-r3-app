@@ -24,6 +24,8 @@ import 'widgets/contact_workspace.dart';
 import 'widgets/contact_form_layout.dart';
 import 'map/offline_map.dart';
 import 'map/map_settings.dart';
+import 'browser_new_contact_shortcut_stub.dart'
+    if (dart.library.js_interop) 'browser_new_contact_shortcut_web.dart';
 
 bool _defaultKeyboardOptimized() =>
     kIsWeb ||
@@ -508,6 +510,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   int _mapFocusRequest = 0;
   String _lastMapFocusGrid = '';
   DateTime? _networkStartedAt;
+  BrowserNewContactShortcut? _browserNewContactShortcut;
 
   @override
   void initState() {
@@ -517,6 +520,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     WidgetsBinding.instance.addObserver(this);
     _loadFrequency();
     _loadNetworkState();
+    _browserNewContactShortcut = installBrowserNewContactShortcut(_newContact);
   }
 
   Future<void> _loadNetworkState() async {
@@ -685,6 +689,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _callsignFocusNode.removeListener(_onCallsignFocusChanged);
     FocusManager.instance.removeListener(_scrollToFocusedField);
     WidgetsBinding.instance.removeObserver(this);
+    _browserNewContactShortcut?.dispose();
     _panelScrollController.dispose();
     _callsignFocusNode.dispose();
     _viaFocusNode.dispose();
@@ -716,13 +721,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   @override
-  Widget build(BuildContext context) => CallbackShortcuts(
-    bindings: {
-      const SingleActivator(LogicalKeyboardKey.keyN, control: true):
-          _newContact,
-    },
-    child: Focus(autofocus: true, child: _buildScaffold(context)),
-  );
+  Widget build(BuildContext context) {
+    final scaffold = Focus(autofocus: true, child: _buildScaffold(context));
+    if (kIsWeb) return scaffold;
+    return CallbackShortcuts(
+      bindings: {
+        const SingleActivator(LogicalKeyboardKey.keyN, control: true):
+            _newContact,
+      },
+      child: scaffold,
+    );
+  }
 
   Widget _buildScaffold(BuildContext context) {
     final mediaQuery = MediaQuery.of(context);
