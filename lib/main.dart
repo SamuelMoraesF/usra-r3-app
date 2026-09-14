@@ -15,6 +15,7 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'data/database.dart';
+import 'time_display.dart';
 import 'data/csv_transfer.dart';
 import 'branding.dart';
 import 'grid_locator.dart';
@@ -69,6 +70,7 @@ class _UsraR3AppState extends State<UsraR3App> {
   final database = UsraDatabase();
   final navigatorKey = GlobalKey<NavigatorState>();
   AppTheme theme = AppTheme.system;
+  DisplayTimeZone displayTimeZone = DisplayTimeZone.brasilia;
   OperatorProfile profile = const OperatorProfile();
   bool setupDone = false;
   bool loading = true;
@@ -107,7 +109,10 @@ class _UsraR3AppState extends State<UsraR3App> {
             color: Theme.of(context).scaffoldBackgroundColor,
             child: SafeArea(
               maintainBottomViewPadding: true,
-              child: child ?? const SizedBox.shrink(),
+              child: TimeDisplay(
+                zone: displayTimeZone,
+                child: child ?? const SizedBox.shrink(),
+              ),
             ),
           ),
         );
@@ -191,6 +196,7 @@ class _UsraR3AppState extends State<UsraR3App> {
       lastOnly = preferences.getBool('map.lastOnly') ?? false;
       mapMaxAgeHours = preferences.getInt('map.maxAgeHours') ?? 24;
       mapSettings = MapSettings.read(preferences);
+      displayTimeZone = DisplayTimeZone.read(preferences);
       keepScreenOn = preferences.getBool('keepScreenOn') ?? true;
       loading = false;
     });
@@ -220,6 +226,7 @@ class _UsraR3AppState extends State<UsraR3App> {
         builder: (_) => SettingsPage(
           profile: profile,
           theme: theme,
+          displayTimeZone: displayTimeZone,
           mergePrecision: mergePrecision,
           lastOnly: lastOnly,
           mapMaxAgeHours: mapMaxAgeHours,
@@ -234,6 +241,7 @@ class _UsraR3AppState extends State<UsraR3App> {
       await _saveProfile(result.profile);
       final preferences = await SharedPreferences.getInstance();
       await preferences.setString('theme', result.theme.name);
+      await result.displayTimeZone.save(preferences);
       await preferences.setBool('map.mergePrecision', result.mergePrecision);
       await preferences.setBool('map.lastOnly', result.lastOnly);
       await preferences.setInt('map.maxAgeHours', result.mapMaxAgeHours);
@@ -254,6 +262,7 @@ class _UsraR3AppState extends State<UsraR3App> {
         setState(() {
           profile = result.profile;
           theme = result.theme;
+          displayTimeZone = result.displayTimeZone;
           mergePrecision = result.mergePrecision;
           lastOnly = result.lastOnly;
           mapMaxAgeHours = result.mapMaxAgeHours;
@@ -1165,18 +1174,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     energy.text = latest.energy;
   }
 
-  String _formatDate(DateTime value) {
-    final local = value.toLocal();
-    String two(int number) => number.toString().padLeft(2, '0');
-    final today = DateTime.now();
-    if (local.year == today.year &&
-        local.month == today.month &&
-        local.day == today.day) {
-      return '${two(local.hour)}:${two(local.minute)}:${two(local.second)}';
-    }
-    final year = local.year == today.year ? '' : '/${local.year}';
-    return '${two(local.day)}/${two(local.month)}$year ${two(local.hour)}:${two(local.minute)}:${two(local.second)}';
-  }
+  String _formatDate(DateTime value) =>
+      TimeDisplay.of(context).format(value, compact: true);
 
   String _operatorNameFor(List<LogEntry> entries, String callsign) {
     final match = entries
@@ -1694,6 +1693,7 @@ class SettingsPage extends StatefulWidget {
     super.key,
     required this.profile,
     required this.theme,
+    this.displayTimeZone = DisplayTimeZone.brasilia,
     required this.mergePrecision,
     required this.lastOnly,
     required this.mapMaxAgeHours,
@@ -1704,6 +1704,7 @@ class SettingsPage extends StatefulWidget {
   });
   final OperatorProfile profile;
   final AppTheme theme;
+  final DisplayTimeZone displayTimeZone;
   final bool mergePrecision;
   final bool lastOnly;
   final int mapMaxAgeHours;
@@ -1722,6 +1723,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late final name = TextEditingController(text: widget.profile.name);
   late final grid = TextEditingController(text: widget.profile.grid);
   late AppTheme theme = widget.theme;
+  late DisplayTimeZone displayTimeZone = widget.displayTimeZone;
   bool locating = false;
   late bool mergePrecision = widget.mergePrecision;
   late bool lastOnly = widget.lastOnly;
@@ -1760,6 +1762,22 @@ class _SettingsPageState extends State<SettingsPage> {
           ],
           selected: {theme},
           onSelectionChanged: (value) => setState(() => theme = value.first),
+        ),
+        const SizedBox(height: 20),
+        DropdownButtonFormField<DisplayTimeZone>(
+          initialValue: displayTimeZone,
+          decoration: const InputDecoration(
+            labelText: 'Fuso horário de exibição',
+          ),
+          items: DisplayTimeZone.values
+              .map(
+                (zone) =>
+                    DropdownMenuItem(value: zone, child: Text(zone.label)),
+              )
+              .toList(),
+          onChanged: (value) {
+            if (value != null) setState(() => displayTimeZone = value);
+          },
         ),
         const SizedBox(height: 28),
         SwitchListTile(
@@ -1990,6 +2008,7 @@ class _SettingsPageState extends State<SettingsPage> {
         keepScreenOn,
         showCompass,
         GridLocator.inspect(repeaterGrid.text).normalized,
+        displayTimeZone,
       ),
     );
   }
@@ -2028,6 +2047,7 @@ class _SettingsResult {
     this.keepScreenOn,
     this.showCompass,
     this.repeaterGrid,
+    this.displayTimeZone,
   );
   final OperatorProfile profile;
   final AppTheme theme;
@@ -2037,6 +2057,7 @@ class _SettingsResult {
   final bool keepScreenOn;
   final bool showCompass;
   final String repeaterGrid;
+  final DisplayTimeZone displayTimeZone;
 }
 
 class _Brand extends StatelessWidget {

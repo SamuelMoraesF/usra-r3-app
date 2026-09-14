@@ -57,7 +57,15 @@ List<LogEntriesCompanion> csvToLogCompanions(String source) {
     if (row.length != headers.length) {
       throw FormatException('Linha ${index + 1} inválida.');
     }
-    final createdAt = DateTime.tryParse(row[0]);
+    final timestamp = row[0].trim();
+    final hasTime = RegExp(r'[Tt ]').hasMatch(timestamp);
+    final hasZone =
+        hasTime &&
+        RegExp(r'(?:[zZ]|[+-]\d{2}(?::?\d{2})?)$').hasMatch(timestamp);
+    // CSV without an offset is UTC, independent of the importing device.
+    final createdAt = DateTime.tryParse(
+      hasZone ? timestamp : '$timestamp${hasTime ? 'Z' : 'T00:00:00Z'}',
+    );
     final power = double.tryParse(row[5].replaceAll(',', '.'));
     final mhz = legacy || row[10].isEmpty ? null : double.tryParse(row[10]);
     if (!legacy &&

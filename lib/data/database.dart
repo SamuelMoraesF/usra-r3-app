@@ -3,9 +3,21 @@ import 'package:drift_flutter/drift_flutter.dart';
 
 part 'database.g.dart';
 
+class UtcDateTimeConverter extends TypeConverter<DateTime, int> {
+  const UtcDateTimeConverter();
+
+  @override
+  DateTime fromSql(int fromDb) =>
+      DateTime.fromMicrosecondsSinceEpoch(fromDb, isUtc: true);
+
+  @override
+  int toSql(DateTime value) => value.toUtc().microsecondsSinceEpoch;
+}
+
 class LogEntries extends Table {
   IntColumn get id => integer().autoIncrement()();
-  DateTimeColumn get createdAt => dateTime()();
+  IntColumn get createdAt =>
+      integer().named('created_at_utc').map(const UtcDateTimeConverter())();
   TextColumn get callsign => text()();
   TextColumn get via => text().withDefault(const Constant(''))();
   TextColumn get frequency => text().withDefault(const Constant('repeater'))();
@@ -37,7 +49,7 @@ class UsraDatabase extends _$UsraDatabase {
   UsraDatabase.test(super.e);
 
   @override
-  int get schemaVersion => 9;
+  int get schemaVersion => 10;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -74,6 +86,21 @@ class UsraDatabase extends _$UsraDatabase {
         await m.addColumn(logEntries, logEntries.repeaterGrid);
         await customStatement(
           "UPDATE log_entries SET frequency_mhz = CASE frequency WHEN 'simplex' THEN 146.52 WHEN 'repeater' THEN 145.37 END",
+        );
+      }
+      if (from < 10) {
+        // Legacy Drift DateTime columns are Unix seconds, already absolute
+        // instants. Preserve them while moving to explicit UTC microseconds;
+        // never apply the device's offset to existing records.
+        await m.alterTable(
+          TableMigration(
+            logEntries,
+            columnTransformer: {
+              logEntries.createdAt: const CustomExpression<int>(
+                'created_at * 1000000',
+              ),
+            },
+          ),
         );
       }
     },

@@ -22,17 +22,15 @@ class $LogEntriesTable extends LogEntries
       'PRIMARY KEY AUTOINCREMENT',
     ),
   );
-  static const VerificationMeta _createdAtMeta = const VerificationMeta(
-    'createdAt',
-  );
   @override
-  late final GeneratedColumn<DateTime> createdAt = GeneratedColumn<DateTime>(
-    'created_at',
-    aliasedName,
-    false,
-    type: DriftSqlType.dateTime,
-    requiredDuringInsert: true,
-  );
+  late final GeneratedColumnWithTypeConverter<DateTime, int> createdAt =
+      GeneratedColumn<int>(
+        'created_at_utc',
+        aliasedName,
+        false,
+        type: DriftSqlType.int,
+        requiredDuringInsert: true,
+      ).withConverter<DateTime>($LogEntriesTable.$convertercreatedAt);
   static const VerificationMeta _callsignMeta = const VerificationMeta(
     'callsign',
   );
@@ -209,14 +207,6 @@ class $LogEntriesTable extends LogEntries
     if (data.containsKey('id')) {
       context.handle(_idMeta, id.isAcceptableOrUnknown(data['id']!, _idMeta));
     }
-    if (data.containsKey('created_at')) {
-      context.handle(
-        _createdAtMeta,
-        createdAt.isAcceptableOrUnknown(data['created_at']!, _createdAtMeta),
-      );
-    } else if (isInserting) {
-      context.missing(_createdAtMeta);
-    }
     if (data.containsKey('callsign')) {
       context.handle(
         _callsignMeta,
@@ -340,10 +330,12 @@ class $LogEntriesTable extends LogEntries
         DriftSqlType.int,
         data['${effectivePrefix}id'],
       )!,
-      createdAt: attachedDatabase.typeMapping.read(
-        DriftSqlType.dateTime,
-        data['${effectivePrefix}created_at'],
-      )!,
+      createdAt: $LogEntriesTable.$convertercreatedAt.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}created_at_utc'],
+        )!,
+      ),
       callsign: attachedDatabase.typeMapping.read(
         DriftSqlType.string,
         data['${effectivePrefix}callsign'],
@@ -403,6 +395,9 @@ class $LogEntriesTable extends LogEntries
   $LogEntriesTable createAlias(String alias) {
     return $LogEntriesTable(attachedDatabase, alias);
   }
+
+  static TypeConverter<DateTime, int> $convertercreatedAt =
+      const UtcDateTimeConverter();
 }
 
 class LogEntry extends DataClass implements Insertable<LogEntry> {
@@ -442,7 +437,11 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
   Map<String, Expression> toColumns(bool nullToAbsent) {
     final map = <String, Expression>{};
     map['id'] = Variable<int>(id);
-    map['created_at'] = Variable<DateTime>(createdAt);
+    {
+      map['created_at_utc'] = Variable<int>(
+        $LogEntriesTable.$convertercreatedAt.toSql(createdAt),
+      );
+    }
     map['callsign'] = Variable<String>(callsign);
     map['via'] = Variable<String>(via);
     map['frequency'] = Variable<String>(frequency);
@@ -719,7 +718,7 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
        traffic = Value(traffic);
   static Insertable<LogEntry> custom({
     Expression<int>? id,
-    Expression<DateTime>? createdAt,
+    Expression<int>? createdAt,
     Expression<String>? callsign,
     Expression<String>? via,
     Expression<String>? frequency,
@@ -736,7 +735,7 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
-      if (createdAt != null) 'created_at': createdAt,
+      if (createdAt != null) 'created_at_utc': createdAt,
       if (callsign != null) 'callsign': callsign,
       if (via != null) 'via': via,
       if (frequency != null) 'frequency': frequency,
@@ -796,7 +795,9 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
       map['id'] = Variable<int>(id.value);
     }
     if (createdAt.present) {
-      map['created_at'] = Variable<DateTime>(createdAt.value);
+      map['created_at_utc'] = Variable<int>(
+        $LogEntriesTable.$convertercreatedAt.toSql(createdAt.value),
+      );
     }
     if (callsign.present) {
       map['callsign'] = Variable<String>(callsign.value);
@@ -925,10 +926,11 @@ class $$LogEntriesTableFilterComposer
     builder: (column) => ColumnFilters(column),
   );
 
-  ColumnFilters<DateTime> get createdAt => $composableBuilder(
-    column: $table.createdAt,
-    builder: (column) => ColumnFilters(column),
-  );
+  ColumnWithTypeConverterFilters<DateTime, DateTime, int> get createdAt =>
+      $composableBuilder(
+        column: $table.createdAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
 
   ColumnFilters<String> get callsign => $composableBuilder(
     column: $table.callsign,
@@ -1010,7 +1012,7 @@ class $$LogEntriesTableOrderingComposer
     builder: (column) => ColumnOrderings(column),
   );
 
-  ColumnOrderings<DateTime> get createdAt => $composableBuilder(
+  ColumnOrderings<int> get createdAt => $composableBuilder(
     column: $table.createdAt,
     builder: (column) => ColumnOrderings(column),
   );
@@ -1093,7 +1095,7 @@ class $$LogEntriesTableAnnotationComposer
   GeneratedColumn<int> get id =>
       $composableBuilder(column: $table.id, builder: (column) => column);
 
-  GeneratedColumn<DateTime> get createdAt =>
+  GeneratedColumnWithTypeConverter<DateTime, int> get createdAt =>
       $composableBuilder(column: $table.createdAt, builder: (column) => column);
 
   GeneratedColumn<String> get callsign =>

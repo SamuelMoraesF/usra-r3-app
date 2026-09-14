@@ -5,6 +5,7 @@ import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 
 import '../data/database.dart';
+import '../time_display.dart';
 import '../grid_locator.dart';
 import 'contact_aggregation.dart';
 import 'contact_scene.dart';
@@ -1015,12 +1016,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
     side: BorderSide.none,
   );
 
-  String _formatDate(DateTime value) {
-    final local = value.toLocal();
-    String two(int number) => number.toString().padLeft(2, '0');
-    return '${two(local.day)}/${two(local.month)}/${local.year} '
-        '${two(local.hour)}:${two(local.minute)}:${two(local.second)}';
-  }
+  String _formatDate(DateTime value) => TimeDisplay.of(context).format(value);
 
   String? _cachedStyle;
   String? _sourceStyle;
