@@ -91,4 +91,67 @@ void main() {
     expect(find.text('Configure seu perfil'), findsOneWidget);
     expect(find.text('Usar GPS'), findsOneWidget);
   });
+
+  testWidgets('shows only saved contacts from the selected network', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    SharedPreferences.setMockInitialValues({'contact.frequency': 'simplex'});
+    final database = UsraDatabase.test(NativeDatabase.memory());
+    addTearDown(() async {
+      debugDefaultTargetPlatformOverride = null;
+      await tester.runAsync(database.close);
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+    });
+    tester.view.physicalSize = const Size(1000, 1800);
+    tester.view.devicePixelRatio = 1;
+    await database.saveLog(
+      callsign: 'PY3SIM',
+      frequency: 'simplex',
+      operatorName: 'Operador Simplex',
+      location: 'GG13AA',
+      operatorGrid: 'GG13AB',
+      powerWatts: 5,
+      stationType: 'P',
+      traffic: 'S',
+    );
+    await database.saveLog(
+      callsign: 'PY3REP',
+      frequency: 'repeater',
+      operatorName: 'Operador Repetidora',
+      location: 'GG13AC',
+      operatorGrid: 'GG13AD',
+      powerWatts: 5,
+      stationType: 'P',
+      traffic: 'S',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: HomePage(
+          profile: const OperatorProfile(),
+          database: database,
+          onOpenSettings: () {},
+          mergePrecision: true,
+          lastOnly: false,
+          mapMaxAgeHours: 24,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    Finder contactTitle(String callsign) => find.byWidgetPredicate(
+      (widget) =>
+          widget is RichText && widget.text.toPlainText().contains(callsign),
+    );
+    expect(contactTitle('PY3SIM'), findsOneWidget);
+    expect(contactTitle('PY3REP'), findsNothing);
+
+    await tester.tap(find.text('Repetidora'));
+    await tester.pumpAndSettle();
+    expect(contactTitle('PY3SIM'), findsNothing);
+    expect(contactTitle('PY3REP'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    debugDefaultTargetPlatformOverride = null;
+  });
 }

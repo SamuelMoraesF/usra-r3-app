@@ -773,7 +773,10 @@ class _HomePageState extends State<HomePage> {
             StreamBuilder<List<LogEntry>>(
               stream: widget.database.watchLogs(),
               builder: (context, snapshot) {
-                final entries = snapshot.data ?? const <LogEntry>[];
+                final allEntries = snapshot.data ?? const <LogEntry>[];
+                final entries = allEntries
+                    .where((entry) => entry.frequency == frequency)
+                    .toList();
                 if (entries.isEmpty) return const SizedBox.shrink();
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -850,7 +853,7 @@ class _HomePageState extends State<HomePage> {
                                           const TextSpan(text: '  '),
                                           _viaTitleSpan(
                                             context,
-                                            entries,
+                                            allEntries,
                                             entry.via,
                                           ),
                                         ],
