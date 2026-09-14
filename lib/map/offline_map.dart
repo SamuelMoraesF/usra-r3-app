@@ -164,7 +164,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
     );
   }
 
-  Future<void> _animateToGrid(String value) async {
+  Future<void> _animateToGrid(String value, {double zoom = 13}) async {
     final map = controller;
     final bounds = GridLocator.bounds(value);
     if (map == null || bounds == null) return;
@@ -289,6 +289,12 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
             child: Column(
               mainAxisSize: MainAxisSize.min,
               children: [
+                IconButton(
+                  tooltip: 'Centralizar na minha localização',
+                  icon: const Icon(Icons.my_location),
+                  onPressed: () =>
+                      _animateToGrid(widget.operatorGrid, zoom: 14),
+                ),
                 IconButton(
                   tooltip: 'Mostrar linhas de distância',
                   isSelected: widget.settings.showLines,
