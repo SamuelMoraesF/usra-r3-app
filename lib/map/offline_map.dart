@@ -239,7 +239,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
               target: LatLng(-29.6868, -53.8069),
               zoom: 12,
             ),
-            minMaxZoomPreference: const MinMaxZoomPreference(8, 15),
+            minMaxZoomPreference: const MinMaxZoomPreference(6, null),
             trackCameraPosition: true,
             annotationOrder: const [
               AnnotationType.fill,
