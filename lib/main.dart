@@ -16,6 +16,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'data/database.dart';
 import 'data/csv_transfer.dart';
+import 'branding.dart';
 import 'grid_locator.dart';
 import 'widgets/grid_locator_field.dart';
 import 'map/offline_map.dart';
@@ -86,7 +87,7 @@ class _UsraR3AppState extends State<UsraR3App> {
   @override
   Widget build(BuildContext context) {
     return MaterialApp(
-      title: 'USRA R3',
+      title: AppBranding.name,
       navigatorKey: navigatorKey,
       debugShowCheckedModeBanner: false,
       builder: (context, child) {
@@ -567,7 +568,7 @@ class _HomePageState extends State<HomePage> {
               mainAxisAlignment: MainAxisAlignment.spaceBetween,
               children: [
                 Text(
-                  'USRA R3',
+                  AppBranding.name,
                   style: Theme.of(
                     context,
                   ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
@@ -1728,19 +1729,17 @@ class _SettingsPageState extends State<SettingsPage> {
               contentPadding: EdgeInsets.zero,
               leading: const Icon(Icons.info_outline),
               title: Text(version),
-              subtitle: const Text(
-                'USRA R3 — logbook offline da Rede de Radiocomunicação Resiliente (R3).',
-              ),
+              subtitle: const Text(AppBranding.aboutSummary),
             );
           },
         ),
         const SizedBox(height: 8),
         const Text(
-          'Desenvolvido pela USRA (União Santamariense de Radioamadores) '
-          'para a Rede de Radiocomunicação Resiliente (R3).',
+          'Desenvolvido pela ${AppBranding.publisher} para a '
+          '${AppBranding.description}',
         ),
         const SizedBox(height: 6),
-        const SelectableText('Site da USRA: https://py3ur.blogspot.com/'),
+        const SelectableText('Site da USRA: ${AppBranding.website}'),
       ],
     ),
   );
@@ -1758,7 +1757,7 @@ class _SettingsPageState extends State<SettingsPage> {
               name: 'usra-r3-logbook.csv',
             ),
           ],
-          subject: 'USRA R3 logbook',
+          subject: AppBranding.csvSubject,
         ),
       );
     } catch (error) {
@@ -1879,17 +1878,23 @@ class _SettingsResult {
 class _Brand extends StatelessWidget {
   const _Brand();
   @override
-  Widget build(BuildContext context) => const Row(
-    mainAxisSize: MainAxisSize.min,
-    children: [
-      Icon(Icons.wifi_tethering, size: 28),
-      SizedBox(width: 10),
-      Text(
-        'USRA R3',
-        style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
-      ),
-    ],
-  );
+  Widget build(BuildContext context) {
+    final color = Theme.of(context).colorScheme.primary;
+    return Row(
+      mainAxisSize: MainAxisSize.min,
+      children: [
+        ColorFiltered(
+          colorFilter: ColorFilter.mode(color, BlendMode.srcIn),
+          child: Image.asset(AppBranding.markAsset, width: 28, height: 28),
+        ),
+        const SizedBox(width: 10),
+        const Text(
+          AppBranding.name,
+          style: TextStyle(fontSize: 18, fontWeight: FontWeight.w700),
+        ),
+      ],
+    );
+  }
 }
 
 class UpperCaseFormatter extends TextInputFormatter {

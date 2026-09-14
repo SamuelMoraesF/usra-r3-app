@@ -90,12 +90,12 @@ BEGIN
         BLOCK "040904e4"
         BEGIN
             VALUE "CompanyName", "org.usra.r3" "\0"
-            VALUE "FileDescription", "usra_r3" "\0"
+            VALUE "FileDescription", "USRA R3" "\0"
             VALUE "FileVersion", VERSION_AS_STRING "\0"
             VALUE "InternalName", "usra_r3" "\0"
             VALUE "LegalCopyright", "Copyright (C) 2026 org.usra.r3. All rights reserved." "\0"
             VALUE "OriginalFilename", "usra_r3.exe" "\0"
-            VALUE "ProductName", "usra_r3" "\0"
+            VALUE "ProductName", "USRA R3" "\0"
             VALUE "ProductVersion", VERSION_AS_STRING "\0"
         END
     END
