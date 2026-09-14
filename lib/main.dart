@@ -761,30 +761,29 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   label: const Text('Fazer abertura da rede'),
                 ),
               ),
+            const SizedBox(height: 12),
+            SizedBox(
+              width: double.infinity,
+              child: SegmentedButton<String>(
+                segments: const [
+                  ButtonSegment(
+                    value: _repeaterFrequency,
+                    label: _FrequencyLabel('Repetidora', '145.37'),
+                  ),
+                  ButtonSegment(
+                    value: _simplexFrequency,
+                    label: _FrequencyLabel('Simplex', '146.52'),
+                  ),
+                ],
+                selected: {frequency},
+                onSelectionChanged: (value) => _setFrequency(value.first),
+              ),
+            ),
             if (_networkStartedAt != null)
               Form(
                 key: formKey,
                 child: Column(
                   children: [
-                    SizedBox(
-                      width: double.infinity,
-                      child: SegmentedButton<String>(
-                        segments: const [
-                          ButtonSegment(
-                            value: _repeaterFrequency,
-                            label: _FrequencyLabel('Repetidora', '145.37'),
-                          ),
-                          ButtonSegment(
-                            value: _simplexFrequency,
-                            label: _FrequencyLabel('Simplex', '146.52'),
-                          ),
-                        ],
-                        selected: {frequency},
-                        onSelectionChanged: (value) =>
-                            _setFrequency(value.first),
-                      ),
-                    ),
-                    const SizedBox(height: 12),
                     Row(
                       crossAxisAlignment: CrossAxisAlignment.start,
                       children: [
