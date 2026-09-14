@@ -10,6 +10,7 @@ class MapSettings {
     this.showElevation = false,
     this.showCompass = true,
     this.showCallsigns = false,
+    this.focusNewRecord = false,
     this.repeaterGrid = defaultRepeaterGrid,
   });
 
@@ -19,6 +20,7 @@ class MapSettings {
   final bool showElevation;
   final bool showCompass;
   final bool showCallsigns;
+  final bool focusNewRecord;
   final String repeaterGrid;
 
   static MapSettings read(SharedPreferences preferences) => MapSettings(
@@ -28,6 +30,7 @@ class MapSettings {
     showElevation: preferences.getBool('map.showElevation') ?? false,
     showCompass: preferences.getBool('map.showCompass') ?? true,
     showCallsigns: preferences.getBool('map.showCallsigns') ?? false,
+    focusNewRecord: preferences.getBool('map.focusNewRecord') ?? false,
     repeaterGrid:
         preferences.getString('map.repeaterGrid') ?? defaultRepeaterGrid,
   );
@@ -39,6 +42,7 @@ class MapSettings {
     await preferences.setBool('map.showElevation', showElevation);
     await preferences.setBool('map.showCompass', showCompass);
     await preferences.setBool('map.showCallsigns', showCallsigns);
+    await preferences.setBool('map.focusNewRecord', focusNewRecord);
     await preferences.setString('map.repeaterGrid', repeaterGrid);
   }
 }

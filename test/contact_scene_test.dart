@@ -99,6 +99,17 @@ void main() {
     },
   );
 
+  test('new record focus defaults off and persists', () async {
+    SharedPreferences.setMockInitialValues({});
+    var prefs = await SharedPreferences.getInstance();
+    expect(MapSettings.read(prefs).focusNewRecord, isFalse);
+
+    await const MapSettings(focusNewRecord: true).save(prefs);
+    prefs = await SharedPreferences.getInstance();
+    await prefs.reload();
+    expect(MapSettings.read(prefs).focusNewRecord, isTrue);
+  });
+
   test(
     'default grid contains supplied coordinates at maximum supported precision',
     () {
@@ -122,6 +133,7 @@ void main() {
       expect(MapSettings.read(prefs).showPrecision, isFalse);
       expect(MapSettings.read(prefs).showElevation, isFalse);
       expect(MapSettings.read(prefs).showCompass, isTrue);
+      expect(MapSettings.read(prefs).focusNewRecord, isFalse);
       expect(MapSettings.read(prefs).repeaterGrid, defaultRepeaterGrid);
       for (final lines in [true, false]) {
         for (final all in [true, false]) {

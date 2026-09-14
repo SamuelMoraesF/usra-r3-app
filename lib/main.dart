@@ -247,6 +247,7 @@ class _UsraR3AppState extends State<UsraR3App> {
           keyboardOptimized: keyboardOptimized,
           homeLayout: homeLayout,
           showCompass: mapSettings.showCompass,
+          focusNewRecord: mapSettings.focusNewRecord,
           database: database,
           repeaterGrid: mapSettings.repeaterGrid,
         ),
@@ -270,6 +271,7 @@ class _UsraR3AppState extends State<UsraR3App> {
           showPrecision: mapSettings.showPrecision,
           showElevation: mapSettings.showElevation,
           showCompass: result.showCompass,
+          focusNewRecord: result.focusNewRecord,
           showCallsigns: mapSettings.showCallsigns,
           repeaterGrid: result.repeaterGrid,
         ),
@@ -1281,8 +1283,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
     if (mounted) {
       setState(() {
-        _lastMapFocusGrid = savedLocation;
-        _mapFocusRequest++;
+        if (widget.mapSettings.focusNewRecord) {
+          _lastMapFocusGrid = savedLocation;
+          _mapFocusRequest++;
+        }
         callsign.clear();
         via.clear();
         operator.clear();
@@ -1877,6 +1881,7 @@ class SettingsPage extends StatefulWidget {
     this.keyboardOptimized = false,
     this.homeLayout = HomeLayout.bottomPanels,
     required this.showCompass,
+    this.focusNewRecord = false,
     required this.database,
     this.repeaterGrid = defaultRepeaterGrid,
   });
@@ -1890,6 +1895,7 @@ class SettingsPage extends StatefulWidget {
   final bool keyboardOptimized;
   final HomeLayout homeLayout;
   final bool showCompass;
+  final bool focusNewRecord;
   final UsraDatabase database;
   final String repeaterGrid;
   @override
@@ -1911,6 +1917,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool keyboardOptimized = widget.keyboardOptimized;
   late HomeLayout homeLayout = widget.homeLayout;
   late bool showCompass = widget.showCompass;
+  late bool focusNewRecord = widget.focusNewRecord;
   late final maxAgeHours = TextEditingController(
     text: widget.mapMaxAgeHours.toString(),
   );
@@ -2026,6 +2033,15 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           value: showCompass,
           onChanged: (value) => setState(() => showCompass = value),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Focar automaticamente no novo registro'),
+          subtitle: const Text(
+            'Move o mapa para a localização sempre que um registro for salvo.',
+          ),
+          value: focusNewRecord,
+          onChanged: (value) => setState(() => focusNewRecord = value),
         ),
         const SizedBox(height: 12),
         TextField(
@@ -2217,6 +2233,7 @@ class _SettingsPageState extends State<SettingsPage> {
         keyboardOptimized,
         homeLayout,
         showCompass,
+        focusNewRecord,
         GridLocator.inspect(repeaterGrid.text).normalized,
         displayTimeZone,
       ),
@@ -2258,6 +2275,7 @@ class _SettingsResult {
     this.keyboardOptimized,
     this.homeLayout,
     this.showCompass,
+    this.focusNewRecord,
     this.repeaterGrid,
     this.displayTimeZone,
   );
@@ -2270,6 +2288,7 @@ class _SettingsResult {
   final bool keyboardOptimized;
   final HomeLayout homeLayout;
   final bool showCompass;
+  final bool focusNewRecord;
   final String repeaterGrid;
   final DisplayTimeZone displayTimeZone;
 }
