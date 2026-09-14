@@ -11,17 +11,35 @@ enum MarkerKind {
 }
 
 class ContactMarker {
-  const ContactMarker(this.grid, this.kind, {this.contactIndex});
+  const ContactMarker(
+    this.grid,
+    this.kind, {
+    this.contactIndex,
+    this.stationType = '',
+    this.energy = '',
+  });
   final String grid;
   final MarkerKind kind;
   final int? contactIndex;
+  final String stationType;
+  final String energy;
   double get radius => contactIndex == null ? 8 : 6;
   String get color => switch (kind) {
     MarkerKind.operator => '#2196F3',
-    MarkerKind.selectedContact => '#4CAF50',
+    MarkerKind.selectedContact => _contactColor(stationType, energy),
     MarkerKind.otherContact => '#9E9E9E',
-    MarkerKind.currentRepeater => '#FF9800',
-    MarkerKind.historicalRepeater => '#FFEB3B',
+    MarkerKind.currentRepeater => '#7E57C2',
+    MarkerKind.historicalRepeater => '#7E57C2',
+  };
+}
+
+String _contactColor(String stationType, String energy) {
+  return switch (stationType.trim().toUpperCase()) {
+    'F' when energy.trim().toUpperCase() == 'AC' => '#4CAF50',
+    'F' => '#FFEB3B',
+    'P' => '#F44336',
+    'M' => '#FF9800',
+    _ => '#9E9E9E',
   };
 }
 
@@ -114,6 +132,8 @@ ContactScene buildContactScene(
         contact.latest.location,
         matching ? MarkerKind.selectedContact : MarkerKind.otherContact,
         contactIndex: i,
+        stationType: contact.latest.stationType,
+        energy: contact.latest.energy,
       ),
     );
   }

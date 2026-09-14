@@ -110,6 +110,50 @@ void main() {
     expect(MapSettings.read(prefs).focusNewRecord, isTrue);
   });
 
+  test('contact marker colors follow station and energy', () {
+    expect(
+      const ContactMarker(
+        '',
+        MarkerKind.selectedContact,
+        stationType: 'F',
+        energy: 'AC',
+      ).color,
+      '#4CAF50',
+    );
+    expect(
+      const ContactMarker(
+        '',
+        MarkerKind.selectedContact,
+        stationType: 'F',
+        energy: 'G',
+      ).color,
+      '#FFEB3B',
+    );
+    expect(
+      const ContactMarker(
+        '',
+        MarkerKind.selectedContact,
+        stationType: 'P',
+        energy: 'B',
+      ).color,
+      '#F44336',
+    );
+    expect(
+      const ContactMarker(
+        '',
+        MarkerKind.selectedContact,
+        stationType: 'M',
+        energy: 'AC',
+      ).color,
+      '#FF9800',
+    );
+    expect(
+      const ContactMarker('', MarkerKind.currentRepeater).color,
+      '#7E57C2',
+    );
+    expect(const ContactMarker('', MarkerKind.otherContact).color, '#9E9E9E');
+  });
+
   test(
     'default grid contains supplied coordinates at maximum supported precision',
     () {
@@ -252,8 +296,8 @@ void main() {
           )
           .toList();
       expect(repeaters, hasLength(2));
-      expect(repeaters.first.color, '#FF9800');
-      expect(repeaters.last.color, '#FFEB3B');
+      expect(repeaters.first.color, '#7E57C2');
+      expect(repeaters.last.color, '#7E57C2');
       expect(
         repeaters.every((m) => m.radius == result.markers.first.radius),
         isTrue,
@@ -286,7 +330,7 @@ void main() {
   });
 
   test(
-    'operator blue; contact green if any recent QSO matches, otherwise gray',
+    'operator blue; visible contact uses station color, hidden contact is gray',
     () {
       final result = scene([
         qso(ageHours: 2),
@@ -298,7 +342,7 @@ void main() {
       final stations = result.markers
           .where((m) => m.contactIndex != null)
           .toList();
-      expect(stations.map((m) => m.color), ['#4CAF50', '#9E9E9E']);
+      expect(stations.map((m) => m.color), ['#F44336', '#9E9E9E']);
       expect(stations.every((m) => m.radius == 6), isTrue);
     },
   );
