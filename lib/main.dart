@@ -1102,13 +1102,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                   children: [
                                     Row(
                                       children: [
-                                        const Icon(Icons.bolt, size: 16),
+                                        const Icon(Icons.power, size: 16),
                                         const SizedBox(width: 4),
                                         Text(_energyLabel(entry.energy)),
                                         const SizedBox(width: 8),
                                         const Text('·'),
                                         const SizedBox(width: 8),
-                                        const Icon(Icons.power, size: 16),
+                                        const Icon(Icons.bolt, size: 16),
                                         const SizedBox(width: 4),
                                         Text('${entry.powerWatts} W'),
                                         const SizedBox(width: 8),
