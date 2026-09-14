@@ -430,7 +430,7 @@ class HomePage extends StatefulWidget {
   State<HomePage> createState() => _HomePageState();
 }
 
-class _HomePageState extends State<HomePage> {
+class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   static const _repeaterFrequency = 'repeater';
   static const _simplexFrequency = 'simplex';
   final formKey = GlobalKey<FormState>();
@@ -453,6 +453,10 @@ class _HomePageState extends State<HomePage> {
   final traffic = TextEditingController(text: 'S - Sem tráfego');
   final energy = TextEditingController(text: 'B - Bateria');
   final trafficMessage = TextEditingController();
+  final _panelScrollController = ScrollController();
+  double? _scrollOffsetBeforeKeyboard;
+  bool _keyboardWasOpen = false;
+  double _lastKeyboardInset = 0;
   int _mapFocusRequest = 0;
   String _lastMapFocusGrid = '';
 
@@ -461,6 +465,7 @@ class _HomePageState extends State<HomePage> {
     super.initState();
     _callsignFocusNode.addListener(_onCallsignFocusChanged);
     FocusManager.instance.addListener(_scrollToFocusedField);
+    WidgetsBinding.instance.addObserver(this);
     _loadFrequency();
   }
 
@@ -468,15 +473,65 @@ class _HomePageState extends State<HomePage> {
     final context = FocusManager.instance.primaryFocus?.context;
     if (context == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && context.mounted) {
+      if (mounted && context.mounted && _keyboardIsOpen && _keyboardWasOpen) {
         Scrollable.ensureVisible(
           context,
           duration: const Duration(milliseconds: 250),
           curve: Curves.easeOut,
-          alignment: 0.2,
+          alignment: 0.5,
         );
       }
     });
+  }
+
+  bool get _keyboardIsOpen => MediaQuery.viewInsetsOf(context).bottom > 0;
+
+  @override
+  void didChangeDependencies() {
+    super.didChangeDependencies();
+    final inset = MediaQuery.viewInsetsOf(context).bottom;
+    if ((inset - _lastKeyboardInset).abs() < 0.5) return;
+    _lastKeyboardInset = inset;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _updateKeyboardScroll();
+    });
+  }
+
+  @override
+  void didChangeMetrics() {
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted) _updateKeyboardScroll();
+    });
+  }
+
+  void _updateKeyboardScroll() {
+    final keyboardOpen = _keyboardIsOpen;
+    if (keyboardOpen && !_keyboardWasOpen) {
+      _keyboardWasOpen = true;
+      _scrollOffsetBeforeKeyboard = _panelScrollController.hasClients
+          ? _panelScrollController.offset
+          : null;
+    } else if (!keyboardOpen && _keyboardWasOpen) {
+      _keyboardWasOpen = false;
+      final offset = _scrollOffsetBeforeKeyboard;
+      _scrollOffsetBeforeKeyboard = null;
+      if (offset != null && _panelScrollController.hasClients) {
+        _panelScrollController.animateTo(
+          offset,
+          duration: const Duration(milliseconds: 200),
+          curve: Curves.easeOut,
+        );
+      }
+    }
+    if (keyboardOpen) {
+      _scrollToFocusedField();
+      // The keyboard and the temporary list spacer can animate/layout in
+      // separate frames. Retry after both have settled so the final fields
+      // are not left just above the keyboard edge.
+      Future<void>.delayed(const Duration(milliseconds: 350), () {
+        if (mounted && _keyboardIsOpen) _scrollToFocusedField();
+      });
+    }
   }
 
   Future<void> _loadFrequency() async {
@@ -520,6 +575,8 @@ class _HomePageState extends State<HomePage> {
   void dispose() {
     _callsignFocusNode.removeListener(_onCallsignFocusChanged);
     FocusManager.instance.removeListener(_scrollToFocusedField);
+    WidgetsBinding.instance.removeObserver(this);
+    _panelScrollController.dispose();
     _callsignFocusNode.dispose();
     _viaFocusNode.dispose();
     for (final node in [
@@ -559,10 +616,12 @@ class _HomePageState extends State<HomePage> {
   );
 
   Widget _buildScaffold(BuildContext context) => Scaffold(
-    resizeToAvoidBottomInset: MediaQuery.sizeOf(context).width < 700,
+    resizeToAvoidBottomInset: true,
     body: LayoutBuilder(
       builder: (context, constraints) {
+        final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
         final panel = ListView(
+          controller: _panelScrollController,
           padding: const EdgeInsets.all(20),
           children: [
             Row(
@@ -936,6 +995,10 @@ class _HomePageState extends State<HomePage> {
                 );
               },
             ),
+            // Reserve enough scroll range to center even the last field above
+            // the keyboard. This spacer disappears when the keyboard closes.
+            if (keyboardInset > 0)
+              SizedBox(height: keyboardInset + constraints.maxHeight + 40),
           ],
         );
         final showMap =
@@ -952,7 +1015,6 @@ class _HomePageState extends State<HomePage> {
             ],
           );
         }
-        final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
         final keyboardOpen = keyboardInset > 0;
         final availableHeight = constraints.maxHeight + keyboardInset;
         final panelHeight = 390.0.clamp(0.0, availableHeight * 0.65);
@@ -1446,7 +1508,7 @@ class _FrequencyLabel extends StatelessWidget {
   );
 }
 
-class _ChoiceField extends StatelessWidget {
+class _ChoiceField extends StatefulWidget {
   const _ChoiceField({
     required this.controller,
     this.focusNode,
@@ -1463,34 +1525,77 @@ class _ChoiceField extends StatelessWidget {
   final ValueChanged<String>? onSubmitted;
   final ValueChanged<String>? onChanged;
   final TextInputAction? textInputAction;
+
+  @override
+  State<_ChoiceField> createState() => _ChoiceFieldState();
+}
+
+class _ChoiceFieldState extends State<_ChoiceField> {
+  late FocusNode _focusNode;
+  final _menuKey = GlobalKey<PopupMenuButtonState<String>>();
+
+  @override
+  void initState() {
+    super.initState();
+    _focusNode = widget.focusNode ?? FocusNode();
+    _focusNode.addListener(_onFocusChanged);
+  }
+
+  @override
+  void didUpdateWidget(covariant _ChoiceField oldWidget) {
+    super.didUpdateWidget(oldWidget);
+    if (oldWidget.focusNode != widget.focusNode) {
+      _focusNode.removeListener(_onFocusChanged);
+      if (oldWidget.focusNode == null) _focusNode.dispose();
+      _focusNode = widget.focusNode ?? FocusNode();
+      _focusNode.addListener(_onFocusChanged);
+    }
+  }
+
+  @override
+  void dispose() {
+    _focusNode.removeListener(_onFocusChanged);
+    if (widget.focusNode == null) _focusNode.dispose();
+    super.dispose();
+  }
+
+  void _onFocusChanged() {
+    if (!_focusNode.hasFocus) return;
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      if (mounted && _focusNode.hasFocus) {
+        _menuKey.currentState?.showButtonMenu();
+      }
+    });
+  }
+
   @override
   Widget build(BuildContext context) =>
       ValueListenableBuilder<TextEditingValue>(
-        valueListenable: controller,
+        valueListenable: widget.controller,
         builder: (context, value, _) => TextFormField(
-          controller: controller,
-          focusNode: focusNode,
+          controller: widget.controller,
+          focusNode: _focusNode,
           onFieldSubmitted: (value) {
             final code = _choiceCode(value);
-            if (values.containsKey(code)) {
-              onSubmitted?.call(value);
+            if (widget.values.containsKey(code)) {
+              widget.onSubmitted?.call(value);
             } else {
-              if (focusNode != null) {
-                FocusScope.of(context).requestFocus(focusNode);
+              if (widget.focusNode != null) {
+                FocusScope.of(context).requestFocus(widget.focusNode);
               }
             }
           },
-          onChanged: onChanged,
-          textInputAction: textInputAction ?? TextInputAction.next,
+          onChanged: widget.onChanged,
+          textInputAction: widget.textInputAction ?? TextInputAction.next,
           onEditingComplete: () {
-            final code = _choiceCode(controller.text);
-            if (!values.containsKey(code)) {
-              if (focusNode != null) {
-                FocusScope.of(context).requestFocus(focusNode);
+            final code = _choiceCode(widget.controller.text);
+            if (!widget.values.containsKey(code)) {
+              if (widget.focusNode != null) {
+                FocusScope.of(context).requestFocus(widget.focusNode);
               }
               return;
             }
-            controller.text = '$code - ${values[code]}';
+            widget.controller.text = '$code - ${widget.values[code]}';
             FocusScope.of(context).nextFocus();
           },
           textCapitalization: TextCapitalization.characters,
@@ -1499,14 +1604,16 @@ class _ChoiceField extends StatelessWidget {
             LengthLimitingTextInputFormatter(2),
           ],
           decoration: InputDecoration(
-            labelText: label,
+            labelText: widget.label,
             suffixIcon: ExcludeFocus(
               child: PopupMenuButton<String>(
+                key: _menuKey,
+                requestFocus: false,
                 onSelected: (value) {
-                  controller.text = '$value - ${values[value]}';
-                  onChanged?.call(value);
+                  widget.controller.text = '$value - ${widget.values[value]}';
+                  widget.onChanged?.call(value);
                 },
-                itemBuilder: (_) => values.entries
+                itemBuilder: (_) => widget.values.entries
                     .map(
                       (e) => PopupMenuItem(
                         value: e.key,
@@ -1530,9 +1637,10 @@ class _ChoiceField extends StatelessWidget {
             ),
           ),
           autovalidateMode: AutovalidateMode.onUserInteraction,
-          validator: (value) => values.containsKey(_choiceCode(value ?? ''))
+          validator: (value) =>
+              widget.values.containsKey(_choiceCode(value ?? ''))
               ? null
-              : 'Use ${values.keys.join(', ')}',
+              : 'Use ${widget.values.keys.join(', ')}',
         ),
       );
 }
