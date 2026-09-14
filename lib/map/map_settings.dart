@@ -15,6 +15,8 @@ class MapSettings {
   });
 
   final bool showLines;
+
+  /// Include routes from other frequencies; their stations are always visible.
   final bool showAll;
   final bool showPrecision;
   final bool showElevation;

@@ -73,6 +73,24 @@ void main() {
     );
   });
 
+  test(
+    'compact contact warnings retain seconds and omit only redundant date parts',
+    () {
+      final now = DateTime.utc(2026, 9, 14, 12);
+      String format(DateTime date) =>
+          DisplayTimeZone.utc.format(date, compact: true, now: now);
+      expect(format(DateTime.utc(2026, 9, 14, 9, 10, 11)), '09:10:11 UTC');
+      expect(
+        format(DateTime.utc(2026, 9, 13, 9, 10, 11)),
+        '13/09 09:10:11 UTC',
+      );
+      expect(
+        format(DateTime.utc(2025, 9, 13, 9, 10, 11)),
+        '13/09/2025 09:10:11 UTC',
+      );
+    },
+  );
+
   test('display zone defaults to Brasilia and survives reloads', () async {
     SharedPreferences.setMockInitialValues({});
     final prefs = await SharedPreferences.getInstance();

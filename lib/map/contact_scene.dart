@@ -1,6 +1,8 @@
 import '../data/database.dart';
 import '../grid_locator.dart';
 import 'contact_aggregation.dart';
+import 'station_presence.dart';
+export 'station_presence.dart' show contactFrequencyMhz;
 
 enum MarkerKind {
   operator,
@@ -17,12 +19,14 @@ class ContactMarker {
     this.contactIndex,
     this.stationType = '',
     this.energy = '',
+    this.warning = false,
   });
   final String grid;
   final MarkerKind kind;
   final int? contactIndex;
   final String stationType;
   final String energy;
+  final bool warning;
   double get radius => contactIndex == null ? 8 : 6;
   String get color => switch (kind) {
     MarkerKind.operator => '#2196F3',
@@ -65,9 +69,6 @@ class ContactScene {
       );
 }
 
-double contactFrequencyMhz(LogEntry entry) =>
-    entry.frequencyMhz ?? (entry.frequency == 'simplex' ? 146.52 : 145.37);
-
 ContactScene buildContactScene(
   Iterable<LogEntry> entries, {
   required DateTime now,
@@ -76,24 +77,55 @@ ContactScene buildContactScene(
   required String repeaterGrid,
   required String selectedMode,
   required double selectedFrequencyMhz,
+  required DateTime? sessionStartedAt,
+  int warningMinutes = defaultContactWarningMinutes,
+  StationDisconnections? disconnections,
   bool showAll = false,
   bool showLines = false,
   bool mergePrecision = true,
   bool lastOnly = false,
 }) {
-  final cutoff = now.subtract(Duration(hours: maxAgeHours));
-  final recent = entries
-      .where((e) => !e.createdAt.isBefore(cutoff) && !e.createdAt.isAfter(now))
-      .toList();
+  final presence = stationPresence(
+    entries,
+    now: now,
+    sessionStartedAt: sessionStartedAt,
+    mode: selectedMode,
+    frequencyMhz: selectedFrequencyMhz,
+    maxAgeHours: maxAgeHours,
+    warningMinutes: warningMinutes,
+    disconnections: disconnections,
+    includeAllFrequencies: true,
+  );
+  if (sessionStartedAt == null) return const ContactScene([], [], []);
+  final recent = presence.entries;
+  final warningKeys = presence.warnings.map(stationPresenceKey).toSet();
   bool selected(LogEntry e) =>
       e.frequency == selectedMode &&
       (contactFrequencyMhz(e) - selectedFrequencyMhz).abs() < 0.000001;
-  final visible = recent.where((e) => showAll || selected(e)).toList();
-  final contacts = aggregateMapContacts(
-    visible,
-    mergePrecision: mergePrecision,
-    lastOnlyByCallsign: lastOnly,
-  );
+  final visible = recent;
+  // Never merge contact history from different frequencies: the same station
+  // can be current on one frequency and about to expire on another.
+  final frequencyGroups = <String, List<LogEntry>>{};
+  for (final entry in visible) {
+    final key =
+        '${entry.frequency}|${contactFrequencyMhz(entry).toStringAsFixed(6)}';
+    frequencyGroups.putIfAbsent(key, () => []).add(entry);
+  }
+  final contacts =
+      frequencyGroups.values
+          .expand(
+            (group) => aggregateMapContacts(
+              group,
+              mergePrecision: mergePrecision,
+              lastOnlyByCallsign: lastOnly,
+            ),
+          )
+          .toList()
+        ..sort(
+          (a, b) => (selected(a.latest) ? 1 : 0).compareTo(
+            selected(b.latest) ? 1 : 0,
+          ),
+        );
   final markers = <ContactMarker>[];
   final routes = <ContactRoute>[];
   void marker(String grid, MarkerKind kind) {
@@ -105,7 +137,8 @@ ContactScene buildContactScene(
   marker(operatorGrid, MarkerKind.operator);
   final repeaters = <String>{};
   String normalized(String grid) => GridLocator.inspect(grid).normalized;
-  if (selectedMode == 'repeater' || showAll) {
+  if (selectedMode == 'repeater' ||
+      visible.any((e) => e.frequency == 'repeater')) {
     marker(repeaterGrid, MarkerKind.currentRepeater);
     if (GridLocator.bounds(repeaterGrid) != null) {
       repeaters.add(normalized(repeaterGrid));
@@ -121,12 +154,7 @@ ContactScene buildContactScene(
   }
   for (var i = 0; i < contacts.length; i++) {
     final contact = contacts[i];
-    final matching = recent.any(
-      (e) =>
-          e.callsign.trim().toUpperCase() ==
-              contact.latest.callsign.trim().toUpperCase() &&
-          selected(e),
-    );
+    final matching = selected(contact.latest);
     markers.add(
       ContactMarker(
         contact.latest.location,
@@ -134,13 +162,14 @@ ContactScene buildContactScene(
         contactIndex: i,
         stationType: contact.latest.stationType,
         energy: contact.latest.energy,
+        warning: warningKeys.contains(stationPresenceKey(contact.latest)),
       ),
     );
   }
   if (showLines && GridLocator.bounds(operatorGrid) != null) {
     // Each QSO retains its own route, even when its remote marker is grouped.
     for (final entry in visible.where(
-      (e) => GridLocator.bounds(e.location) != null,
+      (e) => (showAll || selected(e)) && GridLocator.bounds(e.location) != null,
     )) {
       String? middle;
       var missingVia = false;
@@ -153,6 +182,10 @@ ContactScene buildContactScene(
             recent
                 .where(
                   (e) =>
+                      e.frequency == entry.frequency &&
+                      (contactFrequencyMhz(e) - contactFrequencyMhz(entry))
+                              .abs() <
+                          0.000001 &&
                       e.callsign.trim().toUpperCase() ==
                           entry.via.trim().toUpperCase() &&
                       GridLocator.bounds(e.location) != null,

@@ -9,6 +9,7 @@ import '../time_display.dart';
 import '../grid_locator.dart';
 import 'contact_aggregation.dart';
 import 'contact_scene.dart';
+import 'station_presence.dart';
 import 'map_settings.dart';
 import 'route_distance.dart';
 import 'map_palette.dart';
@@ -29,7 +30,11 @@ class OfflineContactsMap extends StatefulWidget {
     this.focusRequest = 0,
     this.mergePrecision = true,
     this.lastOnly = false,
-    this.maxAgeHours = 24,
+    this.maxAgeHours = defaultContactMaxAgeHours,
+    this.warningMinutes = defaultContactWarningMinutes,
+    this.sessionStartedAt,
+    this.disconnections,
+    this.onDisconnect,
     this.entriesLoaded = true,
     this.selectedMode = 'repeater',
     this.selectedFrequencyMhz = 145.37,
@@ -44,6 +49,10 @@ class OfflineContactsMap extends StatefulWidget {
   final bool mergePrecision;
   final bool lastOnly;
   final int maxAgeHours;
+  final int warningMinutes;
+  final DateTime? sessionStartedAt;
+  final StationDisconnections? disconnections;
+  final Future<void> Function(LogEntry)? onDisconnect;
   final bool entriesLoaded;
   final String selectedMode;
   final double selectedFrequencyMhz;
@@ -54,7 +63,8 @@ class OfflineContactsMap extends StatefulWidget {
   State<OfflineContactsMap> createState() => _OfflineContactsMapState();
 }
 
-class _OfflineContactsMapState extends State<OfflineContactsMap> {
+class _OfflineContactsMapState extends State<OfflineContactsMap>
+    with WidgetsBindingObserver {
   MapLibreMapController? controller;
   List<MapContact> contacts = const [];
   ColorScheme? _mapColors;
@@ -67,6 +77,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
   bool _distanceLayerReady = false;
   bool _callsignLayerReady = false;
   final _labelImages = <String, String>{};
+  final _warningImages = <String>{};
   final _mapBearing = ValueNotifier<double>(0);
   final _elevationRange = ValueNotifier<ElevationRange?>(null);
   ElevationGrid? _elevationGrid;
@@ -92,6 +103,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
   @override
   void initState() {
     super.initState();
+    WidgetsBinding.instance.addObserver(this);
     _refreshContacts();
     _loadStyle();
     _elevationFuture = _loadElevation();
@@ -113,6 +125,9 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
         oldWidget.selectedMode != widget.selectedMode ||
         oldWidget.selectedFrequencyMhz != widget.selectedFrequencyMhz ||
         oldWidget.settings != widget.settings ||
+        oldWidget.sessionStartedAt != widget.sessionStartedAt ||
+        oldWidget.disconnections != widget.disconnections ||
+        oldWidget.warningMinutes != widget.warningMinutes ||
         oldWidget.maxAgeHours != widget.maxAgeHours) {
       _refreshContacts();
       _drawContacts();
@@ -182,11 +197,14 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
       widget.entries,
       now: now,
       maxAgeHours: widget.maxAgeHours,
+      sessionStartedAt: widget.sessionStartedAt,
+      warningMinutes: widget.warningMinutes,
+      disconnections: widget.disconnections,
+      showAll: widget.settings.showAll,
       operatorGrid: widget.operatorGrid,
       repeaterGrid: widget.settings.repeaterGrid,
       selectedMode: widget.selectedMode,
       selectedFrequencyMhz: widget.selectedFrequencyMhz,
-      showAll: widget.settings.showAll,
       showLines: widget.settings.showLines,
       mergePrecision: widget.mergePrecision,
       lastOnly: widget.lastOnly,
@@ -194,18 +212,19 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
     contacts = _scene.contacts;
     _expiryTimer?.cancel();
     _elevationDebounce?.cancel();
-    final expirations =
-        widget.entries
-            .map(
-              (e) => e.createdAt
-                  .add(Duration(hours: widget.maxAgeHours))
-                  .add(const Duration(milliseconds: 1)),
-            )
-            .where((time) => time.isAfter(now))
-            .toList()
-          ..sort();
-    if (expirations.isNotEmpty) {
-      _expiryTimer = Timer(expirations.first.difference(now), () {
+    final next = stationPresence(
+      widget.entries,
+      now: now,
+      sessionStartedAt: widget.sessionStartedAt,
+      mode: widget.selectedMode,
+      frequencyMhz: widget.selectedFrequencyMhz,
+      maxAgeHours: widget.maxAgeHours,
+      warningMinutes: widget.warningMinutes,
+      disconnections: widget.disconnections,
+      includeAllFrequencies: true,
+    ).nextChange;
+    if (next != null) {
+      _expiryTimer = Timer(next.difference(now), () {
         if (!mounted) return;
         _refreshContacts();
         _drawContacts();
@@ -215,13 +234,23 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
 
   @override
   void dispose() {
+    WidgetsBinding.instance.removeObserver(this);
     _expiryTimer?.cancel();
     final map = controller;
     map?.onCircleTapped.remove(_onCircleTapped);
+    map?.onSymbolTapped.remove(_onSymbolTapped);
     map?.removeListener(_onMapControllerChanged);
     _mapBearing.dispose();
     _elevationRange.dispose();
     super.dispose();
+  }
+
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed) {
+      _refreshContacts();
+      _drawContacts();
+    }
   }
 
   @override
@@ -262,6 +291,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
               _distanceLayerReady = false;
               _callsignLayerReady = false;
               _labelImages.clear();
+              _warningImages.clear();
               _elevationLayerReady = false;
               _elevationRange.value = null;
               _styleReady = true;
@@ -372,7 +402,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
                   ),
                 ),
                 IconButton(
-                  tooltip: 'Mostrar todas as frequências',
+                  tooltip: 'Ligar estações de todas as frequências',
                   isSelected: widget.settings.showAll,
                   color: widget.settings.showAll
                       ? Theme.of(context).colorScheme.primary
@@ -386,6 +416,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
                       showPrecision: widget.settings.showPrecision,
                       showElevation: widget.settings.showElevation,
                       showCompass: widget.settings.showCompass,
+                      focusNewRecord: widget.settings.focusNewRecord,
                       repeaterGrid: widget.settings.repeaterGrid,
                     ),
                   ),
@@ -410,6 +441,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
   void _onMapCreated(MapLibreMapController value) {
     controller = value;
     value.onCircleTapped.add(_onCircleTapped);
+    value.onSymbolTapped.add(_onSymbolTapped);
     value.addListener(_onMapControllerChanged);
     _onMapControllerChanged();
   }
@@ -468,6 +500,13 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
     }
   }
 
+  void _onSymbolTapped(Symbol symbol) {
+    final index = symbol.data?['contactIndex'];
+    if (index is int && index >= 0 && index < contacts.length) {
+      unawaited(_showContact(contacts[index]));
+    }
+  }
+
   Future<void> _loadStyle() async {
     final style = await loadOfflineMapStyle();
     if (!mounted) return;
@@ -507,6 +546,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
   ) async {
     final colors = _mapColors!;
     await map.clearCircles();
+    await map.clearSymbols();
     await map.clearLines();
     await map.clearFills();
     if (widget.settings.showPrecision) {
@@ -530,6 +570,51 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
     for (final marker in scene.markers) {
       final bounds = GridLocator.bounds(marker.grid);
       if (bounds == null) continue;
+      if (marker.warning) {
+        final imageId =
+            'station-warning-${marker.color}-${mapColor(colors.surface)}';
+        if (!_warningImages.contains(imageId)) {
+          final recorder = ui.PictureRecorder();
+          final canvas = Canvas(recorder);
+          final path = Path()
+            ..moveTo(3, 4)
+            ..lineTo(29, 4)
+            ..lineTo(16, 28)
+            ..close();
+          canvas.drawPath(
+            path,
+            Paint()
+              ..color = Color(
+                int.parse(marker.color.replaceFirst('#', 'FF'), radix: 16),
+              ),
+          );
+          canvas.drawPath(
+            path,
+            Paint()
+              ..color = colors.surface
+              ..style = PaintingStyle.stroke
+              ..strokeWidth = 3,
+          );
+          final picture = recorder.endRecording();
+          final bitmap = await picture.toImage(32, 32);
+          final bytes = await bitmap.toByteData(format: ui.ImageByteFormat.png);
+          await map.addImage(imageId, bytes!.buffer.asUint8List());
+          bitmap.dispose();
+          picture.dispose();
+          _warningImages.add(imageId);
+        }
+        await map.setSymbolIconAllowOverlap(true);
+        await map.setSymbolIconIgnorePlacement(true);
+        await map.addSymbol(
+          SymbolOptions(
+            geometry: LatLng(bounds.centerLatitude, bounds.centerLongitude),
+            iconImage: imageId,
+            iconSize: 0.65,
+          ),
+          {'contactIndex': marker.contactIndex},
+        );
+        continue;
+      }
       final circle = await map.addCircle(
         CircleOptions(
           geometry: LatLng(bounds.centerLatitude, bounds.centerLongitude),
@@ -908,7 +993,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
       shape: const RoundedRectangleBorder(
         borderRadius: BorderRadius.vertical(top: Radius.circular(24)),
       ),
-      builder: (_) {
+      builder: (sheetContext) {
         final colors = Theme.of(context).colorScheme;
         return SafeArea(
           child: Padding(
@@ -962,6 +1047,10 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
                   children: [
                     _detailChip(Icons.grid_3x3, contact.latest.location),
                     _detailChip(
+                      Icons.radio,
+                      '${contact.latest.frequency == 'simplex' ? 'Simplex' : 'Repetidora'} · ${contactFrequencyMhz(contact.latest)} MHz',
+                    ),
+                    _detailChip(
                       Icons.terrain,
                       altitude == null
                           ? 'Altitude indisponível'
@@ -1003,6 +1092,19 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
                   'Último contato: ${_formatDate(contact.last.createdAt)}',
                   style: TextStyle(color: colors.onSurfaceVariant),
                 ),
+                if (widget.onDisconnect != null) ...[
+                  const SizedBox(height: 16),
+                  FilledButton.icon(
+                    icon: const Icon(Icons.power_settings_new),
+                    label: const Text('Desligar estação da rede'),
+                    onPressed: () async {
+                      await widget.onDisconnect!(contact.latest);
+                      if (sheetContext.mounted) {
+                        Navigator.of(sheetContext).pop();
+                      }
+                    },
+                  ),
+                ],
               ],
             ),
           ),

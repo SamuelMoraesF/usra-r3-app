@@ -6,6 +6,7 @@ import 'package:usra_r3/map/contact_scene.dart';
 import 'package:usra_r3/map/map_settings.dart';
 
 final now = DateTime.utc(2026, 9, 13, 12);
+final session = now.subtract(const Duration(days: 2));
 const userGrid = 'GG30DH31GH';
 const remoteGrid = 'GG30CH90NH';
 const oldRepeater = 'GG30AA00AA';
@@ -20,6 +21,7 @@ LogEntry qso({
   int ageHours = 1,
 }) => LogEntry(
   id: ageHours,
+  networkStartedAt: session,
   createdAt: now.subtract(Duration(hours: ageHours)),
   callsign: callsign,
   via: via,
@@ -47,12 +49,13 @@ ContactScene scene(
 }) => buildContactScene(
   entries,
   now: now,
+  sessionStartedAt: session,
+  showAll: all,
   maxAgeHours: hours,
   operatorGrid: operator,
   repeaterGrid: defaultRepeaterGrid,
   selectedMode: mode,
   selectedFrequencyMhz: mode == 'simplex' ? 146.52 : 145.37,
-  showAll: all,
   showLines: lines,
   lastOnly: lastOnly,
 );
@@ -60,30 +63,27 @@ ContactScene scene(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
-  test(
-    'callsign labels include both networks and exclude the operator and towers',
-    () {
-      final result = scene([
-        qso(callsign: 'PY3SELF'),
-        qso(callsign: 'PY3SIM'),
-        qso(callsign: 'PY3REP', mode: 'repeater', repeater: oldRepeater),
-        qso(callsign: 'PY3OTHER', mhz: 147.0),
-        qso(callsign: 'PY3SAMEGRID', grid: userGrid),
-      ], all: true);
-      expect(
-        result.markers.any((m) => m.kind == MarkerKind.currentRepeater),
-        isTrue,
-      );
-      expect(
-        result.markers.any((m) => m.kind == MarkerKind.historicalRepeater),
-        isTrue,
-      );
-      expect(
-        result.callsignContacts(' py3self ').map((c) => c.latest.callsign),
-        unorderedEquals(['PY3SIM', 'PY3REP', 'PY3OTHER', 'PY3SAMEGRID']),
-      );
-    },
-  );
+  test('callsign labels include hidden stations and exclude the operator', () {
+    final result = scene([
+      qso(callsign: 'PY3SELF'),
+      qso(callsign: 'PY3SIM'),
+      qso(callsign: 'PY3REP', mode: 'repeater', repeater: oldRepeater),
+      qso(callsign: 'PY3OTHER', mhz: 147.0),
+      qso(callsign: 'PY3SAMEGRID', grid: userGrid),
+    ]);
+    expect(
+      result.markers.any((m) => m.kind == MarkerKind.currentRepeater),
+      isTrue,
+    );
+    expect(
+      result.markers.any((m) => m.kind == MarkerKind.historicalRepeater),
+      isTrue,
+    );
+    expect(
+      result.callsignContacts(' py3self ').map((c) => c.latest.callsign),
+      unorderedEquals(['PY3SIM', 'PY3REP', 'PY3OTHER', 'PY3SAMEGRID']),
+    );
+  });
 
   test(
     'callsign labels default off and persist when enabled and disabled',
@@ -209,24 +209,24 @@ void main() {
     },
   );
 
-  test(
-    'filter respects mode, actual MHz and inclusive age window in both tower states',
-    () {
-      final entries = [
-        qso(ageHours: 24),
-        qso(callsign: 'OLD', ageHours: 25),
-        qso(callsign: 'REP', mode: 'repeater'),
-        qso(callsign: 'OTHER', mhz: 146.5),
-      ];
-      expect(scene(entries).contacts.map((c) => c.latest.callsign), ['PY3AA']);
-      expect(scene(entries, all: true).contacts, hasLength(3));
-      expect(
-        scene(entries, mode: 'repeater').contacts.single.latest.callsign,
-        'REP',
-      );
-      expect(scene(entries, hours: 1, all: true).contacts, hasLength(2));
-    },
-  );
+  test('filter respects mode, actual MHz and expires at the time limit', () {
+    final entries = [
+      qso(ageHours: 23),
+      qso(callsign: 'EXPIRED', ageHours: 24),
+      qso(callsign: 'OLD', ageHours: 25),
+      qso(callsign: 'REP', mode: 'repeater'),
+      qso(callsign: 'OTHER', mhz: 146.5),
+    ];
+    expect(
+      scene(entries).contacts.map((c) => c.latest.callsign),
+      unorderedEquals(['PY3AA', 'REP', 'OTHER']),
+    );
+    expect(
+      scene(entries, mode: 'repeater').contacts.last.latest.callsign,
+      'REP',
+    );
+    expect(scene(entries, hours: 1).contacts, isEmpty);
+  });
 
   test(
     'simplex direct route is gray with 90 percent opacity; ruler hides all routes',
@@ -242,7 +242,7 @@ void main() {
   );
 
   test(
-    'via resolves latest recent valid grid, including another frequency',
+    'via resolves latest recent valid grid only within the selected frequency',
     () {
       final result = scene([
         qso(via: ' py3bb '),
@@ -254,7 +254,11 @@ void main() {
         ),
         qso(callsign: 'PY3BB', grid: defaultRepeaterGrid, ageHours: 3),
       ]);
-      expect(result.routes.first.grids, [userGrid, oldRepeater, remoteGrid]);
+      expect(result.routes.first.grids, [
+        userGrid,
+        defaultRepeaterGrid,
+        remoteGrid,
+      ]);
       expect(result.routes.first.missingVia, isFalse);
     },
   );
@@ -305,9 +309,8 @@ void main() {
     },
   );
 
-  test('current repeater exists without QSOs only in repeater or all mode', () {
+  test('current repeater exists without QSOs only in repeater mode', () {
     expect(scene([]).markers, hasLength(1));
-    expect(scene([], all: true).markers.last.kind, MarkerKind.currentRepeater);
     expect(
       scene([], mode: 'repeater').markers.last.kind,
       MarkerKind.currentRepeater,
@@ -315,7 +318,7 @@ void main() {
     final result = scene([
       qso(mode: 'repeater'),
       qso(mode: 'repeater', callsign: 'BB'),
-    ], all: true);
+    ], mode: 'repeater');
     expect(
       result.markers.where((m) => m.grid == defaultRepeaterGrid),
       hasLength(1),
@@ -323,34 +326,50 @@ void main() {
     expect(
       scene(
         [qso(mode: 'repeater', repeater: oldRepeater, ageHours: 25)],
-        all: true,
+        mode: 'repeater',
       ).markers.where((m) => m.kind == MarkerKind.historicalRepeater),
       isEmpty,
     );
   });
 
-  test(
-    'operator blue; visible contact uses station color, hidden contact is gray',
-    () {
-      final result = scene([
-        qso(ageHours: 2),
-        qso(mode: 'repeater'),
-        qso(callsign: 'BB', mode: 'repeater'),
-        qso(callsign: 'BB', ageHours: 25),
-      ], all: true);
-      expect(result.markers.first.color, '#2196F3');
-      final stations = result.markers
-          .where((m) => m.contactIndex != null)
-          .toList();
-      expect(stations.map((m) => m.color), ['#F44336', '#9E9E9E']);
-      expect(stations.every((m) => m.radius == 6), isTrue);
-    },
-  );
+  test('operator blue; contacts on other frequencies always remain gray', () {
+    final result = scene([
+      qso(ageHours: 2),
+      qso(mode: 'repeater'),
+      qso(callsign: 'BB', mode: 'repeater'),
+      qso(callsign: 'BB', ageHours: 25),
+    ]);
+    expect(result.markers.first.color, '#2196F3');
+    final stations = result.markers
+        .where((m) => m.contactIndex != null)
+        .toList();
+    expect(stations.map((m) => m.color), ['#9E9E9E', '#9E9E9E', '#F44336']);
+    expect(stations.every((m) => m.radius == 6), isTrue);
+  });
 
   test('legacy repeater position is not fabricated from current config', () {
     expect(
-      scene([qso(mode: 'repeater', repeater: null)], all: true).routes,
+      scene([qso(mode: 'repeater', repeater: null)], mode: 'repeater').routes,
       isEmpty,
     );
   });
+
+  test(
+    'all-frequency toggle affects routes only, while hidden stations remain visible',
+    () {
+      final entries = [qso(), qso(callsign: 'REP', mode: 'repeater')];
+      final current = scene(entries);
+      final all = scene(entries, all: true);
+      expect(current.contacts, hasLength(2));
+      expect(all.contacts, hasLength(2));
+      expect(
+        current.markers.map((m) => m.color),
+        all.markers.map((m) => m.color),
+      );
+      expect(current.routes, hasLength(1));
+      expect(all.routes, hasLength(2));
+      expect(scene(entries, all: true, lines: false).routes, isEmpty);
+      expect(scene(entries, all: true, lines: false).contacts, hasLength(2));
+    },
+  );
 }

@@ -1,4 +1,5 @@
 import 'dart:math' as math;
+import 'dart:async';
 
 import 'package:flutter/material.dart';
 import 'package:flutter/foundation.dart';
@@ -24,6 +25,7 @@ import 'widgets/contact_workspace.dart';
 import 'widgets/contact_form_layout.dart';
 import 'map/offline_map.dart';
 import 'map/map_settings.dart';
+import 'map/station_presence.dart';
 import 'browser_new_contact_shortcut_stub.dart'
     if (dart.library.js_interop) 'browser_new_contact_shortcut_web.dart';
 
@@ -93,7 +95,8 @@ class _UsraR3AppState extends State<UsraR3App> {
   bool loading = true;
   bool mergePrecision = true;
   bool lastOnly = false;
-  int mapMaxAgeHours = 24;
+  int mapMaxAgeHours = defaultContactMaxAgeHours;
+  int mapWarningMinutes = defaultContactWarningMinutes;
   bool keepScreenOn = true;
   bool keyboardOptimized = _defaultKeyboardOptimized();
   HomeLayout homeLayout = _defaultHomeLayout();
@@ -152,6 +155,7 @@ class _UsraR3AppState extends State<UsraR3App> {
               mergePrecision: mergePrecision,
               lastOnly: lastOnly,
               mapMaxAgeHours: mapMaxAgeHours,
+              mapWarningMinutes: mapWarningMinutes,
               mapSettings: mapSettings,
               keyboardOptimized: keyboardOptimized,
               homeLayout: homeLayout,
@@ -215,7 +219,11 @@ class _UsraR3AppState extends State<UsraR3App> {
       );
       mergePrecision = preferences.getBool('map.mergePrecision') ?? true;
       lastOnly = preferences.getBool('map.lastOnly') ?? false;
-      mapMaxAgeHours = preferences.getInt('map.maxAgeHours') ?? 24;
+      mapMaxAgeHours =
+          preferences.getInt('map.maxAgeHours') ?? defaultContactMaxAgeHours;
+      mapWarningMinutes =
+          preferences.getInt('map.warningMinutes') ??
+          defaultContactWarningMinutes;
       mapSettings = MapSettings.read(preferences);
       displayTimeZone = DisplayTimeZone.read(preferences);
       keepScreenOn = preferences.getBool('keepScreenOn') ?? true;
@@ -258,6 +266,7 @@ class _UsraR3AppState extends State<UsraR3App> {
           mergePrecision: mergePrecision,
           lastOnly: lastOnly,
           mapMaxAgeHours: mapMaxAgeHours,
+          mapWarningMinutes: mapWarningMinutes,
           keepScreenOn: keepScreenOn,
           keyboardOptimized: keyboardOptimized,
           homeLayout: homeLayout,
@@ -276,6 +285,7 @@ class _UsraR3AppState extends State<UsraR3App> {
       await preferences.setBool('map.mergePrecision', result.mergePrecision);
       await preferences.setBool('map.lastOnly', result.lastOnly);
       await preferences.setInt('map.maxAgeHours', result.mapMaxAgeHours);
+      await preferences.setInt('map.warningMinutes', result.mapWarningMinutes);
       await preferences.setBool('keepScreenOn', result.keepScreenOn);
       await preferences.setBool('keyboardOptimized', result.keyboardOptimized);
       await preferences.setString('homeLayout', result.homeLayout.name);
@@ -300,6 +310,7 @@ class _UsraR3AppState extends State<UsraR3App> {
           mergePrecision = result.mergePrecision;
           lastOnly = result.lastOnly;
           mapMaxAgeHours = result.mapMaxAgeHours;
+          mapWarningMinutes = result.mapWarningMinutes;
           keepScreenOn = result.keepScreenOn;
           keyboardOptimized = result.keyboardOptimized;
           homeLayout = result.homeLayout;
@@ -460,6 +471,7 @@ class HomePage extends StatefulWidget {
     required this.mergePrecision,
     required this.lastOnly,
     required this.mapMaxAgeHours,
+    this.mapWarningMinutes = defaultContactWarningMinutes,
     this.keyboardOptimized = false,
     this.homeLayout = HomeLayout.bottomPanels,
     this.mapSettings = const MapSettings(),
@@ -471,6 +483,7 @@ class HomePage extends StatefulWidget {
   final bool mergePrecision;
   final bool lastOnly;
   final int mapMaxAgeHours;
+  final int mapWarningMinutes;
   final bool keyboardOptimized;
   final HomeLayout homeLayout;
   final MapSettings mapSettings;
@@ -510,12 +523,22 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   int _mapFocusRequest = 0;
   String _lastMapFocusGrid = '';
   DateTime? _networkStartedAt;
+  StationDisconnections _disconnections = StationDisconnections();
+  Timer? _presenceTimer;
+  String? _prefilledPresenceKey;
+  int _autofillRevision = 0;
+  String? _autofilledCallsign;
+  List<String>? _autofilledValues;
+  bool _autofillEdited = false;
   BrowserNewContactShortcut? _browserNewContactShortcut;
 
   @override
   void initState() {
     super.initState();
     _callsignFocusNode.addListener(_onCallsignFocusChanged);
+    for (final controller in _detailControllers) {
+      controller.addListener(_onContactDetailsChanged);
+    }
     FocusManager.instance.addListener(_scrollToFocusedField);
     WidgetsBinding.instance.addObserver(this);
     _loadFrequency();
@@ -530,7 +553,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final started = raw == null || closed != null
         ? null
         : DateTime.tryParse(raw)?.toUtc();
-    if (mounted) setState(() => _networkStartedAt = started);
+    if (mounted) {
+      setState(() {
+        _networkStartedAt = started;
+        _disconnections = StationDisconnections.read(preferences);
+      });
+    }
   }
 
   Future<void> _openNetwork() async {
@@ -617,6 +645,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     });
   }
 
+  @override
+  void didChangeAppLifecycleState(AppLifecycleState state) {
+    if (state == AppLifecycleState.resumed && mounted) setState(() {});
+  }
+
   void _updateKeyboardScroll() {
     final keyboardOpen = _keyboardIsOpen;
     if (keyboardOpen && !_keyboardWasOpen) {
@@ -664,6 +697,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   }
 
   void _newContact() {
+    _autofillRevision++;
+    _forgetAutofill();
+    _prefilledPresenceKey = null;
     formKey.currentState?.reset();
     setState(() {
       callsign.clear();
@@ -687,9 +723,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   @override
   void dispose() {
     _callsignFocusNode.removeListener(_onCallsignFocusChanged);
+    for (final controller in _detailControllers) {
+      controller.removeListener(_onContactDetailsChanged);
+    }
     FocusManager.instance.removeListener(_scrollToFocusedField);
     WidgetsBinding.instance.removeObserver(this);
     _browserNewContactShortcut?.dispose();
+    _presenceTimer?.cancel();
     _panelScrollController.dispose();
     _callsignFocusNode.dispose();
     _viaFocusNode.dispose();
@@ -853,6 +893,18 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           stream: widget.database.watchLogs(),
           builder: (context, snapshot) {
             final allEntries = snapshot.data ?? const <LogEntry>[];
+            final presence = _currentPresence(allEntries);
+            _presenceTimer?.cancel();
+            final next = presence.nextChange;
+            if (next != null) {
+              final delay = next.difference(DateTime.now().toUtc());
+              _presenceTimer = Timer(
+                delay.isNegative ? Duration.zero : delay,
+                () {
+                  if (mounted) setState(() {});
+                },
+              );
+            }
             final entries = allEntries
                 .where((entry) => entry.frequency == frequency)
                 .toList();
@@ -864,6 +916,28 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             return Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
+                if (presence.warnings.isNotEmpty) ...[
+                  Text(
+                    'Estações sem contato recente',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
+                  ),
+                  ...presence.warnings.map(
+                    (entry) => ListTile(
+                      contentPadding: EdgeInsets.zero,
+                      leading: const Icon(Icons.cell_tower),
+                      title: Text('${entry.callsign} — ${entry.operatorName}'),
+                      subtitle: Text(_formatDate(entry.createdAt)),
+                      trailing: IconButton(
+                        tooltip: 'Preencher novo contato com ${entry.callsign}',
+                        icon: const Icon(Icons.refresh),
+                        onPressed: () => _prefillStation(entry),
+                      ),
+                    ),
+                  ),
+                  const SizedBox(height: 16),
+                ],
                 Text(
                   'Registros salvos',
                   style: Theme.of(context).textTheme.titleMedium?.copyWith(
@@ -897,6 +971,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 ],
                 ...entries.asMap().entries.map((indexed) {
                   final entry = indexed.value;
+                  final canModify = _canModifyLog(entry);
                   final previous = indexed.key == 0
                       ? null
                       : entries[indexed.key - 1];
@@ -918,7 +993,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         ),
                       Dismissible(
                         key: ValueKey('saved-log-${entry.id}'),
-                        direction: DismissDirection.endToStart,
+                        direction: canModify
+                            ? DismissDirection.endToStart
+                            : DismissDirection.none,
                         background: Container(
                           margin: const EdgeInsets.only(bottom: 8),
                           alignment: Alignment.centerRight,
@@ -935,6 +1012,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                           ),
                         ),
                         confirmDismiss: (_) async {
+                          if (!_canModifyLog(entry)) return false;
                           final confirmed = await _confirmDeleteLog(entry);
                           if (confirmed) {
                             await widget.database.deleteLog(entry.id);
@@ -953,7 +1031,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                             ),
                           ),
                           child: ListTile(
-                            onTap: () => _editLog(entry),
+                            onTap: canModify ? () => _editLog(entry) : null,
                             contentPadding: const EdgeInsets.symmetric(
                               horizontal: 14,
                               vertical: 4,
@@ -1145,6 +1223,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         TextFormField(
           controller: callsign,
           focusNode: _callsignFocusNode,
+          onChanged: _onCallsignChanged,
           textCapitalization: TextCapitalization.characters,
           inputFormatters: [UpperCaseFormatter()],
           textInputAction: TextInputAction.next,
@@ -1267,6 +1346,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           focusGrid: _lastMapFocusGrid,
           focusRequest: _mapFocusRequest,
           maxAgeHours: widget.mapMaxAgeHours,
+          warningMinutes: widget.mapWarningMinutes,
+          sessionStartedAt: _networkStartedAt,
+          disconnections: _disconnections,
+          onDisconnect: _disconnectStation,
           mergePrecision: widget.mergePrecision,
           lastOnly: widget.lastOnly,
           selectedMode: frequency,
@@ -1282,6 +1365,51 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   String? _required(String? value) =>
       value == null || value.trim().isEmpty ? 'Campo obrigatório' : null;
+
+  StationPresence _currentPresence(List<LogEntry> entries) => stationPresence(
+    entries,
+    now: DateTime.now().toUtc(),
+    sessionStartedAt: _networkStartedAt,
+    mode: frequency,
+    frequencyMhz: frequency == _simplexFrequency ? 146.52 : 145.37,
+    maxAgeHours: widget.mapMaxAgeHours,
+    warningMinutes: widget.mapWarningMinutes,
+    disconnections: _disconnections,
+  );
+
+  Future<void> _disconnectStation(LogEntry entry) async {
+    if (_networkStartedAt == null ||
+        entry.networkStartedAt != _networkStartedAt) {
+      return;
+    }
+    final updated = _disconnections.disconnect(entry, DateTime.now().toUtc());
+    await updated.save(await SharedPreferences.getInstance());
+    if (mounted) setState(() => _disconnections = updated);
+  }
+
+  void _prefillStation(LogEntry entry) {
+    if (_networkStartedAt == null ||
+        entry.networkStartedAt != _networkStartedAt ||
+        entry.frequency != frequency) {
+      return;
+    }
+    setState(() {
+      _autofillRevision++;
+      _forgetAutofill();
+      _prefilledPresenceKey = stationPresenceKey(entry);
+      callsign.text = entry.callsign;
+      via.text = entry.via;
+      operator.text = entry.operatorName;
+      location.text = entry.location;
+      power.text = entry.powerWatts.toString();
+      station.text = entry.stationType;
+      energy.text = entry.energy;
+      traffic.text = entry.traffic;
+      trafficMessage.text = entry.trafficMessage;
+      _rememberAutofill();
+    });
+    _callsignFocusNode.requestFocus();
+  }
 
   Future<void> _register() async {
     if (!formKey.currentState!.validate()) return;
@@ -1311,6 +1439,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           _mapFocusRequest++;
         }
         callsign.clear();
+        _forgetAutofill();
+        _prefilledPresenceKey = null;
         via.clear();
         operator.clear();
         location.clear();
@@ -1340,26 +1470,104 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     }
   }
 
+  List<TextEditingController> get _detailControllers => [
+    via,
+    operator,
+    location,
+    power,
+    station,
+    energy,
+    traffic,
+    trafficMessage,
+  ];
+
+  List<String> get _detailValues => [
+    via.text.trim().toUpperCase(),
+    operator.text,
+    GridLocator.inspect(location.text).isValid
+        ? GridLocator.inspect(location.text).normalized
+        : location.text,
+    power.text,
+    _choiceCode(station.text),
+    _choiceCode(energy.text),
+    _choiceCode(traffic.text),
+    trafficMessage.text,
+  ];
+
+  void _rememberAutofill() {
+    _autofilledCallsign = callsign.text.trim().toUpperCase();
+    _autofilledValues = _detailValues;
+    _autofillEdited = false;
+  }
+
+  void _forgetAutofill() {
+    _autofilledCallsign = null;
+    _autofilledValues = null;
+    _autofillEdited = false;
+    _prefilledPresenceKey = null;
+  }
+
+  void _onContactDetailsChanged() {
+    if (_autofilledValues != null &&
+        !listEquals(_autofilledValues, _detailValues)) {
+      _autofillEdited = true;
+    }
+  }
+
+  void _onCallsignChanged(String value) {
+    _autofillRevision++;
+    if (_autofilledCallsign == null ||
+        value.trim().toUpperCase() == _autofilledCallsign) {
+      return;
+    }
+    final clear = !_autofillEdited;
+    _forgetAutofill();
+    if (!clear) return;
+    setState(() {
+      via.clear();
+      operator.clear();
+      location.clear();
+      power.clear();
+      station.text = 'P - Portátil';
+      energy.text = 'B - Bateria';
+      traffic.text = 'S - Sem tráfego';
+      trafficMessage.clear();
+    });
+  }
+
   Future<void> _fillFromPreviousContact() async {
     final value = callsign.text.trim().toUpperCase();
     if (value.isEmpty) return;
+    if (_prefilledPresenceKey != null) {
+      final key = jsonDecode(_prefilledPresenceKey!) as List<dynamic>;
+      if (key[0] == _networkStartedAt?.toUtc().toIso8601String() &&
+          key[1] == frequency &&
+          key[3] == value) {
+        return;
+      }
+      _prefilledPresenceKey = null;
+    }
     final selectedFrequency = frequency;
+    final revision = _autofillRevision;
     final latest = await widget.database.latestLogForCallsign(value);
     final latestOnFrequency = await widget.database.latestLogForCallsign(
       value,
       frequency: selectedFrequency,
     );
     if (!mounted ||
+        revision != _autofillRevision ||
         callsign.text.trim().toUpperCase() != value ||
         frequency != selectedFrequency ||
         latest == null) {
       return;
     }
+    _forgetAutofill();
     operator.text = capitalizeWordInitials(latest.operatorName);
     location.text = latest.location;
     power.text = latestOnFrequency?.powerWatts.toString() ?? '';
     station.text = latest.stationType;
     energy.text = latest.energy;
+    _rememberAutofill();
   }
 
   String _formatDate(DateTime value) =>
@@ -1499,7 +1707,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         false;
   }
 
+  bool _canModifyLog(LogEntry entry) {
+    final started = _networkStartedAt;
+    return started != null &&
+        entry.networkStartedAt == started &&
+        entry.networkEndedAt == null;
+  }
+
   Future<void> _editLog(LogEntry entry) async {
+    if (!_canModifyLog(entry)) return;
     final callsign = TextEditingController(text: entry.callsign);
     final via = TextEditingController(text: entry.via);
     final operator = TextEditingController(
@@ -1673,6 +1889,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               ),
               FilledButton(
                 onPressed: () async {
+                  if (!_canModifyLog(entry)) {
+                    if (dialogContext.mounted) Navigator.pop(dialogContext);
+                    return;
+                  }
                   if (!key.currentState!.validate()) return;
                   if (_rejectInvalidGrid(location.text.trim(), 'localização')) {
                     return;
@@ -1914,6 +2134,7 @@ class SettingsPage extends StatefulWidget {
     required this.mergePrecision,
     required this.lastOnly,
     required this.mapMaxAgeHours,
+    this.mapWarningMinutes = defaultContactWarningMinutes,
     required this.keepScreenOn,
     this.keyboardOptimized = false,
     this.homeLayout = HomeLayout.bottomPanels,
@@ -1928,6 +2149,7 @@ class SettingsPage extends StatefulWidget {
   final bool mergePrecision;
   final bool lastOnly;
   final int mapMaxAgeHours;
+  final int mapWarningMinutes;
   final bool keepScreenOn;
   final bool keyboardOptimized;
   final HomeLayout homeLayout;
@@ -1958,12 +2180,16 @@ class _SettingsPageState extends State<SettingsPage> {
   late final maxAgeHours = TextEditingController(
     text: widget.mapMaxAgeHours.toString(),
   );
+  late final warningMinutes = TextEditingController(
+    text: widget.mapWarningMinutes.toString(),
+  );
   @override
   void dispose() {
     callsign.dispose();
     name.dispose();
     grid.dispose();
     maxAgeHours.dispose();
+    warningMinutes.dispose();
     repeaterGrid.dispose();
     super.dispose();
   }
@@ -2085,9 +2311,19 @@ class _SettingsPageState extends State<SettingsPage> {
           controller: maxAgeHours,
           keyboardType: TextInputType.number,
           decoration: const InputDecoration(
-            labelText: 'Exibir contatos das últimas (horas)',
+            labelText: 'Expiração sem contato (horas)',
             helperText:
-                'Contatos mais antigos continuam salvos, mas não aparecem no mapa.',
+                'Somente contatos da sessão atual aparecem no mapa. O histórico permanece salvo.',
+          ),
+        ),
+        const SizedBox(height: 12),
+        TextField(
+          controller: warningMinutes,
+          keyboardType: TextInputType.number,
+          decoration: const InputDecoration(
+            labelText: 'Antecedência do aviso (minutos)',
+            helperText:
+                'Use 0 para desativar. Deve ser menor que o tempo de expiração.',
           ),
         ),
         const SizedBox(height: 12),
@@ -2243,6 +2479,22 @@ class _SettingsPageState extends State<SettingsPage> {
   }
 
   void _save() {
+    final hours = int.tryParse(maxAgeHours.text.trim());
+    final minutes = int.tryParse(warningMinutes.text.trim());
+    if (hours == null ||
+        hours < 1 ||
+        minutes == null ||
+        minutes < 0 ||
+        minutes >= hours * 60) {
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(
+          content: Text(
+            'Informe uma expiração de pelo menos 1 hora e uma antecedência entre 0 e o total de minutos da expiração (exclusivo).',
+          ),
+        ),
+      );
+      return;
+    }
     if (!GridLocator.inspect(repeaterGrid.text).isValid) {
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
@@ -2273,6 +2525,7 @@ class _SettingsPageState extends State<SettingsPage> {
         focusNewRecord,
         GridLocator.inspect(repeaterGrid.text).normalized,
         displayTimeZone,
+        minutes,
       ),
     );
   }
@@ -2315,6 +2568,7 @@ class _SettingsResult {
     this.focusNewRecord,
     this.repeaterGrid,
     this.displayTimeZone,
+    this.mapWarningMinutes,
   );
   final OperatorProfile profile;
   final AppTheme theme;
@@ -2328,6 +2582,7 @@ class _SettingsResult {
   final bool focusNewRecord;
   final String repeaterGrid;
   final DisplayTimeZone displayTimeZone;
+  final int mapWarningMinutes;
 }
 
 class _Brand extends StatelessWidget {
