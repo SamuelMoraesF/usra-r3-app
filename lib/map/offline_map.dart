@@ -40,6 +40,7 @@ class OfflineContactsMap extends StatefulWidget {
     this.selectedFrequencyMhz = 145.37,
     this.settings = const MapSettings(),
     this.onSettingsChanged,
+    this.onExportPng,
   });
   final List<LogEntry> entries;
   final String operatorGrid;
@@ -58,6 +59,7 @@ class OfflineContactsMap extends StatefulWidget {
   final double selectedFrequencyMhz;
   final MapSettings settings;
   final ValueChanged<MapSettings>? onSettingsChanged;
+  final Future<void> Function(Uint8List bytes)? onExportPng;
 
   @override
   State<OfflineContactsMap> createState() => _OfflineContactsMapState();
@@ -326,6 +328,16 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
                       _animateToGrid(widget.operatorGrid, zoom: 14),
                 ),
                 IconButton(
+                  tooltip: 'Exportar mapa como PNG',
+                  icon: const Icon(Icons.image_outlined),
+                  onPressed: controller == null || widget.onExportPng == null
+                      ? null
+                      : () async {
+                          final bytes = await controller!.takeSnapshot();
+                          await widget.onExportPng!(bytes);
+                        },
+                ),
+                IconButton(
                   tooltip: 'Mostrar linhas de distância',
                   isSelected: widget.settings.showLines,
                   color: widget.settings.showLines
@@ -439,7 +451,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
   }
 
   void _onMapCreated(MapLibreMapController value) {
-    controller = value;
+    if (mounted) setState(() => controller = value);
     value.onCircleTapped.add(_onCircleTapped);
     value.onSymbolTapped.add(_onSymbolTapped);
     value.addListener(_onMapControllerChanged);

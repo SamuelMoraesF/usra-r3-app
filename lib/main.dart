@@ -1428,6 +1428,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               : 145.37,
           settings: widget.mapSettings,
           onSettingsChanged: widget.onMapSettingsChanged,
+          onExportPng: _exportMapPng,
         ),
       ),
     ),
@@ -1455,6 +1456,29 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final updated = _disconnections.disconnect(entry, DateTime.now().toUtc());
     await updated.save(await SharedPreferences.getInstance());
     if (mounted) setState(() => _disconnections = updated);
+  }
+
+  Future<void> _exportMapPng(Uint8List bytes) async {
+    try {
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [
+            XFile.fromData(
+              bytes,
+              mimeType: 'image/png',
+              name: 'usra-r3-mapa.png',
+            ),
+          ],
+          subject: 'Mapa USRA R3',
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Falha ao exportar o mapa: $error')),
+        );
+      }
+    }
   }
 
   void _prefillStation(LogEntry entry) {
