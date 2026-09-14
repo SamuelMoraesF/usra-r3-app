@@ -127,7 +127,7 @@ void main() {
         stationType: 'F',
         energy: 'G',
       ).color,
-      '#F9A825',
+      '#FDD835',
     );
     expect(
       const ContactMarker(

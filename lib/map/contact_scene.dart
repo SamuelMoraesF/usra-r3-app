@@ -40,8 +40,8 @@ class ContactMarker {
 String _contactColor(String stationType, String energy) {
   return switch (stationType.trim().toUpperCase()) {
     'F' when energy.trim().toUpperCase() == 'AC' => '#4CAF50',
-    // Amber 800 keeps fixed stations visible over both light and dark map tiles.
-    'F' => '#F9A825',
+    // Yellow 600 keeps fixed stations distinct from orange mobile stations.
+    'F' => '#FDD835',
     'P' => '#F44336',
     'M' => '#FF9800',
     _ => '#9E9E9E',
