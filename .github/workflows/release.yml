@@ -19,6 +19,9 @@ jobs:
       SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
       SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
       SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: team_nBew5dIaGJaUQhj2zPUob7ch
+      VERCEL_PROJECT_ID: prj_5bghjve59ScbBQuBSnV929dd3LuQ
     steps:
       - uses: actions/checkout@v7.0.1
         with:
@@ -80,6 +83,13 @@ jobs:
         run: dart run sentry_dart_plugin
       - name: Remove Web source maps from public artifacts
         run: find build/web -type f \( -name '*.js.map' -o -name '*.wasm.map' \) -delete
+      - name: Deploy Web to Vercel
+        if: ${{ env.VERCEL_TOKEN != '' }}
+        run: |
+          npx --yes vercel@59.16.0 deploy build/web --prod --yes \
+            --token="$VERCEL_TOKEN" \
+            --scope="$VERCEL_ORG_ID" \
+            --project="$VERCEL_PROJECT_ID"
       - name: Package web, source and APK
         run: |
           mkdir -p dist/bundle/web dist/bundle/source
