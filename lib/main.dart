@@ -1761,6 +1761,7 @@ class _ChoiceField extends StatefulWidget {
 class _ChoiceFieldState extends State<_ChoiceField> {
   late FocusNode _focusNode;
   final _menuKey = GlobalKey<PopupMenuButtonState<String>>();
+  bool _menuOpen = false;
 
   @override
   void initState() {
@@ -1788,12 +1789,21 @@ class _ChoiceFieldState extends State<_ChoiceField> {
   }
 
   void _onFocusChanged() {
-    if (!_focusNode.hasFocus) return;
+    if (!_focusNode.hasFocus) {
+      _closeMenu();
+      return;
+    }
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (mounted && _focusNode.hasFocus) {
         _menuKey.currentState?.showButtonMenu();
       }
     });
+  }
+
+  void _closeMenu() {
+    if (!_menuOpen || !mounted) return;
+    _menuOpen = false;
+    Navigator.of(context).pop();
   }
 
   @override
@@ -1839,7 +1849,10 @@ class _ChoiceFieldState extends State<_ChoiceField> {
               child: PopupMenuButton<String>(
                 key: _menuKey,
                 requestFocus: false,
+                onOpened: () => _menuOpen = true,
+                onCanceled: () => _menuOpen = false,
                 onSelected: (value) {
+                  _menuOpen = false;
                   widget.controller.text = '$value - ${widget.values[value]}';
                   widget.onChanged?.call(value);
                 },
