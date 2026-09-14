@@ -473,7 +473,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final context = FocusManager.instance.primaryFocus?.context;
     if (context == null) return;
     WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (mounted && context.mounted && _keyboardIsOpen && _keyboardWasOpen) {
+      if (mounted && context.mounted && _keyboardIsOpen) {
+        if (!_keyboardWasOpen) {
+          _keyboardWasOpen = true;
+          _scrollOffsetBeforeKeyboard = _panelScrollController.hasClients
+              ? _panelScrollController.offset
+              : null;
+        }
         Scrollable.ensureVisible(
           context,
           duration: const Duration(milliseconds: 250),
@@ -615,8 +621,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     child: Focus(autofocus: true, child: _buildScaffold(context)),
   );
 
-  Widget _buildScaffold(BuildContext context) => Scaffold(
-    resizeToAvoidBottomInset: true,
+  Widget _buildScaffold(BuildContext context) {
+    final mediaQuery = MediaQuery.of(context);
+    final view = View.of(context);
+    // SafeArea already reserves the navigation bar below this page. Only
+    // subtract the part of the keyboard that overlaps the page itself.
+    final keyboardOverlap = math.max(
+      0.0,
+      mediaQuery.viewInsets.bottom -
+          view.viewPadding.bottom / view.devicePixelRatio,
+    );
+    return MediaQuery(
+      data: mediaQuery.copyWith(
+        viewInsets: mediaQuery.viewInsets.copyWith(bottom: keyboardOverlap),
+      ),
+      child: _buildPageScaffold(context),
+    );
+  }
+
+  Widget _buildPageScaffold(BuildContext context) => Scaffold(
+    resizeToAvoidBottomInset: MediaQuery.sizeOf(context).width < 700,
     body: LayoutBuilder(
       builder: (context, constraints) {
         final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
@@ -995,12 +1019,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 );
               },
             ),
-            // Reserve enough scroll range to center even the last field above
-            // the keyboard. This spacer disappears when the keyboard closes.
-            if (keyboardInset > 0)
-              SizedBox(height: keyboardInset + constraints.maxHeight + 40),
+            // Reserve only a minimal scroll range for the last field. This
+            // spacer disappears when the keyboard closes.
+            if (keyboardInset > 0) const SizedBox(height: 40),
           ],
         );
+        final panelForLayout = constraints.maxWidth >= 700 && keyboardInset > 0
+            ? SizedBox(
+                height: (constraints.maxHeight - keyboardInset).clamp(
+                  0.0,
+                  constraints.maxHeight,
+                ),
+                child: panel,
+              )
+            : panel;
         final showMap =
             kIsWeb ||
             defaultTargetPlatform == TargetPlatform.android ||
@@ -1009,9 +1041,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         final map = _buildMap();
         if (constraints.maxWidth >= 700) {
           return Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Expanded(child: map),
-              SizedBox(width: constraints.maxWidth.clamp(0, 480), child: panel),
+              SizedBox(
+                width: constraints.maxWidth.clamp(0, 480),
+                child: panelForLayout,
+              ),
             ],
           );
         }
