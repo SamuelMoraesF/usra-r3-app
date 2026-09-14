@@ -1916,10 +1916,7 @@ class _SettingsPageState extends State<SettingsPage> {
           },
         ),
         const SizedBox(height: 8),
-        const Text(
-          'Desenvolvido pela ${AppBranding.publisher} para a '
-          '${AppBranding.description}',
-        ),
+        const Text(AppBranding.aboutCredit),
         const SizedBox(height: 6),
         const SelectableText('Site da USRA: ${AppBranding.website}'),
       ],

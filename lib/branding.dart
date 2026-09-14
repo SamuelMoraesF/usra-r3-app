@@ -7,6 +7,9 @@ abstract final class AppBranding {
   static const name = 'USRA R3';
   static const description = 'Rede de Radiocomunicação Resiliente (R3).';
   static const publisher = 'USRA (União Santamariense de Radioamadores)';
+  static const aboutCredit =
+      'Desenvolvido por PY3SC para a rede de radiocomunicação resiliente '
+      '(R3) da $publisher.';
   static const website = 'https://py3ur.blogspot.com/';
   static const aboutSummary = '$name — logbook offline da $description';
   static const csvSubject = '$name logbook';
