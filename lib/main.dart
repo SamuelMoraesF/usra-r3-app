@@ -78,6 +78,7 @@ class _UsraR3AppState extends State<UsraR3App> {
   bool lastOnly = false;
   int mapMaxAgeHours = 24;
   bool keepScreenOn = true;
+  bool keyboardOptimized = false;
   MapSettings mapSettings = const MapSettings();
 
   @override
@@ -134,6 +135,7 @@ class _UsraR3AppState extends State<UsraR3App> {
               lastOnly: lastOnly,
               mapMaxAgeHours: mapMaxAgeHours,
               mapSettings: mapSettings,
+              keyboardOptimized: keyboardOptimized,
               onMapSettingsChanged: _setMapSettings,
               onOpenSettings: _openSettings,
             )
@@ -198,6 +200,7 @@ class _UsraR3AppState extends State<UsraR3App> {
       mapSettings = MapSettings.read(preferences);
       displayTimeZone = DisplayTimeZone.read(preferences);
       keepScreenOn = preferences.getBool('keepScreenOn') ?? true;
+      keyboardOptimized = preferences.getBool('keyboardOptimized') ?? false;
       loading = false;
     });
     await WakelockPlus.toggle(enable: keepScreenOn);
@@ -231,6 +234,7 @@ class _UsraR3AppState extends State<UsraR3App> {
           lastOnly: lastOnly,
           mapMaxAgeHours: mapMaxAgeHours,
           keepScreenOn: keepScreenOn,
+          keyboardOptimized: keyboardOptimized,
           showCompass: mapSettings.showCompass,
           database: database,
           repeaterGrid: mapSettings.repeaterGrid,
@@ -246,6 +250,7 @@ class _UsraR3AppState extends State<UsraR3App> {
       await preferences.setBool('map.lastOnly', result.lastOnly);
       await preferences.setInt('map.maxAgeHours', result.mapMaxAgeHours);
       await preferences.setBool('keepScreenOn', result.keepScreenOn);
+      await preferences.setBool('keyboardOptimized', result.keyboardOptimized);
       await _setMapSettings(
         MapSettings(
           showLines: mapSettings.showLines,
@@ -267,6 +272,7 @@ class _UsraR3AppState extends State<UsraR3App> {
           lastOnly = result.lastOnly;
           mapMaxAgeHours = result.mapMaxAgeHours;
           keepScreenOn = result.keepScreenOn;
+          keyboardOptimized = result.keyboardOptimized;
         });
       }
     }
@@ -424,6 +430,7 @@ class HomePage extends StatefulWidget {
     required this.mergePrecision,
     required this.lastOnly,
     required this.mapMaxAgeHours,
+    this.keyboardOptimized = false,
     this.mapSettings = const MapSettings(),
     this.onMapSettingsChanged,
   });
@@ -433,6 +440,7 @@ class HomePage extends StatefulWidget {
   final bool mergePrecision;
   final bool lastOnly;
   final int mapMaxAgeHours;
+  final bool keyboardOptimized;
   final MapSettings mapSettings;
   final ValueChanged<MapSettings>? onMapSettingsChanged;
 
@@ -838,6 +846,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                             controller: station,
                             focusNode: _stationFocusNode,
                             label: 'Estação',
+                            keyboardOptimized: widget.keyboardOptimized,
                             values: const {
                               'P': 'Portátil',
                               'M': 'Móvel',
@@ -857,6 +866,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                             controller: energy,
                             focusNode: _energyFocusNode,
                             label: 'Energia',
+                            keyboardOptimized: widget.keyboardOptimized,
                             values: const {
                               'B': 'Bateria',
                               'G': 'Gerador',
@@ -873,6 +883,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                             focusNode: _trafficFocusNode,
                             textInputAction: TextInputAction.next,
                             label: 'Tráfego',
+                            keyboardOptimized: widget.keyboardOptimized,
                             values: const {
                               'S': 'Sem tráfego',
                               'C': 'Com tráfego',
@@ -1689,6 +1700,7 @@ class _ChoiceField extends StatefulWidget {
     this.onSubmitted,
     this.onChanged,
     this.textInputAction,
+    this.keyboardOptimized = false,
   });
   final TextEditingController controller;
   final FocusNode? focusNode;
@@ -1697,6 +1709,7 @@ class _ChoiceField extends StatefulWidget {
   final ValueChanged<String>? onSubmitted;
   final ValueChanged<String>? onChanged;
   final TextInputAction? textInputAction;
+  final bool keyboardOptimized;
 
   @override
   State<_ChoiceField> createState() => _ChoiceFieldState();
@@ -1747,6 +1760,8 @@ class _ChoiceFieldState extends State<_ChoiceField> {
         builder: (context, value, _) => TextFormField(
           controller: widget.controller,
           focusNode: _focusNode,
+          readOnly: !widget.keyboardOptimized,
+          showCursor: widget.keyboardOptimized,
           onFieldSubmitted: (value) {
             final code = _choiceCode(value);
             if (widget.values.containsKey(code)) {
@@ -1827,6 +1842,7 @@ class SettingsPage extends StatefulWidget {
     required this.lastOnly,
     required this.mapMaxAgeHours,
     required this.keepScreenOn,
+    this.keyboardOptimized = false,
     required this.showCompass,
     required this.database,
     this.repeaterGrid = defaultRepeaterGrid,
@@ -1838,6 +1854,7 @@ class SettingsPage extends StatefulWidget {
   final bool lastOnly;
   final int mapMaxAgeHours;
   final bool keepScreenOn;
+  final bool keyboardOptimized;
   final bool showCompass;
   final UsraDatabase database;
   final String repeaterGrid;
@@ -1857,6 +1874,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool mergePrecision = widget.mergePrecision;
   late bool lastOnly = widget.lastOnly;
   late bool keepScreenOn = widget.keepScreenOn;
+  late bool keyboardOptimized = widget.keyboardOptimized;
   late bool showCompass = widget.showCompass;
   late final maxAgeHours = TextEditingController(
     text: widget.mapMaxAgeHours.toString(),
@@ -1935,6 +1953,15 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           value: keepScreenOn,
           onChanged: (value) => setState(() => keepScreenOn = value),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Modo otimizado para teclado'),
+          subtitle: const Text(
+            'Permite abrir o teclado ao tocar nos campos de seleção.',
+          ),
+          value: keyboardOptimized,
+          onChanged: (value) => setState(() => keyboardOptimized = value),
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
@@ -2132,6 +2159,7 @@ class _SettingsPageState extends State<SettingsPage> {
           int.tryParse(maxAgeHours.text.trim()) ?? widget.mapMaxAgeHours,
         ),
         keepScreenOn,
+        keyboardOptimized,
         showCompass,
         GridLocator.inspect(repeaterGrid.text).normalized,
         displayTimeZone,
@@ -2171,6 +2199,7 @@ class _SettingsResult {
     this.lastOnly,
     this.mapMaxAgeHours,
     this.keepScreenOn,
+    this.keyboardOptimized,
     this.showCompass,
     this.repeaterGrid,
     this.displayTimeZone,
@@ -2181,6 +2210,7 @@ class _SettingsResult {
   final bool lastOnly;
   final int mapMaxAgeHours;
   final bool keepScreenOn;
+  final bool keyboardOptimized;
   final bool showCompass;
   final String repeaterGrid;
   final DisplayTimeZone displayTimeZone;
