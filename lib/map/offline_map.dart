@@ -99,6 +99,20 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     if (source != null) {
       _styleReady = false;
       _cachedStyle = themedMapStyle(source, colors);
+      final map = controller;
+      if (map != null) {
+        unawaited(_applyThemeStyle(map, _cachedStyle!));
+      }
+    }
+  }
+
+  Future<void> _applyThemeStyle(MapLibreMapController map, String style) async {
+    try {
+      await map.setStyle(style);
+    } catch (_) {
+      if (!mounted) return;
+      _styleReady = true;
+      await _drawContacts();
     }
   }
 

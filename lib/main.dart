@@ -904,12 +904,22 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 if (presence.warnings.isNotEmpty) ...[
                   Builder(
                     builder: (context) {
-                      final warningColor = Colors.orange.shade800;
+                      final colors = Theme.of(context).colorScheme;
+                      final dark = colors.brightness == Brightness.dark;
+                      final warningColor = dark
+                          ? Colors.orange.shade300
+                          : Colors.orange.shade800;
                       return Container(
                         padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
                         decoration: BoxDecoration(
-                          color: Colors.orange.shade50,
-                          border: Border.all(color: Colors.orange.shade200),
+                          color: dark
+                              ? colors.surfaceContainerHighest
+                              : Colors.orange.shade50,
+                          border: Border.all(
+                            color: warningColor.withValues(
+                              alpha: dark ? 0.7 : 1,
+                            ),
+                          ),
                           borderRadius: BorderRadius.circular(12),
                         ),
                         child: Column(
@@ -939,8 +949,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                                   backgroundColor: warningColor,
                                   child: Text(
                                     '${presence.warnings.length}',
-                                    style: const TextStyle(
-                                      color: Colors.white,
+                                    style: TextStyle(
+                                      color: dark
+                                          ? Colors.black87
+                                          : Colors.white,
                                       fontWeight: FontWeight.w700,
                                       fontSize: 12,
                                     ),
@@ -953,11 +965,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                               (entry) => Card(
                                 margin: const EdgeInsets.only(bottom: 6),
                                 elevation: 0,
-                                color: Colors.white,
+                                color: dark
+                                    ? colors.surfaceContainer
+                                    : Colors.white,
                                 shape: RoundedRectangleBorder(
                                   borderRadius: BorderRadius.circular(8),
                                   side: BorderSide(
-                                    color: Colors.orange.shade200,
+                                    color: warningColor.withValues(
+                                      alpha: dark ? 0.55 : 1,
+                                    ),
                                   ),
                                 ),
                                 child: ListTile(
