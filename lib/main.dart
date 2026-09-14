@@ -917,24 +917,94 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
                 if (presence.warnings.isNotEmpty) ...[
-                  Text(
-                    'Estações sem contato recente',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  ...presence.warnings.map(
-                    (entry) => ListTile(
-                      contentPadding: EdgeInsets.zero,
-                      leading: const Icon(Icons.cell_tower),
-                      title: Text('${entry.callsign} — ${entry.operatorName}'),
-                      subtitle: Text(_formatDate(entry.createdAt)),
-                      trailing: IconButton(
-                        tooltip: 'Preencher novo contato com ${entry.callsign}',
-                        icon: const Icon(Icons.refresh),
-                        onPressed: () => _prefillStation(entry),
-                      ),
-                    ),
+                  Builder(
+                    builder: (context) {
+                      final warningColor = Colors.orange.shade800;
+                      return Container(
+                        padding: const EdgeInsets.fromLTRB(12, 12, 12, 8),
+                        decoration: BoxDecoration(
+                          color: Colors.orange.shade50,
+                          border: Border.all(color: Colors.orange.shade200),
+                          borderRadius: BorderRadius.circular(12),
+                        ),
+                        child: Column(
+                          crossAxisAlignment: CrossAxisAlignment.stretch,
+                          children: [
+                            Row(
+                              children: [
+                                Icon(
+                                  Icons.warning_amber_rounded,
+                                  color: warningColor,
+                                ),
+                                const SizedBox(width: 8),
+                                Expanded(
+                                  child: Text(
+                                    'Estações sem contato recente',
+                                    style: Theme.of(context)
+                                        .textTheme
+                                        .titleMedium
+                                        ?.copyWith(
+                                          color: warningColor,
+                                          fontWeight: FontWeight.w800,
+                                        ),
+                                  ),
+                                ),
+                                CircleAvatar(
+                                  radius: 13,
+                                  backgroundColor: warningColor,
+                                  child: Text(
+                                    '${presence.warnings.length}',
+                                    style: const TextStyle(
+                                      color: Colors.white,
+                                      fontWeight: FontWeight.w700,
+                                      fontSize: 12,
+                                    ),
+                                  ),
+                                ),
+                              ],
+                            ),
+                            const SizedBox(height: 8),
+                            ...presence.warnings.map(
+                              (entry) => Card(
+                                margin: const EdgeInsets.only(bottom: 6),
+                                elevation: 0,
+                                color: Colors.white,
+                                shape: RoundedRectangleBorder(
+                                  borderRadius: BorderRadius.circular(8),
+                                  side: BorderSide(
+                                    color: Colors.orange.shade200,
+                                  ),
+                                ),
+                                child: ListTile(
+                                  contentPadding: const EdgeInsets.only(
+                                    left: 12,
+                                    right: 4,
+                                  ),
+                                  leading: Icon(
+                                    Icons.cell_tower,
+                                    color: warningColor,
+                                  ),
+                                  title: Text(
+                                    '${entry.callsign} — ${entry.operatorName}',
+                                    style: const TextStyle(
+                                      fontWeight: FontWeight.w700,
+                                    ),
+                                  ),
+                                  subtitle: Text(_formatDate(entry.createdAt)),
+                                  trailing: IconButton(
+                                    tooltip:
+                                        'Preencher novo contato com ${entry.callsign}',
+                                    color: warningColor,
+                                    icon: const Icon(Icons.refresh),
+                                    onPressed: () => _prefillStation(entry),
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        ),
+                      );
+                    },
                   ),
                   const SizedBox(height: 16),
                 ],
