@@ -23,6 +23,7 @@ class OfflineContactsMap extends StatefulWidget {
     super.key,
     required this.entries,
     required this.operatorGrid,
+    this.operatorCallsign = '',
     this.focusGrid = '',
     this.focusRequest = 0,
     this.mergePrecision = true,
@@ -36,6 +37,7 @@ class OfflineContactsMap extends StatefulWidget {
   });
   final List<LogEntry> entries;
   final String operatorGrid;
+  final String operatorCallsign;
   final String focusGrid;
   final int focusRequest;
   final bool mergePrecision;
@@ -62,7 +64,8 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
   bool _drawing = false;
   bool _redrawRequested = false;
   bool _distanceLayerReady = false;
-  final _distanceImages = <String, String>{};
+  bool _callsignLayerReady = false;
+  final _labelImages = <String, String>{};
   final _mapBearing = ValueNotifier<double>(0);
   final _elevationRange = ValueNotifier<ElevationRange?>(null);
   ElevationGrid? _elevationGrid;
@@ -103,6 +106,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
     }
     if (oldWidget.entries != widget.entries ||
         oldWidget.operatorGrid != widget.operatorGrid ||
+        oldWidget.operatorCallsign != widget.operatorCallsign ||
         oldWidget.mergePrecision != widget.mergePrecision ||
         oldWidget.lastOnly != widget.lastOnly ||
         oldWidget.selectedMode != widget.selectedMode ||
@@ -255,7 +259,8 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
             onCameraIdle: _onCameraIdle,
             onStyleLoadedCallback: () {
               _distanceLayerReady = false;
-              _distanceImages.clear();
+              _callsignLayerReady = false;
+              _labelImages.clear();
               _elevationLayerReady = false;
               _elevationRange.value = null;
               _styleReady = true;
@@ -293,10 +298,30 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
                   onPressed: () => widget.onSettingsChanged?.call(
                     MapSettings(
                       showLines: !widget.settings.showLines,
+                      showCallsigns: widget.settings.showCallsigns,
                       showAll: widget.settings.showAll,
                       showPrecision: widget.settings.showPrecision,
                       showElevation: widget.settings.showElevation,
                       showCompass: widget.settings.showCompass,
+                      repeaterGrid: widget.settings.repeaterGrid,
+                    ),
+                  ),
+                ),
+                IconButton(
+                  tooltip: 'Mostrar indicativos',
+                  isSelected: widget.settings.showCallsigns,
+                  color: widget.settings.showCallsigns
+                      ? Theme.of(context).colorScheme.primary
+                      : Colors.grey,
+                  icon: const Icon(Icons.abc),
+                  onPressed: () => widget.onSettingsChanged?.call(
+                    MapSettings(
+                      showLines: widget.settings.showLines,
+                      showAll: widget.settings.showAll,
+                      showPrecision: widget.settings.showPrecision,
+                      showElevation: widget.settings.showElevation,
+                      showCompass: widget.settings.showCompass,
+                      showCallsigns: !widget.settings.showCallsigns,
                       repeaterGrid: widget.settings.repeaterGrid,
                     ),
                   ),
@@ -313,6 +338,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
                       showLines: widget.settings.showLines,
                       showAll: widget.settings.showAll,
                       showPrecision: !widget.settings.showPrecision,
+                      showCallsigns: widget.settings.showCallsigns,
                       showElevation: widget.settings.showElevation,
                       showCompass: widget.settings.showCompass,
                       repeaterGrid: widget.settings.repeaterGrid,
@@ -332,6 +358,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
                       showAll: widget.settings.showAll,
                       showPrecision: widget.settings.showPrecision,
                       showElevation: !widget.settings.showElevation,
+                      showCallsigns: widget.settings.showCallsigns,
                       showCompass: widget.settings.showCompass,
                       repeaterGrid: widget.settings.repeaterGrid,
                     ),
@@ -348,6 +375,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
                     MapSettings(
                       showLines: widget.settings.showLines,
                       showAll: !widget.settings.showAll,
+                      showCallsigns: widget.settings.showCallsigns,
                       showPrecision: widget.settings.showPrecision,
                       showElevation: widget.settings.showElevation,
                       showCompass: widget.settings.showCompass,
@@ -510,6 +538,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
       );
       assert(circle.id.isNotEmpty);
     }
+    await _drawCallsigns(map, scene);
   }
 
   Future<ElevationGrid?> _loadElevation() async {
@@ -714,48 +743,111 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
     if (areas.isNotEmpty) await map.addFills(areas);
   }
 
+  Future<String> _labelImage(MapLibreMapController map, String label) async {
+    var imageId = _labelImages[label];
+    if (imageId == null) {
+      imageId = 'map-label-${_labelImages.length}';
+      // Rasterize locally: the offline map has no network glyph source.
+      final painter = TextPainter(
+        text: TextSpan(
+          text: label,
+          style: TextStyle(
+            fontSize: 16,
+            fontWeight: FontWeight.w600,
+            color: _mapColors!.onSurface,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final recorder = ui.PictureRecorder();
+      final canvas = Canvas(recorder)..scale(2);
+      final size = Size(painter.width + 12, painter.height + 6);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(4)),
+        Paint()..color = _mapColors!.surface.withValues(alpha: 0.94),
+      );
+      painter.paint(canvas, const Offset(6, 3));
+      final picture = recorder.endRecording();
+      final bitmap = await picture.toImage(
+        (size.width * 2).ceil(),
+        (size.height * 2).ceil(),
+      );
+      final bytes = await bitmap.toByteData(format: ui.ImageByteFormat.png);
+      await map.addImage(imageId, bytes!.buffer.asUint8List());
+      bitmap.dispose();
+      picture.dispose();
+      painter.dispose();
+      _labelImages[label] = imageId;
+    }
+    return imageId;
+  }
+
+  Future<void> _drawCallsigns(
+    MapLibreMapController map,
+    ContactScene scene,
+  ) async {
+    if (!widget.settings.showCallsigns && !_callsignLayerReady) return;
+    final features = <Map<String, dynamic>>[];
+    if (widget.settings.showCallsigns) {
+      for (final contact in scene.callsignContacts(widget.operatorCallsign)) {
+        final bounds = contact.bounds;
+        if (bounds == null) continue;
+        final imageId = await _labelImage(
+          map,
+          contact.latest.callsign.trim().toUpperCase(),
+        );
+        features.add({
+          'type': 'Feature',
+          'geometry': {
+            'type': 'Point',
+            'coordinates': [bounds.centerLongitude, bounds.centerLatitude],
+          },
+          'properties': {'image': imageId},
+        });
+      }
+    }
+    final data = <String, dynamic>{
+      'type': 'FeatureCollection',
+      'features': features,
+    };
+    if (_callsignLayerReady) {
+      await map.setGeoJsonSource('contact-callsigns', data);
+    } else {
+      await map.addGeoJsonSource('contact-callsigns', data);
+      await map.addSymbolLayer(
+        'contact-callsigns',
+        'contact-callsign-labels',
+        const SymbolLayerProperties(
+          iconImage: ['get', 'image'],
+          iconSize: [
+            'interpolate',
+            ['linear'],
+            ['zoom'],
+            11,
+            0.625,
+            13,
+            0.8125,
+            15,
+            1.0,
+          ],
+          iconAnchor: 'bottom',
+          iconOffset: [0, -12],
+          iconAllowOverlap: true,
+          iconIgnorePlacement: true,
+        ),
+        enableInteraction: false,
+      );
+      _callsignLayerReady = true;
+    }
+  }
+
   Future<void> _drawDistances(
     MapLibreMapController map,
     ContactScene scene,
   ) async {
     final features = <Map<String, dynamic>>[];
     for (final distance in routeDistances(scene.routes)) {
-      final label = distance.label;
-      var imageId = _distanceImages[label];
-      if (imageId == null) {
-        imageId = 'distance-${_distanceImages.length}';
-        // Rasterize locally: the offline map has no network glyph source.
-        final painter = TextPainter(
-          text: TextSpan(
-            text: label,
-            style: TextStyle(
-              fontSize: 16,
-              fontWeight: FontWeight.w600,
-              color: _mapColors!.onSurface,
-            ),
-          ),
-          textDirection: TextDirection.ltr,
-        )..layout();
-        final recorder = ui.PictureRecorder();
-        final canvas = Canvas(recorder)..scale(2);
-        final size = Size(painter.width + 12, painter.height + 6);
-        canvas.drawRRect(
-          RRect.fromRectAndRadius(Offset.zero & size, const Radius.circular(4)),
-          Paint()..color = _mapColors!.surface.withValues(alpha: 0.94),
-        );
-        painter.paint(canvas, const Offset(6, 3));
-        final picture = recorder.endRecording();
-        final bitmap = await picture.toImage(
-          (size.width * 2).ceil(),
-          (size.height * 2).ceil(),
-        );
-        final bytes = await bitmap.toByteData(format: ui.ImageByteFormat.png);
-        await map.addImage(imageId, bytes!.buffer.asUint8List());
-        bitmap.dispose();
-        picture.dispose();
-        painter.dispose();
-        _distanceImages[label] = imageId;
-      }
+      final imageId = await _labelImage(map, distance.label);
       features.add({
         'type': 'Feature',
         'geometry': {

@@ -38,6 +38,13 @@ class ContactScene {
   final List<MapContact> contacts;
   final List<ContactMarker> markers;
   final List<ContactRoute> routes;
+
+  Iterable<MapContact> callsignContacts(String operatorCallsign) =>
+      contacts.where(
+        (contact) =>
+            contact.latest.callsign.trim().toUpperCase() !=
+            operatorCallsign.trim().toUpperCase(),
+      );
 }
 
 double contactFrequencyMhz(LogEntry entry) =>

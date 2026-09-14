@@ -245,6 +245,7 @@ class _UsraR3AppState extends State<UsraR3App> {
           showPrecision: mapSettings.showPrecision,
           showElevation: mapSettings.showElevation,
           showCompass: result.showCompass,
+          showCallsigns: mapSettings.showCallsigns,
           repeaterGrid: result.repeaterGrid,
         ),
       );
@@ -1082,6 +1083,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           entries: snapshot.data ?? const [],
           entriesLoaded: snapshot.hasData,
           operatorGrid: widget.profile.grid,
+          operatorCallsign: widget.profile.callsign,
           focusGrid: _lastMapFocusGrid,
           focusRequest: _mapFocusRequest,
           maxAgeHours: widget.mapMaxAgeHours,

@@ -61,6 +61,45 @@ void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
   test(
+    'callsign labels include both networks and exclude the operator and towers',
+    () {
+      final result = scene([
+        qso(callsign: 'PY3SELF'),
+        qso(callsign: 'PY3SIM'),
+        qso(callsign: 'PY3REP', mode: 'repeater', repeater: oldRepeater),
+        qso(callsign: 'PY3OTHER', mhz: 147.0),
+        qso(callsign: 'PY3SAMEGRID', grid: userGrid),
+      ], all: true);
+      expect(
+        result.markers.any((m) => m.kind == MarkerKind.currentRepeater),
+        isTrue,
+      );
+      expect(
+        result.markers.any((m) => m.kind == MarkerKind.historicalRepeater),
+        isTrue,
+      );
+      expect(
+        result.callsignContacts(' py3self ').map((c) => c.latest.callsign),
+        unorderedEquals(['PY3SIM', 'PY3REP', 'PY3OTHER', 'PY3SAMEGRID']),
+      );
+    },
+  );
+
+  test(
+    'callsign labels default off and persist when enabled and disabled',
+    () async {
+      SharedPreferences.setMockInitialValues({});
+      final prefs = await SharedPreferences.getInstance();
+      expect(MapSettings.read(prefs).showCallsigns, isFalse);
+      for (final enabled in [true, false]) {
+        await MapSettings(showCallsigns: enabled).save(prefs);
+        await prefs.reload();
+        expect(MapSettings.read(prefs).showCallsigns, enabled);
+      }
+    },
+  );
+
+  test(
     'default grid contains supplied coordinates at maximum supported precision',
     () {
       final lat = -(29 + 42 / 60 + 58.7 / 3600);

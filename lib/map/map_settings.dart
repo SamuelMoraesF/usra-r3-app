@@ -9,6 +9,7 @@ class MapSettings {
     this.showPrecision = false,
     this.showElevation = false,
     this.showCompass = true,
+    this.showCallsigns = false,
     this.repeaterGrid = defaultRepeaterGrid,
   });
 
@@ -17,6 +18,7 @@ class MapSettings {
   final bool showPrecision;
   final bool showElevation;
   final bool showCompass;
+  final bool showCallsigns;
   final String repeaterGrid;
 
   static MapSettings read(SharedPreferences preferences) => MapSettings(
@@ -25,6 +27,7 @@ class MapSettings {
     showPrecision: preferences.getBool('map.showPrecision') ?? false,
     showElevation: preferences.getBool('map.showElevation') ?? false,
     showCompass: preferences.getBool('map.showCompass') ?? true,
+    showCallsigns: preferences.getBool('map.showCallsigns') ?? false,
     repeaterGrid:
         preferences.getString('map.repeaterGrid') ?? defaultRepeaterGrid,
   );
@@ -35,6 +38,7 @@ class MapSettings {
     await preferences.setBool('map.showPrecision', showPrecision);
     await preferences.setBool('map.showElevation', showElevation);
     await preferences.setBool('map.showCompass', showCompass);
+    await preferences.setBool('map.showCallsigns', showCallsigns);
     await preferences.setString('map.repeaterGrid', repeaterGrid);
   }
 }
