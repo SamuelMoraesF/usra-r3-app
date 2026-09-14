@@ -1,6 +1,28 @@
 import 'dart:convert';
 
 import 'package:flutter/material.dart';
+import 'package:maplibre_gl/maplibre_gl.dart';
+
+/// Paint-only updates preserve sources, annotations, images and the camera.
+Map<String, LayerProperties> themedMapPaint(String source, ColorScheme colors) {
+  final style =
+      jsonDecode(themedMapStyle(source, colors)) as Map<String, dynamic>;
+  return {
+    for (final layer in (style['layers'] as List).cast<Map<String, dynamic>>())
+      layer['id'] as String: _MapPaintProperties(
+        Map<String, dynamic>.from(layer['paint'] as Map),
+      ),
+  };
+}
+
+class _MapPaintProperties implements LayerProperties {
+  const _MapPaintProperties(this.paint);
+
+  final Map<String, dynamic> paint;
+
+  @override
+  Map<String, dynamic> toJson({bool skipNulls = true}) => Map.of(paint);
+}
 
 /// Styles the bundled vector map without changing its offline source URLs.
 String themedMapStyle(String source, ColorScheme colors) {

@@ -54,4 +54,34 @@ void main() {
     );
     expect(result['sources'], native['sources']);
   });
+
+  test('theme changes update only paint on existing basemap layers', () {
+    for (final brightness in [
+      Brightness.light,
+      Brightness.dark,
+      Brightness.light,
+    ]) {
+      final colors = ColorScheme.fromSeed(
+        seedColor: Colors.orange,
+        brightness: brightness,
+      );
+      final style =
+          jsonDecode(themedMapStyle(source, colors)) as Map<String, dynamic>;
+      final layers = (style['layers'] as List).cast<Map<String, dynamic>>();
+      final updates = themedMapPaint(source, colors);
+      expect(updates.keys, layers.map((layer) => layer['id']));
+      for (final layer in layers) {
+        // MapLibre calls toJson with skipNulls: false. No null defaults may
+        // reset properties, and no source/layout changes may remove markers.
+        final paint = updates[layer['id']]!.toJson(skipNulls: false);
+        expect(paint, layer['paint']);
+        expect(paint.values, isNot(contains(null)));
+        expect(paint.keys, everyElement(startsWith('${layer['type']}-')));
+      }
+      expect(
+        updates['background']!.toJson()['background-color'],
+        brightness == Brightness.dark ? '#17120F' : '#FFFBF7',
+      );
+    }
+  });
 }

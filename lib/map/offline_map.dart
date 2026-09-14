@@ -70,6 +70,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
   MapLibreMapController? controller;
   List<MapContact> contacts = const [];
   ColorScheme? _mapColors;
+  ColorScheme? _appliedMapColors;
   bool _styleReady = false;
   bool _initialCameraSet = false;
   late ContactScene _scene;
@@ -88,8 +89,6 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
   bool _elevationLayerReady = false;
   bool _elevationDrawing = false;
   bool _elevationRedrawRequested = false;
-  Timer? _styleReloadFallback;
-  int _styleReloadGeneration = 0;
 
   @override
   void didChangeDependencies() {
@@ -99,43 +98,15 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     _mapColors = colors;
     final source = _sourceStyle;
     if (source != null) {
-      _styleReady = false;
-      _cachedStyle = themedMapStyle(source, colors);
-      final map = controller;
-      if (map != null) {
-        final generation = ++_styleReloadGeneration;
-        _styleReloadFallback?.cancel();
-        unawaited(_applyThemeStyle(map, _cachedStyle!, generation));
-      }
-    }
-  }
-
-  Future<void> _applyThemeStyle(
-    MapLibreMapController map,
-    String style,
-    int generation,
-  ) async {
-    try {
-      await map.setStyle(style);
-      // Some platform implementations return from setStyle before emitting
-      // the style-loaded event. Keep a fallback so annotations are restored
-      // even when that event is delayed or omitted.
-      _styleReloadFallback = Timer(const Duration(milliseconds: 500), () {
-        if (!mounted || generation != _styleReloadGeneration || _styleReady) {
-          return;
-        }
-        _styleReady = true;
-        unawaited(_drawContacts());
-      });
-    } catch (_) {
-      if (!mounted) return;
-      _styleReady = true;
-      await _drawContacts();
+      // Keep styleString stable: replacing it destroys annotation sources.
+      // The serialized draw updates the existing basemap's paint instead.
+      unawaited(_drawContacts());
     }
   }
 
   Future<void> _handleStyleLoaded() async {
-    _styleReloadFallback?.cancel();
+    if (!mounted) return;
+    _appliedMapColors = null;
     _distanceLayerReady = false;
     _callsignLayerReady = false;
     _labelImages.clear();
@@ -144,11 +115,8 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     _elevationRange.value = null;
     _styleReady = true;
 
-    // Wait one turn after MapLibre reports the style as loaded. On some
-    // platforms annotation operations issued directly from the callback race
-    // the style's final internal refresh and are discarded.
-    await Future<void>.delayed(const Duration(milliseconds: 60));
-    if (!mounted || !_styleReady) return;
+    // This callback runs after MapLibre has initialized annotation managers.
+    // Restore custom sources and images only once the new style is ready.
     await _drawContacts();
     await _fitInitialPoints();
   }
@@ -289,7 +257,6 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _expiryTimer?.cancel();
-    _styleReloadFallback?.cancel();
     final map = controller;
     map?.onCircleTapped.remove(_onCircleTapped);
     map?.onSymbolTapped.remove(_onSymbolTapped);
@@ -599,6 +566,16 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     ContactScene scene,
   ) async {
     final colors = _mapColors!;
+    if (_appliedMapColors != colors) {
+      for (final layer in themedMapPaint(_sourceStyle!, colors).entries) {
+        await map.setLayerProperties(layer.key, layer.value);
+        if (!mounted || !_styleReady) return;
+      }
+      _appliedMapColors = colors;
+      // Text images bake in the theme colors; generate fresh images on redraw.
+      _labelImages.clear();
+      _warningImages.clear();
+    }
     await map.clearCircles();
     await map.clearSymbols();
     await map.clearLines();
