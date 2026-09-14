@@ -16,6 +16,8 @@ const csvHeaders = [
   'repeater_grid',
   'energy',
   'traffic_message',
+  'network_started_at',
+  'network_ended_at',
 ];
 
 String logsToCsv(List<LogEntry> entries) {
@@ -36,6 +38,8 @@ String logsToCsv(List<LogEntry> entries) {
       entry.repeaterGrid ?? '',
       entry.energy,
       entry.trafficMessage,
+      entry.networkStartedAt?.toUtc().toIso8601String() ?? '',
+      entry.networkEndedAt?.toUtc().toIso8601String() ?? '',
     ]);
   }
   return rows.map((row) => row.map(_escapeCsv).join(',')).join('\r\n');
@@ -47,14 +51,20 @@ List<LogEntriesCompanion> csvToLogCompanions(String source) {
       ? <String>[]
       : rows.first.map(_normalizeHeader).toList();
   final legacy = headers.join(',') == csvHeaders.take(8).join(',');
-  if (rows.isEmpty || (!legacy && headers.join(',') != csvHeaders.join(','))) {
+  final withoutNetwork = headers.join(',') == csvHeaders.take(14).join(',');
+  if (rows.isEmpty ||
+      (!legacy &&
+          !withoutNetwork &&
+          headers.join(',') != csvHeaders.join(','))) {
     throw const FormatException('Cabeçalho CSV inválido.');
   }
   final result = <LogEntriesCompanion>[];
   for (var index = 1; index < rows.length; index++) {
     final row = rows[index];
     if (row.length == 1 && row.first.trim().isEmpty) continue;
-    if (row.length != headers.length) {
+    final missingNetworkColumns =
+        headers.length == csvHeaders.length && row.length == 14;
+    if (row.length != headers.length && !missingNetworkColumns) {
       throw FormatException('Linha ${index + 1} inválida.');
     }
     final timestamp = row[0].trim();
@@ -68,6 +78,20 @@ List<LogEntriesCompanion> csvToLogCompanions(String source) {
     );
     final power = double.tryParse(row[5].replaceAll(',', '.'));
     final mhz = legacy || row[10].isEmpty ? null : double.tryParse(row[10]);
+    final networkStart =
+        !legacy &&
+            !missingNetworkColumns &&
+            row.length > 14 &&
+            row[14].isNotEmpty
+        ? DateTime.tryParse(row[14])?.toUtc()
+        : null;
+    final networkEnd =
+        !legacy &&
+            !missingNetworkColumns &&
+            row.length > 15 &&
+            row[15].isNotEmpty
+        ? DateTime.tryParse(row[15])?.toUtc()
+        : null;
     if (!legacy &&
         (!['simplex', 'repeater'].contains(row[9]) ||
             (row[10].isNotEmpty &&
@@ -95,6 +119,8 @@ List<LogEntriesCompanion> csvToLogCompanions(String source) {
         ),
         energy: legacy ? const Value.absent() : Value(row[12]),
         trafficMessage: legacy ? const Value.absent() : Value(row[13]),
+        networkStartedAt: Value(networkStart),
+        networkEndedAt: Value(networkEnd),
       ),
     );
   }

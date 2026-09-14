@@ -34,7 +34,10 @@ void main() {
     tester,
   ) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.linux;
-    SharedPreferences.setMockInitialValues({'contact.frequency': 'simplex'});
+    SharedPreferences.setMockInitialValues({
+      'contact.frequency': 'simplex',
+      'network.startedAt': '2026-09-13T10:00:00.000Z',
+    });
     final database = UsraDatabase.test(NativeDatabase.memory());
     addTearDown(() async {
       debugDefaultTargetPlatformOverride = null;
@@ -117,7 +120,10 @@ void main() {
     tester,
   ) async {
     debugDefaultTargetPlatformOverride = TargetPlatform.linux;
-    SharedPreferences.setMockInitialValues({'contact.frequency': 'simplex'});
+    SharedPreferences.setMockInitialValues({
+      'contact.frequency': 'simplex',
+      'network.startedAt': '2026-09-13T10:00:00.000Z',
+    });
     final database = UsraDatabase.test(NativeDatabase.memory());
     addTearDown(() async {
       debugDefaultTargetPlatformOverride = null;

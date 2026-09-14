@@ -469,6 +469,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   double _lastKeyboardInset = 0;
   int _mapFocusRequest = 0;
   String _lastMapFocusGrid = '';
+  DateTime? _networkStartedAt;
 
   @override
   void initState() {
@@ -477,6 +478,35 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     FocusManager.instance.addListener(_scrollToFocusedField);
     WidgetsBinding.instance.addObserver(this);
     _loadFrequency();
+    _loadNetworkState();
+  }
+
+  Future<void> _loadNetworkState() async {
+    final preferences = await SharedPreferences.getInstance();
+    final raw = preferences.getString('network.startedAt');
+    final closed = preferences.getString('network.closedAt');
+    final started = raw == null || closed != null
+        ? null
+        : DateTime.tryParse(raw)?.toUtc();
+    if (mounted) setState(() => _networkStartedAt = started);
+  }
+
+  Future<void> _openNetwork() async {
+    final started = DateTime.now().toUtc();
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString('network.startedAt', started.toIso8601String());
+    await preferences.remove('network.closedAt');
+    if (mounted) setState(() => _networkStartedAt = started);
+  }
+
+  Future<void> _closeNetwork() async {
+    final started = _networkStartedAt;
+    if (started == null) return;
+    final ended = DateTime.now().toUtc();
+    await widget.database.closeNetwork(started, ended);
+    final preferences = await SharedPreferences.getInstance();
+    await preferences.setString('network.closedAt', ended.toIso8601String());
+    if (mounted) setState(() => _networkStartedAt = null);
   }
 
   void _scrollToFocusedField() {
@@ -689,182 +719,213 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               ),
             ),
             const SizedBox(height: 22),
-            Form(
-              key: formKey,
-              child: Column(
-                children: [
-                  SizedBox(
-                    width: double.infinity,
-                    child: SegmentedButton<String>(
-                      segments: const [
-                        ButtonSegment(
-                          value: _repeaterFrequency,
-                          label: _FrequencyLabel('Repetidora', '145.37'),
+            if (_networkStartedAt == null)
+              SizedBox(
+                width: double.infinity,
+                child: FilledButton.icon(
+                  onPressed: _openNetwork,
+                  icon: const Icon(Icons.cell_tower),
+                  label: const Text('Fazer abertura da rede'),
+                ),
+              ),
+            if (_networkStartedAt != null)
+              Form(
+                key: formKey,
+                child: Column(
+                  children: [
+                    SizedBox(
+                      width: double.infinity,
+                      child: SegmentedButton<String>(
+                        segments: const [
+                          ButtonSegment(
+                            value: _repeaterFrequency,
+                            label: _FrequencyLabel('Repetidora', '145.37'),
+                          ),
+                          ButtonSegment(
+                            value: _simplexFrequency,
+                            label: _FrequencyLabel('Simplex', '146.52'),
+                          ),
+                        ],
+                        selected: {frequency},
+                        onSelectionChanged: (value) =>
+                            _setFrequency(value.first),
+                      ),
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: callsign,
+                            focusNode: _callsignFocusNode,
+                            textCapitalization: TextCapitalization.characters,
+                            inputFormatters: [UpperCaseFormatter()],
+                            textInputAction: TextInputAction.next,
+                            decoration: const InputDecoration(
+                              labelText: 'Indicativo',
+                            ),
+                            onFieldSubmitted: (_) =>
+                                _viaFocusNode.requestFocus(),
+                            validator: _required,
+                            autovalidateMode:
+                                AutovalidateMode.onUserInteraction,
+                          ),
                         ),
-                        ButtonSegment(
-                          value: _simplexFrequency,
-                          label: _FrequencyLabel('Simplex', '146.52'),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: TextFormField(
+                            controller: via,
+                            focusNode: _viaFocusNode,
+                            textCapitalization: TextCapitalization.characters,
+                            inputFormatters: [UpperCaseFormatter()],
+                            textInputAction: TextInputAction.next,
+                            decoration: const InputDecoration(labelText: 'Via'),
+                            onFieldSubmitted: (_) =>
+                                _operatorFocusNode.requestFocus(),
+                          ),
                         ),
                       ],
-                      selected: {frequency},
-                      onSelectionChanged: (value) => _setFrequency(value.first),
                     ),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: callsign,
-                          focusNode: _callsignFocusNode,
-                          textCapitalization: TextCapitalization.characters,
-                          inputFormatters: [UpperCaseFormatter()],
-                          textInputAction: TextInputAction.next,
-                          decoration: const InputDecoration(
-                            labelText: 'Indicativo',
-                          ),
-                          onFieldSubmitted: (_) => _viaFocusNode.requestFocus(),
-                          validator: _required,
-                          autovalidateMode: AutovalidateMode.onUserInteraction,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: TextFormField(
-                          controller: via,
-                          focusNode: _viaFocusNode,
-                          textCapitalization: TextCapitalization.characters,
-                          inputFormatters: [UpperCaseFormatter()],
-                          textInputAction: TextInputAction.next,
-                          decoration: const InputDecoration(labelText: 'Via'),
-                          onFieldSubmitted: (_) =>
-                              _operatorFocusNode.requestFocus(),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  TextFormField(
-                    controller: operator,
-                    focusNode: _operatorFocusNode,
-                    textCapitalization: TextCapitalization.words,
-                    inputFormatters: [CapitalizeWordsFormatter()],
-                    textInputAction: TextInputAction.next,
-                    decoration: const InputDecoration(
-                      labelText: 'Nome do operador',
-                    ),
-                    onFieldSubmitted: (_) => _locationFocusNode.requestFocus(),
-                    validator: _required,
-                    autovalidateMode: AutovalidateMode.onUserInteraction,
-                  ),
-                  const SizedBox(height: 12),
-                  GridLocatorField(
-                    controller: location,
-                    focusNode: _locationFocusNode,
-                    allowInvalid: true,
-                    onSubmitted: (_) => _powerFocusNode.requestFocus(),
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: TextFormField(
-                          controller: power,
-                          focusNode: _powerFocusNode,
-                          keyboardType: const TextInputType.numberWithOptions(
-                            decimal: true,
-                          ),
-                          inputFormatters: [PowerFormatter()],
-                          textInputAction: TextInputAction.next,
-                          onFieldSubmitted: (_) =>
-                              _stationFocusNode.requestFocus(),
-                          decoration: const InputDecoration(
-                            labelText: 'Potência (W)',
-                          ),
-                          validator: _required,
-                          autovalidateMode: AutovalidateMode.onUserInteraction,
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _ChoiceField(
-                          controller: station,
-                          focusNode: _stationFocusNode,
-                          label: 'Estação',
-                          values: const {
-                            'P': 'Portátil',
-                            'M': 'Móvel',
-                            'F': 'Fixa',
-                          },
-                          onSubmitted: (_) => _energyFocusNode.requestFocus(),
-                        ),
-                      ),
-                    ],
-                  ),
-                  const SizedBox(height: 12),
-                  Row(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Expanded(
-                        child: _ChoiceField(
-                          controller: energy,
-                          focusNode: _energyFocusNode,
-                          label: 'Energia',
-                          values: const {
-                            'B': 'Bateria',
-                            'G': 'Gerador',
-                            'AC': 'Rede elétrica',
-                          },
-                          onSubmitted: (_) => _trafficFocusNode.requestFocus(),
-                        ),
-                      ),
-                      const SizedBox(width: 8),
-                      Expanded(
-                        child: _ChoiceField(
-                          controller: traffic,
-                          focusNode: _trafficFocusNode,
-                          textInputAction: TextInputAction.next,
-                          label: 'Tráfego',
-                          values: const {
-                            'S': 'Sem tráfego',
-                            'C': 'Com tráfego',
-                          },
-                          onChanged: (_) => setState(() {}),
-                          onSubmitted: (_) => _choiceCode(traffic.text) == 'C'
-                              ? _trafficMessageFocusNode.requestFocus()
-                              : FocusScope.of(context).nextFocus(),
-                        ),
-                      ),
-                    ],
-                  ),
-                  if (_choiceCode(traffic.text) == 'C') ...[
                     const SizedBox(height: 12),
                     TextFormField(
-                      controller: trafficMessage,
-                      focusNode: _trafficMessageFocusNode,
-                      textInputAction: TextInputAction.done,
-                      inputFormatters: [UpperCaseFormatter()],
+                      controller: operator,
+                      focusNode: _operatorFocusNode,
+                      textCapitalization: TextCapitalization.words,
+                      inputFormatters: [CapitalizeWordsFormatter()],
+                      textInputAction: TextInputAction.next,
                       decoration: const InputDecoration(
-                        labelText: 'Mensagem (tráfego)',
+                        labelText: 'Nome do operador',
                       ),
+                      onFieldSubmitted: (_) =>
+                          _locationFocusNode.requestFocus(),
                       validator: _required,
                       autovalidateMode: AutovalidateMode.onUserInteraction,
                     ),
-                  ],
-                  const SizedBox(height: 18),
-                  SizedBox(
-                    width: double.infinity,
-                    child: FilledButton.icon(
-                      onPressed: _register,
-                      icon: const Icon(Icons.add),
-                      label: const Text('Registrar log'),
+                    const SizedBox(height: 12),
+                    GridLocatorField(
+                      controller: location,
+                      focusNode: _locationFocusNode,
+                      allowInvalid: true,
+                      onSubmitted: (_) => _powerFocusNode.requestFocus(),
                     ),
-                  ),
-                ],
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: TextFormField(
+                            controller: power,
+                            focusNode: _powerFocusNode,
+                            keyboardType: const TextInputType.numberWithOptions(
+                              decimal: true,
+                            ),
+                            inputFormatters: [PowerFormatter()],
+                            textInputAction: TextInputAction.next,
+                            onFieldSubmitted: (_) =>
+                                _stationFocusNode.requestFocus(),
+                            decoration: const InputDecoration(
+                              labelText: 'Potência (W)',
+                            ),
+                            validator: _required,
+                            autovalidateMode:
+                                AutovalidateMode.onUserInteraction,
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _ChoiceField(
+                            controller: station,
+                            focusNode: _stationFocusNode,
+                            label: 'Estação',
+                            values: const {
+                              'P': 'Portátil',
+                              'M': 'Móvel',
+                              'F': 'Fixa',
+                            },
+                            onSubmitted: (_) => _energyFocusNode.requestFocus(),
+                          ),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: 12),
+                    Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Expanded(
+                          child: _ChoiceField(
+                            controller: energy,
+                            focusNode: _energyFocusNode,
+                            label: 'Energia',
+                            values: const {
+                              'B': 'Bateria',
+                              'G': 'Gerador',
+                              'AC': 'Rede elétrica',
+                            },
+                            onSubmitted: (_) =>
+                                _trafficFocusNode.requestFocus(),
+                          ),
+                        ),
+                        const SizedBox(width: 8),
+                        Expanded(
+                          child: _ChoiceField(
+                            controller: traffic,
+                            focusNode: _trafficFocusNode,
+                            textInputAction: TextInputAction.next,
+                            label: 'Tráfego',
+                            values: const {
+                              'S': 'Sem tráfego',
+                              'C': 'Com tráfego',
+                            },
+                            onChanged: (_) => setState(() {}),
+                            onSubmitted: (_) => _choiceCode(traffic.text) == 'C'
+                                ? _trafficMessageFocusNode.requestFocus()
+                                : FocusScope.of(context).nextFocus(),
+                          ),
+                        ),
+                      ],
+                    ),
+                    if (_choiceCode(traffic.text) == 'C') ...[
+                      const SizedBox(height: 12),
+                      TextFormField(
+                        controller: trafficMessage,
+                        focusNode: _trafficMessageFocusNode,
+                        textInputAction: TextInputAction.done,
+                        inputFormatters: [UpperCaseFormatter()],
+                        decoration: const InputDecoration(
+                          labelText: 'Mensagem (tráfego)',
+                        ),
+                        validator: _required,
+                        autovalidateMode: AutovalidateMode.onUserInteraction,
+                      ),
+                    ],
+                    const SizedBox(height: 18),
+                    SizedBox(
+                      width: double.infinity,
+                      child: FilledButton.icon(
+                        onPressed: _register,
+                        icon: const Icon(Icons.add),
+                        label: const Text('Registrar log'),
+                      ),
+                    ),
+                  ],
+                ),
               ),
-            ),
+            if (_networkStartedAt != null) ...[
+              const SizedBox(height: 12),
+              SizedBox(
+                width: double.infinity,
+                child: OutlinedButton.icon(
+                  onPressed: _closeNetwork,
+                  icon: const Icon(Icons.power_settings_new),
+                  label: const Text('Fazer encerramento da rede'),
+                  style: OutlinedButton.styleFrom(
+                    backgroundColor: Colors.white,
+                    foregroundColor: Theme.of(context).colorScheme.primary,
+                  ),
+                ),
+              ),
+            ],
             const SizedBox(height: 28),
             StreamBuilder<List<LogEntry>>(
               stream: widget.database.watchLogs(),
@@ -884,147 +945,178 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       ),
                     ),
                     const SizedBox(height: 8),
-                    ...entries.map(
-                      (entry) => Dismissible(
-                        key: ValueKey('saved-log-${entry.id}'),
-                        direction: DismissDirection.endToStart,
-                        background: Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: 20),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.errorContainer,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Icon(
-                            Icons.delete_outline,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onErrorContainer,
-                          ),
-                        ),
-                        confirmDismiss: (_) async {
-                          final confirmed = await _confirmDeleteLog(entry);
-                          if (confirmed) {
-                            await widget.database.deleteLog(entry.id);
-                          }
-                          return confirmed;
-                        },
-                        child: Card(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            side: BorderSide(
-                              color: Theme.of(
-                                context,
-                              ).dividerColor.withValues(alpha: 0.55),
+                    ...entries.asMap().entries.map((indexed) {
+                      final entry = indexed.value;
+                      final previous = indexed.key == 0
+                          ? null
+                          : entries[indexed.key - 1];
+                      return Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (previous == null ||
+                              previous.networkStartedAt !=
+                                  entry.networkStartedAt)
+                            Padding(
+                              padding: const EdgeInsets.only(
+                                top: 12,
+                                bottom: 6,
+                              ),
+                              child: Text(
+                                _networkTitle(entry.networkStartedAt),
+                                style: Theme.of(context).textTheme.titleSmall
+                                    ?.copyWith(fontWeight: FontWeight.w700),
+                              ),
                             ),
-                          ),
-                          child: ListTile(
-                            onTap: () => _editLog(entry),
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 4,
+                          Dismissible(
+                            key: ValueKey('saved-log-${entry.id}'),
+                            direction: DismissDirection.endToStart,
+                            background: Container(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              alignment: Alignment.centerRight,
+                              padding: const EdgeInsets.only(right: 20),
+                              decoration: BoxDecoration(
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.errorContainer,
+                                borderRadius: BorderRadius.circular(14),
+                              ),
+                              child: Icon(
+                                Icons.delete_outline,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onErrorContainer,
+                              ),
                             ),
-                            title: Row(
-                              children: [
-                                Expanded(
-                                  child: RichText(
-                                    overflow: TextOverflow.ellipsis,
-                                    text: TextSpan(
-                                      style: DefaultTextStyle.of(context).style,
-                                      children: [
-                                        TextSpan(
-                                          text:
-                                              '${entry.callsign} · ${entry.operatorName}',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .titleMedium
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                        ),
-                                        if (entry.via.trim().isNotEmpty) ...[
-                                          const TextSpan(text: '  '),
-                                          _viaTitleSpan(
-                                            context,
-                                            allEntries,
-                                            entry.via,
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Icon(
-                                  Icons.schedule,
-                                  size: 15,
+                            confirmDismiss: (_) async {
+                              final confirmed = await _confirmDeleteLog(entry);
+                              if (confirmed) {
+                                await widget.database.deleteLog(entry.id);
+                              }
+                              return confirmed;
+                            },
+                            child: Card(
+                              margin: const EdgeInsets.only(bottom: 8),
+                              elevation: 0,
+                              shape: RoundedRectangleBorder(
+                                borderRadius: BorderRadius.circular(14),
+                                side: BorderSide(
                                   color: Theme.of(
                                     context,
-                                  ).colorScheme.onSurfaceVariant,
+                                  ).dividerColor.withValues(alpha: 0.55),
                                 ),
-                                const SizedBox(width: 3),
-                                Text(
-                                  _formatDate(entry.createdAt),
-                                  style: Theme.of(context).textTheme.labelSmall,
+                              ),
+                              child: ListTile(
+                                onTap: () => _editLog(entry),
+                                contentPadding: const EdgeInsets.symmetric(
+                                  horizontal: 14,
+                                  vertical: 4,
                                 ),
-                              ],
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
+                                title: Row(
                                   children: [
-                                    const Icon(Icons.bolt, size: 16),
-                                    const SizedBox(width: 4),
-                                    Text(_energyLabel(entry.energy)),
-                                    const SizedBox(width: 8),
-                                    const Text('·'),
-                                    const SizedBox(width: 8),
-                                    const Icon(Icons.power, size: 16),
-                                    const SizedBox(width: 4),
-                                    Text('${entry.powerWatts} W'),
-                                    const SizedBox(width: 8),
-                                    const Text('·'),
-                                    const SizedBox(width: 8),
-                                    const Icon(Icons.radio, size: 16),
-                                    const SizedBox(width: 4),
-                                    Text(_stationLabel(entry.stationType)),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                _contactMeta(entry),
-                                if (entry.traffic == 'C' &&
-                                    entry.trafficMessage.isNotEmpty)
-                                  Container(
-                                    margin: const EdgeInsets.only(top: 8),
-                                    padding: const EdgeInsets.only(top: 8),
-                                    decoration: BoxDecoration(
-                                      border: Border(
-                                        top: BorderSide(
-                                          color: Theme.of(
+                                    Expanded(
+                                      child: RichText(
+                                        overflow: TextOverflow.ellipsis,
+                                        text: TextSpan(
+                                          style: DefaultTextStyle.of(
                                             context,
-                                          ).colorScheme.outlineVariant,
-                                          width: 1,
+                                          ).style,
+                                          children: [
+                                            TextSpan(
+                                              text:
+                                                  '${entry.callsign} · ${entry.operatorName}',
+                                              style: Theme.of(context)
+                                                  .textTheme
+                                                  .titleMedium
+                                                  ?.copyWith(
+                                                    fontWeight: FontWeight.w700,
+                                                  ),
+                                            ),
+                                            if (entry.via
+                                                .trim()
+                                                .isNotEmpty) ...[
+                                              const TextSpan(text: '  '),
+                                              _viaTitleSpan(
+                                                context,
+                                                allEntries,
+                                                entry.via,
+                                              ),
+                                            ],
+                                          ],
                                         ),
                                       ),
                                     ),
-                                    width: double.infinity,
-                                    child: Text(
-                                      entry.trafficMessage,
-                                      style: const TextStyle(
-                                        fontFamily: 'monospace',
-                                      ),
+                                    const SizedBox(width: 8),
+                                    Icon(
+                                      Icons.schedule,
+                                      size: 15,
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
                                     ),
-                                  ),
-                              ],
+                                    const SizedBox(width: 3),
+                                    Text(
+                                      _formatDate(entry.createdAt),
+                                      style: Theme.of(
+                                        context,
+                                      ).textTheme.labelSmall,
+                                    ),
+                                  ],
+                                ),
+                                subtitle: Column(
+                                  crossAxisAlignment: CrossAxisAlignment.start,
+                                  children: [
+                                    Row(
+                                      children: [
+                                        const Icon(Icons.bolt, size: 16),
+                                        const SizedBox(width: 4),
+                                        Text(_energyLabel(entry.energy)),
+                                        const SizedBox(width: 8),
+                                        const Text('·'),
+                                        const SizedBox(width: 8),
+                                        const Icon(Icons.power, size: 16),
+                                        const SizedBox(width: 4),
+                                        Text('${entry.powerWatts} W'),
+                                        const SizedBox(width: 8),
+                                        const Text('·'),
+                                        const SizedBox(width: 8),
+                                        const Icon(Icons.radio, size: 16),
+                                        const SizedBox(width: 4),
+                                        Text(_stationLabel(entry.stationType)),
+                                      ],
+                                    ),
+                                    const SizedBox(height: 4),
+                                    _contactMeta(entry),
+                                    if (entry.traffic == 'C' &&
+                                        entry.trafficMessage.isNotEmpty)
+                                      Container(
+                                        margin: const EdgeInsets.only(top: 8),
+                                        padding: const EdgeInsets.only(top: 8),
+                                        decoration: BoxDecoration(
+                                          border: Border(
+                                            top: BorderSide(
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.outlineVariant,
+                                              width: 1,
+                                            ),
+                                          ),
+                                        ),
+                                        width: double.infinity,
+                                        child: Text(
+                                          entry.trafficMessage,
+                                          style: const TextStyle(
+                                            fontFamily: 'monospace',
+                                          ),
+                                        ),
+                                      ),
+                                  ],
+                                ),
+                              ),
                             ),
                           ),
-                        ),
-                      ),
-                    ),
+                        ],
+                      );
+                    }),
                   ],
                 );
               },
@@ -1129,6 +1221,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       stationType: _choiceCode(station.text),
       traffic: _choiceCode(traffic.text),
       trafficMessage: trafficMessage.text.trim(),
+      networkStartedAt: _networkStartedAt,
     );
     if (mounted) {
       setState(() {
@@ -1176,6 +1269,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   String _formatDate(DateTime value) =>
       TimeDisplay.of(context).format(value, compact: true);
+
+  String _networkTitle(DateTime? startedAt) {
+    if (startedAt == null) return 'Rede sem sessão';
+    final displayed = TimeDisplay.of(context).format(startedAt);
+    final parts = displayed.split(' ');
+    final date = parts.first;
+    final time = parts.length > 1 ? parts[1] : '';
+    final dateParts = date.split('/');
+    final now = DateTime.now();
+    final year = dateParts.length == 3 && dateParts[2] == now.year.toString()
+        ? ''
+        : '/${dateParts.length == 3 ? dateParts[2] : ''}';
+    return 'Rede ${dateParts[0]}/${dateParts[1]}$year ${time.substring(0, math.min(5, time.length))}';
+  }
 
   String _operatorNameFor(List<LogEntry> entries, String callsign) {
     final match = entries

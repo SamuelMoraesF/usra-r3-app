@@ -31,6 +31,14 @@ class LogEntries extends Table {
   TextColumn get stationType => text()();
   TextColumn get traffic => text()();
   TextColumn get trafficMessage => text().withDefault(const Constant(''))();
+  IntColumn get networkStartedAt => integer()
+      .nullable()
+      .named('network_started_at_utc')
+      .map(const UtcDateTimeConverter())();
+  IntColumn get networkEndedAt => integer()
+      .nullable()
+      .named('network_ended_at_utc')
+      .map(const UtcDateTimeConverter())();
 }
 
 @DriftDatabase(tables: [LogEntries])
@@ -49,7 +57,7 @@ class UsraDatabase extends _$UsraDatabase {
   UsraDatabase.test(super.e);
 
   @override
-  int get schemaVersion => 10;
+  int get schemaVersion => 11;
 
   @override
   MigrationStrategy get migration => MigrationStrategy(
@@ -89,6 +97,8 @@ class UsraDatabase extends _$UsraDatabase {
         );
       }
       if (from < 10) {
+        await m.addColumn(logEntries, logEntries.networkStartedAt);
+        await m.addColumn(logEntries, logEntries.networkEndedAt);
         // Legacy Drift DateTime columns are Unix seconds, already absolute
         // instants. Preserve them while moving to explicit UTC microseconds;
         // never apply the device's offset to existing records.
@@ -102,6 +112,10 @@ class UsraDatabase extends _$UsraDatabase {
             },
           ),
         );
+      }
+      if (from < 11 && from >= 10) {
+        await m.addColumn(logEntries, logEntries.networkStartedAt);
+        await m.addColumn(logEntries, logEntries.networkEndedAt);
       }
     },
   );
@@ -120,6 +134,8 @@ class UsraDatabase extends _$UsraDatabase {
     required String stationType,
     required String traffic,
     String trafficMessage = '',
+    DateTime? networkStartedAt,
+    DateTime? networkEndedAt,
   }) {
     return into(logEntries).insert(
       LogEntriesCompanion.insert(
@@ -139,6 +155,8 @@ class UsraDatabase extends _$UsraDatabase {
         stationType: stationType,
         traffic: traffic,
         trafficMessage: Value(trafficMessage),
+        networkStartedAt: Value(networkStartedAt),
+        networkEndedAt: Value(networkEndedAt),
       ),
     );
   }
@@ -217,11 +235,65 @@ class UsraDatabase extends _$UsraDatabase {
     logEntries,
   )..orderBy([(entry) => OrderingTerm.asc(entry.createdAt)])).get();
 
+  Future<void> closeNetwork(DateTime startedAt, DateTime endedAt) async {
+    await (update(logEntries)
+          ..where((e) => e.networkStartedAt.equalsValue(startedAt)))
+        .write(LogEntriesCompanion(networkEndedAt: Value(endedAt.toUtc())));
+  }
+
   Future<void> importLogs(List<LogEntriesCompanion> entries) async {
+    final normalized = _mergeImportedNetworks(entries);
     await transaction(() async {
       await batch((batch) {
-        batch.insertAll(logEntries, entries);
+        batch.insertAll(logEntries, normalized);
       });
     });
+  }
+
+  List<LogEntriesCompanion> _mergeImportedNetworks(
+    List<LogEntriesCompanion> entries,
+  ) {
+    final intervals = <({DateTime start, DateTime end})>[];
+    for (final entry in entries) {
+      final start = entry.networkStartedAt.value?.toUtc();
+      final end = entry.networkEndedAt.value?.toUtc() ?? start;
+      if (start == null || end == null) continue;
+      var mergedStart = start.isBefore(end) ? start : end;
+      var mergedEnd = start.isBefore(end) ? end : start;
+      var changed = true;
+      while (changed) {
+        changed = false;
+        for (final existing in intervals.toList()) {
+          if (!mergedEnd.isBefore(existing.start) &&
+              !mergedStart.isAfter(existing.end)) {
+            mergedStart = mergedStart.isBefore(existing.start)
+                ? mergedStart
+                : existing.start;
+            mergedEnd = mergedEnd.isAfter(existing.end)
+                ? mergedEnd
+                : existing.end;
+            intervals.remove(existing);
+            changed = true;
+          }
+        }
+      }
+      intervals.add((start: mergedStart, end: mergedEnd));
+    }
+    return entries.map((entry) {
+      final start = entry.networkStartedAt.value?.toUtc();
+      final end = entry.networkEndedAt.value?.toUtc();
+      if (start == null) return entry;
+      final matching = intervals.where(
+        (interval) =>
+            !interval.end.isBefore(start) &&
+            (end == null || !interval.start.isAfter(end)),
+      );
+      if (matching.isEmpty) return entry;
+      final interval = matching.first;
+      return entry.copyWith(
+        networkStartedAt: Value(interval.start),
+        networkEndedAt: Value(interval.end),
+      );
+    }).toList();
   }
 }

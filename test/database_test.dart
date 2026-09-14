@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:drift/drift.dart' show Value;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:usra_r3/data/database.dart';
@@ -123,6 +124,55 @@ void main() {
       isNull,
     );
   });
+
+  test(
+    'persists network session bounds and merges overlapping imports',
+    () async {
+      final firstStart = DateTime.utc(2026, 9, 13, 10);
+      final firstEnd = DateTime.utc(2026, 9, 13, 12);
+      final secondStart = DateTime.utc(2026, 9, 13, 11);
+      final secondEnd = DateTime.utc(2026, 9, 13, 13);
+      await database.importLogs([
+        LogEntriesCompanion.insert(
+          createdAt: firstStart,
+          callsign: 'PY3AA',
+          operatorName: 'A',
+          location: 'GG30CH',
+          operatorGrid: 'GG30DH',
+          powerWatts: 5,
+          stationType: 'P',
+          traffic: 'S',
+          networkStartedAt: Value(firstStart),
+          networkEndedAt: Value(firstEnd),
+        ),
+        LogEntriesCompanion.insert(
+          createdAt: secondStart,
+          callsign: 'PY3BB',
+          operatorName: 'B',
+          location: 'GG30CH',
+          operatorGrid: 'GG30DH',
+          powerWatts: 5,
+          stationType: 'P',
+          traffic: 'S',
+          networkStartedAt: Value(secondStart),
+          networkEndedAt: Value(secondEnd),
+        ),
+      ]);
+      final entries = await database.allLogs();
+      expect(entries.map((e) => e.networkStartedAt), [firstStart, firstStart]);
+      expect(entries.map((e) => e.networkEndedAt), [secondEnd, secondEnd]);
+      final csv = logsToCsv(entries);
+      expect(csv, contains('network_started_at'));
+      expect(
+        csvToLogCompanions(csv).every(
+          (e) =>
+              e.networkStartedAt.value == firstStart &&
+              e.networkEndedAt.value == secondEnd,
+        ),
+        isTrue,
+      );
+    },
+  );
 
   test(
     'version 8 migration preserves records and backfills known MHz without inventing repeater grids',

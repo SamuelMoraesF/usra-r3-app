@@ -175,6 +175,24 @@ class $LogEntriesTable extends LogEntries
     defaultValue: const Constant(''),
   );
   @override
+  late final GeneratedColumnWithTypeConverter<DateTime?, int> networkStartedAt =
+      GeneratedColumn<int>(
+        'network_started_at_utc',
+        aliasedName,
+        true,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+      ).withConverter<DateTime?>($LogEntriesTable.$converternetworkStartedAtn);
+  @override
+  late final GeneratedColumnWithTypeConverter<DateTime?, int> networkEndedAt =
+      GeneratedColumn<int>(
+        'network_ended_at_utc',
+        aliasedName,
+        true,
+        type: DriftSqlType.int,
+        requiredDuringInsert: false,
+      ).withConverter<DateTime?>($LogEntriesTable.$converternetworkEndedAtn);
+  @override
   List<GeneratedColumn> get $columns => [
     id,
     createdAt,
@@ -191,6 +209,8 @@ class $LogEntriesTable extends LogEntries
     stationType,
     traffic,
     trafficMessage,
+    networkStartedAt,
+    networkEndedAt,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -388,6 +408,18 @@ class $LogEntriesTable extends LogEntries
         DriftSqlType.string,
         data['${effectivePrefix}traffic_message'],
       )!,
+      networkStartedAt: $LogEntriesTable.$converternetworkStartedAtn.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}network_started_at_utc'],
+        ),
+      ),
+      networkEndedAt: $LogEntriesTable.$converternetworkEndedAtn.fromSql(
+        attachedDatabase.typeMapping.read(
+          DriftSqlType.int,
+          data['${effectivePrefix}network_ended_at_utc'],
+        ),
+      ),
     );
   }
 
@@ -398,6 +430,14 @@ class $LogEntriesTable extends LogEntries
 
   static TypeConverter<DateTime, int> $convertercreatedAt =
       const UtcDateTimeConverter();
+  static TypeConverter<DateTime, int> $converternetworkStartedAt =
+      const UtcDateTimeConverter();
+  static TypeConverter<DateTime?, int?> $converternetworkStartedAtn =
+      NullAwareTypeConverter.wrap($converternetworkStartedAt);
+  static TypeConverter<DateTime, int> $converternetworkEndedAt =
+      const UtcDateTimeConverter();
+  static TypeConverter<DateTime?, int?> $converternetworkEndedAtn =
+      NullAwareTypeConverter.wrap($converternetworkEndedAt);
 }
 
 class LogEntry extends DataClass implements Insertable<LogEntry> {
@@ -416,6 +456,8 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
   final String stationType;
   final String traffic;
   final String trafficMessage;
+  final DateTime? networkStartedAt;
+  final DateTime? networkEndedAt;
   const LogEntry({
     required this.id,
     required this.createdAt,
@@ -432,6 +474,8 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     required this.stationType,
     required this.traffic,
     required this.trafficMessage,
+    this.networkStartedAt,
+    this.networkEndedAt,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -459,6 +503,16 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     map['station_type'] = Variable<String>(stationType);
     map['traffic'] = Variable<String>(traffic);
     map['traffic_message'] = Variable<String>(trafficMessage);
+    if (!nullToAbsent || networkStartedAt != null) {
+      map['network_started_at_utc'] = Variable<int>(
+        $LogEntriesTable.$converternetworkStartedAtn.toSql(networkStartedAt),
+      );
+    }
+    if (!nullToAbsent || networkEndedAt != null) {
+      map['network_ended_at_utc'] = Variable<int>(
+        $LogEntriesTable.$converternetworkEndedAtn.toSql(networkEndedAt),
+      );
+    }
     return map;
   }
 
@@ -483,6 +537,12 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
       stationType: Value(stationType),
       traffic: Value(traffic),
       trafficMessage: Value(trafficMessage),
+      networkStartedAt: networkStartedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(networkStartedAt),
+      networkEndedAt: networkEndedAt == null && nullToAbsent
+          ? const Value.absent()
+          : Value(networkEndedAt),
     );
   }
 
@@ -507,6 +567,10 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
       stationType: serializer.fromJson<String>(json['stationType']),
       traffic: serializer.fromJson<String>(json['traffic']),
       trafficMessage: serializer.fromJson<String>(json['trafficMessage']),
+      networkStartedAt: serializer.fromJson<DateTime?>(
+        json['networkStartedAt'],
+      ),
+      networkEndedAt: serializer.fromJson<DateTime?>(json['networkEndedAt']),
     );
   }
   @override
@@ -528,6 +592,8 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
       'stationType': serializer.toJson<String>(stationType),
       'traffic': serializer.toJson<String>(traffic),
       'trafficMessage': serializer.toJson<String>(trafficMessage),
+      'networkStartedAt': serializer.toJson<DateTime?>(networkStartedAt),
+      'networkEndedAt': serializer.toJson<DateTime?>(networkEndedAt),
     };
   }
 
@@ -547,6 +613,8 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     String? stationType,
     String? traffic,
     String? trafficMessage,
+    Value<DateTime?> networkStartedAt = const Value.absent(),
+    Value<DateTime?> networkEndedAt = const Value.absent(),
   }) => LogEntry(
     id: id ?? this.id,
     createdAt: createdAt ?? this.createdAt,
@@ -563,6 +631,12 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     stationType: stationType ?? this.stationType,
     traffic: traffic ?? this.traffic,
     trafficMessage: trafficMessage ?? this.trafficMessage,
+    networkStartedAt: networkStartedAt.present
+        ? networkStartedAt.value
+        : this.networkStartedAt,
+    networkEndedAt: networkEndedAt.present
+        ? networkEndedAt.value
+        : this.networkEndedAt,
   );
   LogEntry copyWithCompanion(LogEntriesCompanion data) {
     return LogEntry(
@@ -595,6 +669,12 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
       trafficMessage: data.trafficMessage.present
           ? data.trafficMessage.value
           : this.trafficMessage,
+      networkStartedAt: data.networkStartedAt.present
+          ? data.networkStartedAt.value
+          : this.networkStartedAt,
+      networkEndedAt: data.networkEndedAt.present
+          ? data.networkEndedAt.value
+          : this.networkEndedAt,
     );
   }
 
@@ -615,7 +695,9 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
           ..write('powerWatts: $powerWatts, ')
           ..write('stationType: $stationType, ')
           ..write('traffic: $traffic, ')
-          ..write('trafficMessage: $trafficMessage')
+          ..write('trafficMessage: $trafficMessage, ')
+          ..write('networkStartedAt: $networkStartedAt, ')
+          ..write('networkEndedAt: $networkEndedAt')
           ..write(')'))
         .toString();
   }
@@ -637,6 +719,8 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
     stationType,
     traffic,
     trafficMessage,
+    networkStartedAt,
+    networkEndedAt,
   );
   @override
   bool operator ==(Object other) =>
@@ -656,7 +740,9 @@ class LogEntry extends DataClass implements Insertable<LogEntry> {
           other.powerWatts == this.powerWatts &&
           other.stationType == this.stationType &&
           other.traffic == this.traffic &&
-          other.trafficMessage == this.trafficMessage);
+          other.trafficMessage == this.trafficMessage &&
+          other.networkStartedAt == this.networkStartedAt &&
+          other.networkEndedAt == this.networkEndedAt);
 }
 
 class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
@@ -675,6 +761,8 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
   final Value<String> stationType;
   final Value<String> traffic;
   final Value<String> trafficMessage;
+  final Value<DateTime?> networkStartedAt;
+  final Value<DateTime?> networkEndedAt;
   const LogEntriesCompanion({
     this.id = const Value.absent(),
     this.createdAt = const Value.absent(),
@@ -691,6 +779,8 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     this.stationType = const Value.absent(),
     this.traffic = const Value.absent(),
     this.trafficMessage = const Value.absent(),
+    this.networkStartedAt = const Value.absent(),
+    this.networkEndedAt = const Value.absent(),
   });
   LogEntriesCompanion.insert({
     this.id = const Value.absent(),
@@ -708,6 +798,8 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     required String stationType,
     required String traffic,
     this.trafficMessage = const Value.absent(),
+    this.networkStartedAt = const Value.absent(),
+    this.networkEndedAt = const Value.absent(),
   }) : createdAt = Value(createdAt),
        callsign = Value(callsign),
        operatorName = Value(operatorName),
@@ -732,6 +824,8 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     Expression<String>? stationType,
     Expression<String>? traffic,
     Expression<String>? trafficMessage,
+    Expression<int>? networkStartedAt,
+    Expression<int>? networkEndedAt,
   }) {
     return RawValuesInsertable({
       if (id != null) 'id': id,
@@ -749,6 +843,8 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
       if (stationType != null) 'station_type': stationType,
       if (traffic != null) 'traffic': traffic,
       if (trafficMessage != null) 'traffic_message': trafficMessage,
+      if (networkStartedAt != null) 'network_started_at_utc': networkStartedAt,
+      if (networkEndedAt != null) 'network_ended_at_utc': networkEndedAt,
     });
   }
 
@@ -768,6 +864,8 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     Value<String>? stationType,
     Value<String>? traffic,
     Value<String>? trafficMessage,
+    Value<DateTime?>? networkStartedAt,
+    Value<DateTime?>? networkEndedAt,
   }) {
     return LogEntriesCompanion(
       id: id ?? this.id,
@@ -785,6 +883,8 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
       stationType: stationType ?? this.stationType,
       traffic: traffic ?? this.traffic,
       trafficMessage: trafficMessage ?? this.trafficMessage,
+      networkStartedAt: networkStartedAt ?? this.networkStartedAt,
+      networkEndedAt: networkEndedAt ?? this.networkEndedAt,
     );
   }
 
@@ -838,6 +938,18 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
     if (trafficMessage.present) {
       map['traffic_message'] = Variable<String>(trafficMessage.value);
     }
+    if (networkStartedAt.present) {
+      map['network_started_at_utc'] = Variable<int>(
+        $LogEntriesTable.$converternetworkStartedAtn.toSql(
+          networkStartedAt.value,
+        ),
+      );
+    }
+    if (networkEndedAt.present) {
+      map['network_ended_at_utc'] = Variable<int>(
+        $LogEntriesTable.$converternetworkEndedAtn.toSql(networkEndedAt.value),
+      );
+    }
     return map;
   }
 
@@ -858,7 +970,9 @@ class LogEntriesCompanion extends UpdateCompanion<LogEntry> {
           ..write('powerWatts: $powerWatts, ')
           ..write('stationType: $stationType, ')
           ..write('traffic: $traffic, ')
-          ..write('trafficMessage: $trafficMessage')
+          ..write('trafficMessage: $trafficMessage, ')
+          ..write('networkStartedAt: $networkStartedAt, ')
+          ..write('networkEndedAt: $networkEndedAt')
           ..write(')'))
         .toString();
   }
@@ -892,6 +1006,8 @@ typedef $$LogEntriesTableCreateCompanionBuilder =
       required String stationType,
       required String traffic,
       Value<String> trafficMessage,
+      Value<DateTime?> networkStartedAt,
+      Value<DateTime?> networkEndedAt,
     });
 typedef $$LogEntriesTableUpdateCompanionBuilder =
     LogEntriesCompanion Function({
@@ -910,6 +1026,8 @@ typedef $$LogEntriesTableUpdateCompanionBuilder =
       Value<String> stationType,
       Value<String> traffic,
       Value<String> trafficMessage,
+      Value<DateTime?> networkStartedAt,
+      Value<DateTime?> networkEndedAt,
     });
 
 class $$LogEntriesTableFilterComposer
@@ -996,6 +1114,18 @@ class $$LogEntriesTableFilterComposer
     column: $table.trafficMessage,
     builder: (column) => ColumnFilters(column),
   );
+
+  ColumnWithTypeConverterFilters<DateTime?, DateTime, int>
+  get networkStartedAt => $composableBuilder(
+    column: $table.networkStartedAt,
+    builder: (column) => ColumnWithTypeConverterFilters(column),
+  );
+
+  ColumnWithTypeConverterFilters<DateTime?, DateTime, int> get networkEndedAt =>
+      $composableBuilder(
+        column: $table.networkEndedAt,
+        builder: (column) => ColumnWithTypeConverterFilters(column),
+      );
 }
 
 class $$LogEntriesTableOrderingComposer
@@ -1081,6 +1211,16 @@ class $$LogEntriesTableOrderingComposer
     column: $table.trafficMessage,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<int> get networkStartedAt => $composableBuilder(
+    column: $table.networkStartedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
+
+  ColumnOrderings<int> get networkEndedAt => $composableBuilder(
+    column: $table.networkEndedAt,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$LogEntriesTableAnnotationComposer
@@ -1150,6 +1290,18 @@ class $$LogEntriesTableAnnotationComposer
     column: $table.trafficMessage,
     builder: (column) => column,
   );
+
+  GeneratedColumnWithTypeConverter<DateTime?, int> get networkStartedAt =>
+      $composableBuilder(
+        column: $table.networkStartedAt,
+        builder: (column) => column,
+      );
+
+  GeneratedColumnWithTypeConverter<DateTime?, int> get networkEndedAt =>
+      $composableBuilder(
+        column: $table.networkEndedAt,
+        builder: (column) => column,
+      );
 }
 
 class $$LogEntriesTableTableManager
@@ -1198,6 +1350,8 @@ class $$LogEntriesTableTableManager
                 Value<String> stationType = const Value.absent(),
                 Value<String> traffic = const Value.absent(),
                 Value<String> trafficMessage = const Value.absent(),
+                Value<DateTime?> networkStartedAt = const Value.absent(),
+                Value<DateTime?> networkEndedAt = const Value.absent(),
               }) => LogEntriesCompanion(
                 id: id,
                 createdAt: createdAt,
@@ -1214,6 +1368,8 @@ class $$LogEntriesTableTableManager
                 stationType: stationType,
                 traffic: traffic,
                 trafficMessage: trafficMessage,
+                networkStartedAt: networkStartedAt,
+                networkEndedAt: networkEndedAt,
               ),
           createCompanionCallback:
               ({
@@ -1232,6 +1388,8 @@ class $$LogEntriesTableTableManager
                 required String stationType,
                 required String traffic,
                 Value<String> trafficMessage = const Value.absent(),
+                Value<DateTime?> networkStartedAt = const Value.absent(),
+                Value<DateTime?> networkEndedAt = const Value.absent(),
               }) => LogEntriesCompanion.insert(
                 id: id,
                 createdAt: createdAt,
@@ -1248,6 +1406,8 @@ class $$LogEntriesTableTableManager
                 stationType: stationType,
                 traffic: traffic,
                 trafficMessage: trafficMessage,
+                networkStartedAt: networkStartedAt,
+                networkEndedAt: networkEndedAt,
               ),
           withReferenceMapper: (p0) => p0
               .map(
