@@ -1243,21 +1243,14 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               map: map,
               form: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: formChildren,
+                children: [...formChildren, const SizedBox(height: 8)],
               ),
               logs: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   header,
                   const SizedBox(height: 8),
-                  Align(
-                    alignment: Alignment.centerRight,
-                    child: FittedBox(
-                      fit: BoxFit.scaleDown,
-                      alignment: Alignment.centerRight,
-                      child: frequencySwitch,
-                    ),
-                  ),
+                  SizedBox(width: double.infinity, child: frequencySwitch),
                   const SizedBox(height: 8),
                   SizedBox(
                     width: double.infinity,
@@ -1428,8 +1421,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     icon: const Icon(Icons.power_settings_new),
     label: Text(compact ? 'Fechar rede' : 'Fazer encerramento da rede'),
     style: OutlinedButton.styleFrom(
-      backgroundColor: Colors.white,
+      backgroundColor: Theme.of(context).brightness == Brightness.dark
+          ? Theme.of(context).colorScheme.surfaceContainerHighest
+          : Colors.white,
       foregroundColor: Theme.of(context).colorScheme.primary,
+      side: BorderSide(color: Theme.of(context).colorScheme.primary),
     ),
   );
 
