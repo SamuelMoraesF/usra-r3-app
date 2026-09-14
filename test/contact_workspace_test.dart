@@ -40,24 +40,16 @@ void main() {
       find.descendant(of: logs, matching: find.text('Registros salvos')),
       findsOneWidget,
     );
-    expect(tester.getRect(form).top, greaterThan(tester.getRect(map).bottom));
+    expect(
+      tester.getRect(form).top,
+      greaterThanOrEqualTo(tester.getRect(map).bottom),
+    );
     expect(tester.getRect(logs).left, greaterThan(tester.getRect(map).right));
     expect(tester.getRect(logs).top, 0);
-
-    await tester.drag(
-      find.byKey(const ValueKey('form-resize')),
-      const Offset(0, -600),
-    );
-    await tester.pumpAndSettle();
+    expect(find.byKey(const ValueKey('form-resize')), findsNothing);
     // 460 pixels of form plus the panel's 16 pixels of vertical padding.
     expect(tester.getSize(form).height, 476);
     expect(tester.getSize(map).height, greaterThan(0));
-    await tester.drag(
-      find.byKey(const ValueKey('form-resize')),
-      const Offset(0, 600),
-    );
-    await tester.pumpAndSettle();
-    expect(tester.getSize(form).height, 160);
     final originalWidth = tester.getSize(logs).width;
     await tester.drag(
       find.byKey(const ValueKey('logs-resize')),
@@ -96,11 +88,6 @@ void main() {
 
     final form = find.byKey(const ValueKey('contact-form-panel'));
     await showForm(600);
-    await tester.drag(
-      find.byKey(const ValueKey('form-resize')),
-      const Offset(0, -600),
-    );
-    await tester.pumpAndSettle();
     expect(tester.getSize(form).height, 616);
     await showForm(100);
     expect(tester.getSize(form).height, 116);

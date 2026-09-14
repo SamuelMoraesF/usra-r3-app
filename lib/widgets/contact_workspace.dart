@@ -23,7 +23,6 @@ class ContactWorkspace extends StatefulWidget {
 }
 
 class _ContactWorkspaceState extends State<ContactWorkspace> {
-  double _formHeight = 390;
   double? _contentHeight;
   double _logsWidth = 440;
 
@@ -31,12 +30,10 @@ class _ContactWorkspaceState extends State<ContactWorkspace> {
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, constraints) {
       const dividerSize = 16.0;
-      final maxFormHeight = math.min(
-        _contentHeight ?? _formHeight,
-        math.max(0.0, constraints.maxHeight - 160 - dividerSize),
+      final formHeight = math.min(
+        _contentHeight ?? 390,
+        math.max(0.0, constraints.maxHeight - 160),
       );
-      final minFormHeight = math.min(160.0, maxFormHeight);
-      final formHeight = _formHeight.clamp(minFormHeight, maxFormHeight);
       final maxLogsWidth = math.max(
         300.0,
         constraints.maxWidth - 360 - dividerSize,
@@ -49,16 +46,6 @@ class _ContactWorkspaceState extends State<ContactWorkspace> {
             child: Column(
               children: [
                 Expanded(child: widget.map),
-                _ResizeHandle(
-                  key: const ValueKey('form-resize'),
-                  vertical: false,
-                  onDrag: (delta) => setState(() {
-                    _formHeight = (formHeight - delta.dy).clamp(
-                      minFormHeight,
-                      maxFormHeight,
-                    );
-                  }),
-                ),
                 SizedBox(
                   key: const ValueKey('contact-form-panel'),
                   height: formHeight,
