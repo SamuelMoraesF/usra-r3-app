@@ -88,12 +88,14 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
   bool _elevationLayerReady = false;
   bool _elevationDrawing = false;
   bool _elevationRedrawRequested = false;
+  Timer? _styleReloadFallback;
+  int _styleReloadGeneration = 0;
 
   @override
   void didChangeDependencies() {
     super.didChangeDependencies();
     final colors = Theme.of(context).colorScheme;
-    if (_mapColors == colors) return;
+    if (_mapColors?.brightness == colors.brightness) return;
     _mapColors = colors;
     final source = _sourceStyle;
     if (source != null) {
@@ -101,14 +103,30 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
       _cachedStyle = themedMapStyle(source, colors);
       final map = controller;
       if (map != null) {
-        unawaited(_applyThemeStyle(map, _cachedStyle!));
+        final generation = ++_styleReloadGeneration;
+        _styleReloadFallback?.cancel();
+        unawaited(_applyThemeStyle(map, _cachedStyle!, generation));
       }
     }
   }
 
-  Future<void> _applyThemeStyle(MapLibreMapController map, String style) async {
+  Future<void> _applyThemeStyle(
+    MapLibreMapController map,
+    String style,
+    int generation,
+  ) async {
     try {
       await map.setStyle(style);
+      // Some platform implementations return from setStyle before emitting
+      // the style-loaded event. Keep a fallback so annotations are restored
+      // even when that event is delayed or omitted.
+      _styleReloadFallback = Timer(const Duration(milliseconds: 500), () {
+        if (!mounted || generation != _styleReloadGeneration || _styleReady) {
+          return;
+        }
+        _styleReady = true;
+        unawaited(_drawContacts());
+      });
     } catch (_) {
       if (!mounted) return;
       _styleReady = true;
@@ -252,6 +270,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
     _expiryTimer?.cancel();
+    _styleReloadFallback?.cancel();
     final map = controller;
     map?.onCircleTapped.remove(_onCircleTapped);
     map?.onSymbolTapped.remove(_onSymbolTapped);
@@ -304,6 +323,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
             onCameraMove: _onCameraMove,
             onCameraIdle: _onCameraIdle,
             onStyleLoadedCallback: () {
+              _styleReloadFallback?.cancel();
               _distanceLayerReady = false;
               _callsignLayerReady = false;
               _labelImages.clear();
