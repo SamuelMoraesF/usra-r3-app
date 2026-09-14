@@ -44,5 +44,14 @@ void main() {
         'precisão de 40 m',
       );
     });
+
+    test(
+      'rejects syntactically valid grids whose bounds cross the coordinate edge',
+      () {
+        const edge = 'RR99XX99XX';
+        expect(GridLocator.inspect(edge).isValid, isFalse);
+        expect(GridLocator.bounds(edge), isNull);
+      },
+    );
   });
 }

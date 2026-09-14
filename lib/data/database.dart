@@ -1,5 +1,6 @@
 import 'package:drift/drift.dart';
 import 'package:drift_flutter/drift_flutter.dart';
+import '../grid_locator.dart';
 
 part 'database.g.dart';
 
@@ -137,6 +138,11 @@ class UsraDatabase extends _$UsraDatabase {
     DateTime? networkStartedAt,
     DateTime? networkEndedAt,
   }) {
+    _validateGridInput(location, 'localização');
+    _validateGridInput(operatorGrid, 'grid do operador');
+    if (repeaterGrid != null && repeaterGrid.isNotEmpty) {
+      _validateGridInput(repeaterGrid, 'grid da repetidora');
+    }
     return into(logEntries).insert(
       LogEntriesCompanion.insert(
         createdAt: DateTime.now().toUtc(),
@@ -183,6 +189,10 @@ class UsraDatabase extends _$UsraDatabase {
     required String traffic,
     String trafficMessage = '',
   }) async {
+    _validateGridInput(location, 'localização');
+    if (repeaterGrid != null && repeaterGrid.isNotEmpty) {
+      _validateGridInput(repeaterGrid, 'grid da repetidora');
+    }
     return await (update(
           logEntries,
         )..where((entry) => entry.id.equals(id))).write(
@@ -209,6 +219,13 @@ class UsraDatabase extends _$UsraDatabase {
           ),
         ) >
         0;
+  }
+
+  void _validateGridInput(String value, String label) {
+    if (GridLocator.looksLikeGrid(value) &&
+        !GridLocator.inspect(value).isValid) {
+      throw ArgumentError('Informe um $label Maidenhead válido.');
+    }
   }
 
   Stream<List<LogEntry>> watchLogs() => (select(

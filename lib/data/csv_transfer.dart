@@ -1,4 +1,5 @@
 import 'database.dart';
+import '../grid_locator.dart';
 import 'package:drift/drift.dart' show Value;
 
 const csvHeaders = [
@@ -100,6 +101,16 @@ List<LogEntriesCompanion> csvToLogCompanions(String source) {
     }
     if (createdAt == null || power == null || row[1].trim().isEmpty) {
       throw FormatException('Dados inválidos na linha ${index + 1}.');
+    }
+    for (final value in [
+      row[3],
+      row[4],
+      if (!legacy && row[11].isNotEmpty) row[11],
+    ]) {
+      if (GridLocator.looksLikeGrid(value) &&
+          !GridLocator.inspect(value).isValid) {
+        throw FormatException('Grid inválido na linha ${index + 1}.');
+      }
     }
     result.add(
       LogEntriesCompanion.insert(

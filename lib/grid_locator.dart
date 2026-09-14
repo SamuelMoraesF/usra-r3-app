@@ -10,6 +10,9 @@ class GridLocator {
     final normalized = value.trim().toUpperCase();
     final valid = _pattern.hasMatch(normalized) && _isAllowedLength(normalized);
     if (!valid) return const GridLocatorInfo.invalid();
+    if (_boundsForNormalized(normalized) == null) {
+      return const GridLocatorInfo.invalid();
+    }
 
     final pairLength = normalized.length;
     final accuracy = switch (pairLength) {
@@ -26,6 +29,9 @@ class GridLocator {
       accuracy: accuracy,
     );
   }
+
+  static bool looksLikeGrid(String value) =>
+      RegExp(r'^[A-Ra-r]{2}[0-9]{2}').hasMatch(value.trim());
 
   static String fromCoordinates(
     double latitude,
@@ -86,7 +92,10 @@ class GridLocator {
   static GridLocatorBounds? bounds(String value) {
     final info = inspect(value);
     if (!info.isValid) return null;
-    final grid = info.normalized;
+    return _boundsForNormalized(info.normalized);
+  }
+
+  static GridLocatorBounds? _boundsForNormalized(String grid) {
     var lon = (grid.codeUnitAt(0) - 65).toDouble();
     var lat = (grid.codeUnitAt(1) - 65).toDouble();
     var lonSize = 20.0;
@@ -115,12 +124,23 @@ class GridLocator {
       lonSize /= 24;
       latSize /= 24;
     }
-    return GridLocatorBounds(
+    final result = GridLocatorBounds(
       minLongitude: lon - 180,
       minLatitude: lat - 90,
       maxLongitude: lon + lonSize - 180,
       maxLatitude: lat + latSize - 90,
     );
+    // A tile touching the exact poles or antimeridian cannot be represented
+    // safely by the map camera, whose coordinates are strictly inside these
+    // bounds. Treat it as an invalid locator instead of letting the native map
+    // receive an out-of-range edge.
+    if (result.minLongitude <= -180 ||
+        result.maxLongitude >= 180 ||
+        result.minLatitude <= -90 ||
+        result.maxLatitude >= 90) {
+      return null;
+    }
+    return result;
   }
 
   static bool _isAllowedLength(String value) =>

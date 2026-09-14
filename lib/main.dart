@@ -1207,6 +1207,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Future<void> _register() async {
     if (!formKey.currentState!.validate()) return;
     final savedLocation = location.text.trim();
+    if (_rejectInvalidGrid(savedLocation, 'localização')) return;
+    if (_rejectInvalidGrid(widget.profile.grid, 'grid do operador')) return;
     await widget.database.saveLog(
       callsign: callsign.text.trim().toUpperCase(),
       via: via.text.trim().toUpperCase(),
@@ -1237,6 +1239,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         trafficMessage.clear();
       });
     }
+  }
+
+  bool _rejectInvalidGrid(String value, String label) {
+    if (!GridLocator.looksLikeGrid(value) ||
+        GridLocator.inspect(value).isValid) {
+      return false;
+    }
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(content: Text('Informe um $label Maidenhead válido.')),
+    );
+    return true;
   }
 
   void _onCallsignFocusChanged() {
@@ -1590,6 +1603,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               FilledButton(
                 onPressed: () async {
                   if (!key.currentState!.validate()) return;
+                  if (_rejectInvalidGrid(location.text.trim(), 'localização')) {
+                    return;
+                  }
+                  if (_rejectInvalidGrid(
+                    widget.profile.grid,
+                    'grid do operador',
+                  )) {
+                    return;
+                  }
                   await widget.database.updateLog(
                     id: entry.id,
                     frequency: editFrequency,
