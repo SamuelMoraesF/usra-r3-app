@@ -759,13 +759,48 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             ),
           ],
         );
+        final contactTitle = Text(
+          'Novo contato',
+          style: Theme.of(
+            context,
+          ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+        );
+        final frequencySwitch = SegmentedButton<String>(
+          segments: const [
+            ButtonSegment(
+              value: _repeaterFrequency,
+              label: _FrequencyLabel('Repetidora', '145.37'),
+            ),
+            ButtonSegment(
+              value: _simplexFrequency,
+              label: _FrequencyLabel('Simplex', '146.52'),
+            ),
+          ],
+          selected: {frequency},
+          onSelectionChanged: (value) => _setFrequency(value.first),
+        );
         final formChildren = <Widget>[
-          Text(
-            'Novo contato',
-            style: Theme.of(
-              context,
-            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
-          ),
+          if (useBottomPanels)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(child: contactTitle),
+                const SizedBox(width: 12),
+                Flexible(
+                  flex: 2,
+                  child: Align(
+                    alignment: Alignment.centerRight,
+                    child: FittedBox(
+                      fit: BoxFit.scaleDown,
+                      alignment: Alignment.centerRight,
+                      child: frequencySwitch,
+                    ),
+                  ),
+                ),
+              ],
+            )
+          else
+            contactTitle,
           const SizedBox(height: 6),
           Text(
             'Registre uma comunicação rapidamente.',
@@ -783,25 +818,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 label: const Text('Fazer abertura da rede'),
               ),
             ),
-          const SizedBox(height: 12),
-          SizedBox(
-            width: double.infinity,
-            child: SegmentedButton<String>(
-              segments: const [
-                ButtonSegment(
-                  value: _repeaterFrequency,
-                  label: _FrequencyLabel('Repetidora', '145.37'),
-                ),
-                ButtonSegment(
-                  value: _simplexFrequency,
-                  label: _FrequencyLabel('Simplex', '146.52'),
-                ),
-              ],
-              selected: {frequency},
-              onSelectionChanged: (value) => _setFrequency(value.first),
-            ),
-          ),
-          if (_networkStartedAt != null) const SizedBox(height: 12),
+          if (!useBottomPanels) ...[
+            const SizedBox(height: 12),
+            SizedBox(width: double.infinity, child: frequencySwitch),
+            if (_networkStartedAt != null) const SizedBox(height: 12),
+          ],
           if (_networkStartedAt != null) _buildContactForm(useBottomPanels),
         ];
         final logs = StreamBuilder<List<LogEntry>>(
