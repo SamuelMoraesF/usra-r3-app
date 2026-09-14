@@ -249,8 +249,8 @@ class _OfflineContactsMapState extends State<OfflineContactsMap> {
             ],
             cameraTargetBounds: CameraTargetBounds(
               LatLngBounds(
-                southwest: const LatLng(-30.15, -54.00),
-                northeast: const LatLng(-29.55, -53.55),
+                southwest: const LatLng(-30.903987, -55.171814),
+                northeast: const LatLng(-28.65108, -52.481922),
               ),
             ),
             compassEnabled: false,
