@@ -24,10 +24,10 @@ Reexecuções atualizam os anexos da mesma release.
 
 Anexos:
 
-- `usra-r3-app.apk`: APK universal assinado, instalável diretamente no Android.
-- `usra-r3-app.zip`: APK, `web/` pronto para hospedagem e `source/` com os arquivos
+- `usra-r3-app-<tag>.apk`: APK universal assinado, instalável diretamente no Android.
+- `usra-r3-app-<tag>.zip`: APK, `web/` pronto para hospedagem e `source/` com os arquivos
   versionados do projeto Flutter. Chaves e senhas não entram no arquivo.
-- `SHA256SUMS`: checksums dos dois arquivos.
+- `SHA256SUMS-<tag>.txt`: checksums dos dois arquivos.
 
 O nome da versão vem da tag. O versionCode Android é calculado como
 `major * 1000000 + minor * 1000 + patch`, permitindo repetir a mesma release sem
