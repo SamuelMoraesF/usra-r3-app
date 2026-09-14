@@ -10,6 +10,7 @@ import 'package:geolocator/geolocator.dart';
 import 'package:share_plus/share_plus.dart';
 import 'package:shared_preferences/shared_preferences.dart';
 import 'package:wakelock_plus/wakelock_plus.dart';
+import 'package:package_info_plus/package_info_plus.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
@@ -1552,6 +1553,7 @@ class SettingsPage extends StatefulWidget {
 }
 
 class _SettingsPageState extends State<SettingsPage> {
+  late final Future<PackageInfo> packageInfo = PackageInfo.fromPlatform();
   late final repeaterGrid = TextEditingController(text: widget.repeaterGrid);
   late final callsign = TextEditingController(text: widget.profile.callsign);
   late final name = TextEditingController(text: widget.profile.name);
@@ -1705,6 +1707,40 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
         const SizedBox(height: 18),
         FilledButton(onPressed: _save, child: const Text('Salvar alterações')),
+        const SizedBox(height: 28),
+        const Divider(),
+        const SizedBox(height: 16),
+        Text(
+          'Sobre',
+          style: Theme.of(
+            context,
+          ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+        ),
+        const SizedBox(height: 8),
+        FutureBuilder<PackageInfo>(
+          future: packageInfo,
+          builder: (context, snapshot) {
+            final info = snapshot.data;
+            final version = info == null
+                ? 'Carregando versão...'
+                : 'Versão ${info.version} (${info.buildNumber})';
+            return ListTile(
+              contentPadding: EdgeInsets.zero,
+              leading: const Icon(Icons.info_outline),
+              title: Text(version),
+              subtitle: const Text(
+                'USRA R3 — logbook offline da Rede de Radiocomunicação Resiliente (R3).',
+              ),
+            );
+          },
+        ),
+        const SizedBox(height: 8),
+        const Text(
+          'Desenvolvido pela USRA (União Santamariense de Radioamadores) '
+          'para a Rede de Radiocomunicação Resiliente (R3).',
+        ),
+        const SizedBox(height: 6),
+        const SelectableText('Site da USRA: https://py3ur.blogspot.com/'),
       ],
     ),
   );
