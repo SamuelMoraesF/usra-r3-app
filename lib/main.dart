@@ -1209,52 +1209,31 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           values: const {'B': 'Bateria', 'G': 'Gerador', 'AC': 'Rede elétrica'},
           onSubmitted: (_) => _trafficFocusNode.requestFocus(),
         ),
-        Focus(
-          onKeyEvent: (_, event) {
-            if (event is KeyDownEvent &&
-                event.logicalKey == LogicalKeyboardKey.tab &&
-                _choiceCode(traffic.text) != 'C') {
-              _register();
-              return KeyEventResult.handled;
-            }
-            return KeyEventResult.ignored;
-          },
-          child: _ChoiceField(
-            controller: traffic,
-            focusNode: _trafficFocusNode,
-            textInputAction: TextInputAction.next,
-            label: 'Tráfego',
-            keyboardOptimized: widget.keyboardOptimized,
-            values: const {'S': 'Sem tráfego', 'C': 'Com tráfego'},
-            onChanged: (_) => setState(() {}),
-            onSubmitted: (_) => _choiceCode(traffic.text) == 'C'
-                ? _trafficMessageFocusNode.requestFocus()
-                : _register(),
-          ),
+        _ChoiceField(
+          controller: traffic,
+          focusNode: _trafficFocusNode,
+          textInputAction: TextInputAction.next,
+          label: 'Tráfego',
+          keyboardOptimized: widget.keyboardOptimized,
+          values: const {'S': 'Sem tráfego', 'C': 'Com tráfego'},
+          onChanged: (_) => setState(() {}),
+          onSubmitted: (_) => _choiceCode(traffic.text) == 'C'
+              ? _trafficMessageFocusNode.requestFocus()
+              : _register(),
         ),
       ],
       message: _choiceCode(traffic.text) == 'C'
-          ? Focus(
-              onKeyEvent: (_, event) {
-                if (event is KeyDownEvent &&
-                    event.logicalKey == LogicalKeyboardKey.tab) {
-                  _register();
-                  return KeyEventResult.handled;
-                }
-                return KeyEventResult.ignored;
-              },
-              child: TextFormField(
-                controller: trafficMessage,
-                focusNode: _trafficMessageFocusNode,
-                textInputAction: TextInputAction.done,
-                inputFormatters: [UpperCaseFormatter()],
-                decoration: const InputDecoration(
-                  labelText: 'Mensagem (tráfego)',
-                ),
-                onFieldSubmitted: (_) => _register(),
-                validator: _required,
-                autovalidateMode: AutovalidateMode.onUserInteraction,
+          ? TextFormField(
+              controller: trafficMessage,
+              focusNode: _trafficMessageFocusNode,
+              textInputAction: TextInputAction.done,
+              inputFormatters: [UpperCaseFormatter()],
+              decoration: const InputDecoration(
+                labelText: 'Mensagem (tráfego)',
               ),
+              onFieldSubmitted: (_) => _register(),
+              validator: _required,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
             )
           : null,
       closeButton: OutlinedButton.icon(
