@@ -20,6 +20,8 @@ import 'data/csv_transfer.dart';
 import 'branding.dart';
 import 'grid_locator.dart';
 import 'widgets/grid_locator_field.dart';
+import 'widgets/contact_workspace.dart';
+import 'widgets/contact_form_layout.dart';
 import 'map/offline_map.dart';
 import 'map/map_settings.dart';
 
@@ -52,6 +54,8 @@ Future<void> main() async {
 
 enum AppTheme { system, light, dark }
 
+enum HomeLayout { bottomPanels, sidebar }
+
 class OperatorProfile {
   const OperatorProfile({this.callsign = '', this.name = '', this.grid = ''});
   final String callsign;
@@ -79,6 +83,7 @@ class _UsraR3AppState extends State<UsraR3App> {
   int mapMaxAgeHours = 24;
   bool keepScreenOn = true;
   bool keyboardOptimized = false;
+  HomeLayout homeLayout = HomeLayout.bottomPanels;
   MapSettings mapSettings = const MapSettings();
 
   @override
@@ -136,6 +141,7 @@ class _UsraR3AppState extends State<UsraR3App> {
               mapMaxAgeHours: mapMaxAgeHours,
               mapSettings: mapSettings,
               keyboardOptimized: keyboardOptimized,
+              homeLayout: homeLayout,
               onMapSettingsChanged: _setMapSettings,
               onOpenSettings: _openSettings,
             )
@@ -201,6 +207,10 @@ class _UsraR3AppState extends State<UsraR3App> {
       displayTimeZone = DisplayTimeZone.read(preferences);
       keepScreenOn = preferences.getBool('keepScreenOn') ?? true;
       keyboardOptimized = preferences.getBool('keyboardOptimized') ?? false;
+      homeLayout = HomeLayout.values.firstWhere(
+        (value) => value.name == preferences.getString('homeLayout'),
+        orElse: () => HomeLayout.bottomPanels,
+      );
       loading = false;
     });
     await WakelockPlus.toggle(enable: keepScreenOn);
@@ -235,6 +245,7 @@ class _UsraR3AppState extends State<UsraR3App> {
           mapMaxAgeHours: mapMaxAgeHours,
           keepScreenOn: keepScreenOn,
           keyboardOptimized: keyboardOptimized,
+          homeLayout: homeLayout,
           showCompass: mapSettings.showCompass,
           database: database,
           repeaterGrid: mapSettings.repeaterGrid,
@@ -251,6 +262,7 @@ class _UsraR3AppState extends State<UsraR3App> {
       await preferences.setInt('map.maxAgeHours', result.mapMaxAgeHours);
       await preferences.setBool('keepScreenOn', result.keepScreenOn);
       await preferences.setBool('keyboardOptimized', result.keyboardOptimized);
+      await preferences.setString('homeLayout', result.homeLayout.name);
       await _setMapSettings(
         MapSettings(
           showLines: mapSettings.showLines,
@@ -273,6 +285,7 @@ class _UsraR3AppState extends State<UsraR3App> {
           mapMaxAgeHours = result.mapMaxAgeHours;
           keepScreenOn = result.keepScreenOn;
           keyboardOptimized = result.keyboardOptimized;
+          homeLayout = result.homeLayout;
         });
       }
     }
@@ -431,6 +444,7 @@ class HomePage extends StatefulWidget {
     required this.lastOnly,
     required this.mapMaxAgeHours,
     this.keyboardOptimized = false,
+    this.homeLayout = HomeLayout.bottomPanels,
     this.mapSettings = const MapSettings(),
     this.onMapSettingsChanged,
   });
@@ -441,6 +455,7 @@ class HomePage extends StatefulWidget {
   final bool lastOnly;
   final int mapMaxAgeHours;
   final bool keyboardOptimized;
+  final HomeLayout homeLayout;
   final MapSettings mapSettings;
   final ValueChanged<MapSettings>? onMapSettingsChanged;
 
@@ -717,445 +732,300 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     body: LayoutBuilder(
       builder: (context, constraints) {
         final keyboardInset = MediaQuery.viewInsetsOf(context).bottom;
+        final mobile =
+            defaultTargetPlatform == TargetPlatform.android ||
+            defaultTargetPlatform == TargetPlatform.iOS;
+        final showMap = kIsWeb || mobile;
+        final screen = MediaQuery.sizeOf(context);
+        final useBottomPanels =
+            showMap &&
+            widget.homeLayout == HomeLayout.bottomPanels &&
+            constraints.maxWidth >= 700 &&
+            (!mobile ||
+                (screen.shortestSide >= 600 && screen.width > screen.height));
+        final header = Row(
+          mainAxisAlignment: MainAxisAlignment.spaceBetween,
+          children: [
+            Text(
+              AppBranding.name,
+              style: Theme.of(
+                context,
+              ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            IconButton(
+              onPressed: widget.onOpenSettings,
+              icon: const Icon(Icons.settings_outlined),
+              tooltip: 'Configurações',
+            ),
+          ],
+        );
+        final formChildren = <Widget>[
+          Text(
+            'Novo contato',
+            style: Theme.of(
+              context,
+            ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 6),
+          Text(
+            'Registre uma comunicação rapidamente.',
+            style: TextStyle(
+              color: Theme.of(context).colorScheme.onSurfaceVariant,
+            ),
+          ),
+          const SizedBox(height: 22),
+          if (_networkStartedAt == null)
+            SizedBox(
+              width: double.infinity,
+              child: FilledButton.icon(
+                onPressed: _openNetwork,
+                icon: const Icon(Icons.cell_tower),
+                label: const Text('Fazer abertura da rede'),
+              ),
+            ),
+          const SizedBox(height: 12),
+          SizedBox(
+            width: double.infinity,
+            child: SegmentedButton<String>(
+              segments: const [
+                ButtonSegment(
+                  value: _repeaterFrequency,
+                  label: _FrequencyLabel('Repetidora', '145.37'),
+                ),
+                ButtonSegment(
+                  value: _simplexFrequency,
+                  label: _FrequencyLabel('Simplex', '146.52'),
+                ),
+              ],
+              selected: {frequency},
+              onSelectionChanged: (value) => _setFrequency(value.first),
+            ),
+          ),
+          if (_networkStartedAt != null) const SizedBox(height: 12),
+          if (_networkStartedAt != null) _buildContactForm(useBottomPanels),
+        ];
+        final logs = StreamBuilder<List<LogEntry>>(
+          stream: widget.database.watchLogs(),
+          builder: (context, snapshot) {
+            final allEntries = snapshot.data ?? const <LogEntry>[];
+            final entries = allEntries
+                .where((entry) => entry.frequency == frequency)
+                .toList();
+            final openNetworkIsEmpty =
+                _networkStartedAt != null &&
+                !entries.any(
+                  (entry) => entry.networkStartedAt == _networkStartedAt,
+                );
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                Text(
+                  'Registros salvos',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
+                if (entries.isEmpty && !openNetworkIsEmpty)
+                  Text(
+                    'Não há registros recentes.',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                if (openNetworkIsEmpty) ...[
+                  Padding(
+                    padding: const EdgeInsets.only(top: 12, bottom: 6),
+                    child: Text(
+                      _networkTitle(_networkStartedAt),
+                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                      ),
+                    ),
+                  ),
+                  Text(
+                    'Ainda não houve nenhum contato.',
+                    style: TextStyle(
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                  ),
+                ],
+                ...entries.asMap().entries.map((indexed) {
+                  final entry = indexed.value;
+                  final previous = indexed.key == 0
+                      ? null
+                      : entries[indexed.key - 1];
+                  return Column(
+                    crossAxisAlignment: CrossAxisAlignment.stretch,
+                    children: [
+                      if (previous == null ||
+                          previous.networkStartedAt != entry.networkStartedAt)
+                        Padding(
+                          padding: const EdgeInsets.only(top: 12, bottom: 6),
+                          child: Text(
+                            _networkTitle(
+                              entry.networkStartedAt,
+                              entry.networkEndedAt,
+                            ),
+                            style: Theme.of(context).textTheme.titleSmall
+                                ?.copyWith(fontWeight: FontWeight.w700),
+                          ),
+                        ),
+                      Dismissible(
+                        key: ValueKey('saved-log-${entry.id}'),
+                        direction: DismissDirection.endToStart,
+                        background: Container(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          alignment: Alignment.centerRight,
+                          padding: const EdgeInsets.only(right: 20),
+                          decoration: BoxDecoration(
+                            color: Theme.of(context).colorScheme.errorContainer,
+                            borderRadius: BorderRadius.circular(14),
+                          ),
+                          child: Icon(
+                            Icons.delete_outline,
+                            color: Theme.of(
+                              context,
+                            ).colorScheme.onErrorContainer,
+                          ),
+                        ),
+                        confirmDismiss: (_) async {
+                          final confirmed = await _confirmDeleteLog(entry);
+                          if (confirmed) {
+                            await widget.database.deleteLog(entry.id);
+                          }
+                          return confirmed;
+                        },
+                        child: Card(
+                          margin: const EdgeInsets.only(bottom: 8),
+                          elevation: 0,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(14),
+                            side: BorderSide(
+                              color: Theme.of(
+                                context,
+                              ).dividerColor.withValues(alpha: 0.55),
+                            ),
+                          ),
+                          child: ListTile(
+                            onTap: () => _editLog(entry),
+                            contentPadding: const EdgeInsets.symmetric(
+                              horizontal: 14,
+                              vertical: 4,
+                            ),
+                            title: Row(
+                              children: [
+                                Expanded(
+                                  child: RichText(
+                                    overflow: TextOverflow.ellipsis,
+                                    text: TextSpan(
+                                      style: DefaultTextStyle.of(context).style,
+                                      children: [
+                                        TextSpan(
+                                          text:
+                                              '${entry.callsign} · ${entry.operatorName}',
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .titleMedium
+                                              ?.copyWith(
+                                                fontWeight: FontWeight.w700,
+                                              ),
+                                        ),
+                                        if (entry.via.trim().isNotEmpty) ...[
+                                          const TextSpan(text: '  '),
+                                          _viaTitleSpan(
+                                            context,
+                                            allEntries,
+                                            entry.via,
+                                          ),
+                                        ],
+                                      ],
+                                    ),
+                                  ),
+                                ),
+                                const SizedBox(width: 8),
+                                Icon(
+                                  Icons.schedule,
+                                  size: 15,
+                                  color: Theme.of(
+                                    context,
+                                  ).colorScheme.onSurfaceVariant,
+                                ),
+                                const SizedBox(width: 3),
+                                Text(
+                                  _formatDate(entry.createdAt),
+                                  style: Theme.of(context).textTheme.labelSmall,
+                                ),
+                              ],
+                            ),
+                            subtitle: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Row(
+                                  children: [
+                                    const Icon(Icons.power, size: 16),
+                                    const SizedBox(width: 4),
+                                    Text(_energyLabel(entry.energy)),
+                                    const SizedBox(width: 8),
+                                    const Text('·'),
+                                    const SizedBox(width: 8),
+                                    const Icon(Icons.bolt, size: 16),
+                                    const SizedBox(width: 4),
+                                    Text('${entry.powerWatts} W'),
+                                    const SizedBox(width: 8),
+                                    const Text('·'),
+                                    const SizedBox(width: 8),
+                                    const Icon(Icons.radio, size: 16),
+                                    const SizedBox(width: 4),
+                                    Text(_stationLabel(entry.stationType)),
+                                  ],
+                                ),
+                                const SizedBox(height: 4),
+                                _contactMeta(entry),
+                                if (entry.traffic == 'C' &&
+                                    entry.trafficMessage.isNotEmpty)
+                                  Container(
+                                    margin: const EdgeInsets.only(top: 8),
+                                    padding: const EdgeInsets.only(top: 8),
+                                    decoration: BoxDecoration(
+                                      border: Border(
+                                        top: BorderSide(
+                                          color: Theme.of(
+                                            context,
+                                          ).colorScheme.outlineVariant,
+                                          width: 1,
+                                        ),
+                                      ),
+                                    ),
+                                    width: double.infinity,
+                                    child: Text(
+                                      entry.trafficMessage,
+                                      style: const TextStyle(
+                                        fontFamily: 'monospace',
+                                      ),
+                                    ),
+                                  ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      ),
+                    ],
+                  );
+                }),
+              ],
+            );
+          },
+        );
         final panel = ListView(
           controller: _panelScrollController,
           padding: const EdgeInsets.all(20),
           children: [
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Text(
-                  AppBranding.name,
-                  style: Theme.of(
-                    context,
-                  ).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w700),
-                ),
-                IconButton(
-                  onPressed: widget.onOpenSettings,
-                  icon: const Icon(Icons.settings_outlined),
-                  tooltip: 'Configurações',
-                ),
-              ],
-            ),
+            header,
             const SizedBox(height: 8),
-            Text(
-              'Novo contato',
-              style: Theme.of(
-                context,
-              ).textTheme.headlineSmall?.copyWith(fontWeight: FontWeight.w700),
-            ),
-            const SizedBox(height: 6),
-            Text(
-              'Registre uma comunicação rapidamente.',
-              style: TextStyle(
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-            ),
-            const SizedBox(height: 22),
-            if (_networkStartedAt == null)
-              SizedBox(
-                width: double.infinity,
-                child: FilledButton.icon(
-                  onPressed: _openNetwork,
-                  icon: const Icon(Icons.cell_tower),
-                  label: const Text('Fazer abertura da rede'),
-                ),
-              ),
-            const SizedBox(height: 12),
-            SizedBox(
-              width: double.infinity,
-              child: SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(
-                    value: _repeaterFrequency,
-                    label: _FrequencyLabel('Repetidora', '145.37'),
-                  ),
-                  ButtonSegment(
-                    value: _simplexFrequency,
-                    label: _FrequencyLabel('Simplex', '146.52'),
-                  ),
-                ],
-                selected: {frequency},
-                onSelectionChanged: (value) => _setFrequency(value.first),
-              ),
-            ),
-            if (_networkStartedAt != null)
-              Form(
-                key: formKey,
-                child: Column(
-                  children: [
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: TextFormField(
-                            controller: callsign,
-                            focusNode: _callsignFocusNode,
-                            textCapitalization: TextCapitalization.characters,
-                            inputFormatters: [UpperCaseFormatter()],
-                            textInputAction: TextInputAction.next,
-                            decoration: const InputDecoration(
-                              labelText: 'Indicativo',
-                            ),
-                            onFieldSubmitted: (_) =>
-                                _viaFocusNode.requestFocus(),
-                            validator: _required,
-                            autovalidateMode:
-                                AutovalidateMode.onUserInteraction,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: TextFormField(
-                            controller: via,
-                            focusNode: _viaFocusNode,
-                            textCapitalization: TextCapitalization.characters,
-                            inputFormatters: [UpperCaseFormatter()],
-                            textInputAction: TextInputAction.next,
-                            decoration: const InputDecoration(labelText: 'Via'),
-                            onFieldSubmitted: (_) =>
-                                _operatorFocusNode.requestFocus(),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    TextFormField(
-                      controller: operator,
-                      focusNode: _operatorFocusNode,
-                      textCapitalization: TextCapitalization.words,
-                      inputFormatters: [CapitalizeWordsFormatter()],
-                      textInputAction: TextInputAction.next,
-                      decoration: const InputDecoration(
-                        labelText: 'Nome do operador',
-                      ),
-                      onFieldSubmitted: (_) =>
-                          _locationFocusNode.requestFocus(),
-                      validator: _required,
-                      autovalidateMode: AutovalidateMode.onUserInteraction,
-                    ),
-                    const SizedBox(height: 12),
-                    GridLocatorField(
-                      controller: location,
-                      focusNode: _locationFocusNode,
-                      allowInvalid: true,
-                      onSubmitted: (_) => _powerFocusNode.requestFocus(),
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: TextFormField(
-                            controller: power,
-                            focusNode: _powerFocusNode,
-                            keyboardType: const TextInputType.numberWithOptions(
-                              decimal: true,
-                            ),
-                            inputFormatters: [PowerFormatter()],
-                            textInputAction: TextInputAction.next,
-                            onFieldSubmitted: (_) =>
-                                _stationFocusNode.requestFocus(),
-                            decoration: const InputDecoration(
-                              labelText: 'Potência (W)',
-                            ),
-                            validator: _required,
-                            autovalidateMode:
-                                AutovalidateMode.onUserInteraction,
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _ChoiceField(
-                            controller: station,
-                            focusNode: _stationFocusNode,
-                            label: 'Estação',
-                            keyboardOptimized: widget.keyboardOptimized,
-                            values: const {
-                              'P': 'Portátil',
-                              'M': 'Móvel',
-                              'F': 'Fixa',
-                            },
-                            onSubmitted: (_) => _energyFocusNode.requestFocus(),
-                          ),
-                        ),
-                      ],
-                    ),
-                    const SizedBox(height: 12),
-                    Row(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Expanded(
-                          child: _ChoiceField(
-                            controller: energy,
-                            focusNode: _energyFocusNode,
-                            label: 'Energia',
-                            keyboardOptimized: widget.keyboardOptimized,
-                            values: const {
-                              'B': 'Bateria',
-                              'G': 'Gerador',
-                              'AC': 'Rede elétrica',
-                            },
-                            onSubmitted: (_) =>
-                                _trafficFocusNode.requestFocus(),
-                          ),
-                        ),
-                        const SizedBox(width: 8),
-                        Expanded(
-                          child: _ChoiceField(
-                            controller: traffic,
-                            focusNode: _trafficFocusNode,
-                            textInputAction: TextInputAction.next,
-                            label: 'Tráfego',
-                            keyboardOptimized: widget.keyboardOptimized,
-                            values: const {
-                              'S': 'Sem tráfego',
-                              'C': 'Com tráfego',
-                            },
-                            onChanged: (_) => setState(() {}),
-                            onSubmitted: (_) => _choiceCode(traffic.text) == 'C'
-                                ? _trafficMessageFocusNode.requestFocus()
-                                : FocusScope.of(context).nextFocus(),
-                          ),
-                        ),
-                      ],
-                    ),
-                    if (_choiceCode(traffic.text) == 'C') ...[
-                      const SizedBox(height: 12),
-                      TextFormField(
-                        controller: trafficMessage,
-                        focusNode: _trafficMessageFocusNode,
-                        textInputAction: TextInputAction.done,
-                        inputFormatters: [UpperCaseFormatter()],
-                        decoration: const InputDecoration(
-                          labelText: 'Mensagem (tráfego)',
-                        ),
-                        validator: _required,
-                        autovalidateMode: AutovalidateMode.onUserInteraction,
-                      ),
-                    ],
-                    const SizedBox(height: 18),
-                    SizedBox(
-                      width: double.infinity,
-                      child: FilledButton.icon(
-                        onPressed: _register,
-                        icon: const Icon(Icons.add),
-                        label: const Text('Registrar log'),
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            if (_networkStartedAt != null) ...[
-              const SizedBox(height: 12),
-              SizedBox(
-                width: double.infinity,
-                child: OutlinedButton.icon(
-                  onPressed: _closeNetwork,
-                  icon: const Icon(Icons.power_settings_new),
-                  label: const Text('Fazer encerramento da rede'),
-                  style: OutlinedButton.styleFrom(
-                    backgroundColor: Colors.white,
-                    foregroundColor: Theme.of(context).colorScheme.primary,
-                  ),
-                ),
-              ),
-            ],
+            ...formChildren,
             const SizedBox(height: 28),
-            StreamBuilder<List<LogEntry>>(
-              stream: widget.database.watchLogs(),
-              builder: (context, snapshot) {
-                final allEntries = snapshot.data ?? const <LogEntry>[];
-                final entries = allEntries
-                    .where((entry) => entry.frequency == frequency)
-                    .toList();
-                if (entries.isEmpty) return const SizedBox.shrink();
-                return Column(
-                  crossAxisAlignment: CrossAxisAlignment.stretch,
-                  children: [
-                    Text(
-                      'Registros salvos',
-                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                        fontWeight: FontWeight.w700,
-                      ),
-                    ),
-                    const SizedBox(height: 8),
-                    ...entries.asMap().entries.map((indexed) {
-                      final entry = indexed.value;
-                      final previous = indexed.key == 0
-                          ? null
-                          : entries[indexed.key - 1];
-                      return Column(
-                        crossAxisAlignment: CrossAxisAlignment.stretch,
-                        children: [
-                          if (previous == null ||
-                              previous.networkStartedAt !=
-                                  entry.networkStartedAt)
-                            Padding(
-                              padding: const EdgeInsets.only(
-                                top: 12,
-                                bottom: 6,
-                              ),
-                              child: Text(
-                                _networkTitle(entry.networkStartedAt),
-                                style: Theme.of(context).textTheme.titleSmall
-                                    ?.copyWith(fontWeight: FontWeight.w700),
-                              ),
-                            ),
-                          Dismissible(
-                            key: ValueKey('saved-log-${entry.id}'),
-                            direction: DismissDirection.endToStart,
-                            background: Container(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              alignment: Alignment.centerRight,
-                              padding: const EdgeInsets.only(right: 20),
-                              decoration: BoxDecoration(
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.errorContainer,
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: Icon(
-                                Icons.delete_outline,
-                                color: Theme.of(
-                                  context,
-                                ).colorScheme.onErrorContainer,
-                              ),
-                            ),
-                            confirmDismiss: (_) async {
-                              final confirmed = await _confirmDeleteLog(entry);
-                              if (confirmed) {
-                                await widget.database.deleteLog(entry.id);
-                              }
-                              return confirmed;
-                            },
-                            child: Card(
-                              margin: const EdgeInsets.only(bottom: 8),
-                              elevation: 0,
-                              shape: RoundedRectangleBorder(
-                                borderRadius: BorderRadius.circular(14),
-                                side: BorderSide(
-                                  color: Theme.of(
-                                    context,
-                                  ).dividerColor.withValues(alpha: 0.55),
-                                ),
-                              ),
-                              child: ListTile(
-                                onTap: () => _editLog(entry),
-                                contentPadding: const EdgeInsets.symmetric(
-                                  horizontal: 14,
-                                  vertical: 4,
-                                ),
-                                title: Row(
-                                  children: [
-                                    Expanded(
-                                      child: RichText(
-                                        overflow: TextOverflow.ellipsis,
-                                        text: TextSpan(
-                                          style: DefaultTextStyle.of(
-                                            context,
-                                          ).style,
-                                          children: [
-                                            TextSpan(
-                                              text:
-                                                  '${entry.callsign} · ${entry.operatorName}',
-                                              style: Theme.of(context)
-                                                  .textTheme
-                                                  .titleMedium
-                                                  ?.copyWith(
-                                                    fontWeight: FontWeight.w700,
-                                                  ),
-                                            ),
-                                            if (entry.via
-                                                .trim()
-                                                .isNotEmpty) ...[
-                                              const TextSpan(text: '  '),
-                                              _viaTitleSpan(
-                                                context,
-                                                allEntries,
-                                                entry.via,
-                                              ),
-                                            ],
-                                          ],
-                                        ),
-                                      ),
-                                    ),
-                                    const SizedBox(width: 8),
-                                    Icon(
-                                      Icons.schedule,
-                                      size: 15,
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onSurfaceVariant,
-                                    ),
-                                    const SizedBox(width: 3),
-                                    Text(
-                                      _formatDate(entry.createdAt),
-                                      style: Theme.of(
-                                        context,
-                                      ).textTheme.labelSmall,
-                                    ),
-                                  ],
-                                ),
-                                subtitle: Column(
-                                  crossAxisAlignment: CrossAxisAlignment.start,
-                                  children: [
-                                    Row(
-                                      children: [
-                                        const Icon(Icons.power, size: 16),
-                                        const SizedBox(width: 4),
-                                        Text(_energyLabel(entry.energy)),
-                                        const SizedBox(width: 8),
-                                        const Text('·'),
-                                        const SizedBox(width: 8),
-                                        const Icon(Icons.bolt, size: 16),
-                                        const SizedBox(width: 4),
-                                        Text('${entry.powerWatts} W'),
-                                        const SizedBox(width: 8),
-                                        const Text('·'),
-                                        const SizedBox(width: 8),
-                                        const Icon(Icons.radio, size: 16),
-                                        const SizedBox(width: 4),
-                                        Text(_stationLabel(entry.stationType)),
-                                      ],
-                                    ),
-                                    const SizedBox(height: 4),
-                                    _contactMeta(entry),
-                                    if (entry.traffic == 'C' &&
-                                        entry.trafficMessage.isNotEmpty)
-                                      Container(
-                                        margin: const EdgeInsets.only(top: 8),
-                                        padding: const EdgeInsets.only(top: 8),
-                                        decoration: BoxDecoration(
-                                          border: Border(
-                                            top: BorderSide(
-                                              color: Theme.of(
-                                                context,
-                                              ).colorScheme.outlineVariant,
-                                              width: 1,
-                                            ),
-                                          ),
-                                        ),
-                                        width: double.infinity,
-                                        child: Text(
-                                          entry.trafficMessage,
-                                          style: const TextStyle(
-                                            fontFamily: 'monospace',
-                                          ),
-                                        ),
-                                      ),
-                                  ],
-                                ),
-                              ),
-                            ),
-                          ),
-                        ],
-                      );
-                    }),
-                  ],
-                );
-              },
-            ),
+            logs,
             // Reserve only a minimal scroll range for the last field. This
             // spacer disappears when the keyboard closes.
             if (keyboardInset > 0) const SizedBox(height: 40),
@@ -1170,12 +1040,25 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 child: panel,
               )
             : panel;
-        final showMap =
-            kIsWeb ||
-            defaultTargetPlatform == TargetPlatform.android ||
-            defaultTargetPlatform == TargetPlatform.iOS;
         if (!showMap) return panel;
         final map = _buildMap();
+        if (useBottomPanels) {
+          return Padding(
+            padding: EdgeInsets.only(bottom: keyboardInset),
+            child: ContactWorkspace(
+              map: map,
+              form: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: formChildren,
+              ),
+              logs: Column(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [header, const SizedBox(height: 20), logs],
+              ),
+              formScrollController: _panelScrollController,
+            ),
+          );
+        }
         if (constraints.maxWidth >= 700) {
           return Row(
             crossAxisAlignment: CrossAxisAlignment.start,
@@ -1206,6 +1089,121 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           ],
         );
       },
+    ),
+  );
+
+  Widget _buildContactForm(bool fourColumns) => Form(
+    key: formKey,
+    child: ContactFormLayout(
+      fourColumns: fourColumns,
+      fields: [
+        TextFormField(
+          controller: callsign,
+          focusNode: _callsignFocusNode,
+          textCapitalization: TextCapitalization.characters,
+          inputFormatters: [UpperCaseFormatter()],
+          textInputAction: TextInputAction.next,
+          decoration: const InputDecoration(labelText: 'Indicativo'),
+          onFieldSubmitted: (_) => _viaFocusNode.requestFocus(),
+          validator: _required,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+        ),
+        TextFormField(
+          controller: via,
+          focusNode: _viaFocusNode,
+          textCapitalization: TextCapitalization.characters,
+          inputFormatters: [UpperCaseFormatter()],
+          textInputAction: TextInputAction.next,
+          decoration: const InputDecoration(labelText: 'Via'),
+          onFieldSubmitted: (_) => _operatorFocusNode.requestFocus(),
+        ),
+        TextFormField(
+          controller: operator,
+          focusNode: _operatorFocusNode,
+          textCapitalization: TextCapitalization.words,
+          inputFormatters: [CapitalizeWordsFormatter()],
+          textInputAction: TextInputAction.next,
+          decoration: InputDecoration(
+            labelText: fourColumns ? 'Nome' : 'Nome do operador',
+          ),
+          onFieldSubmitted: (_) => _locationFocusNode.requestFocus(),
+          validator: _required,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+        ),
+        GridLocatorField(
+          controller: location,
+          labelText: fourColumns ? 'Grid' : 'Localização ou grid',
+          focusNode: _locationFocusNode,
+          allowInvalid: true,
+          onSubmitted: (_) => _powerFocusNode.requestFocus(),
+        ),
+        TextFormField(
+          controller: power,
+          focusNode: _powerFocusNode,
+          keyboardType: const TextInputType.numberWithOptions(decimal: true),
+          inputFormatters: [PowerFormatter()],
+          textInputAction: TextInputAction.next,
+          onFieldSubmitted: (_) => _stationFocusNode.requestFocus(),
+          decoration: const InputDecoration(labelText: 'Potência (W)'),
+          validator: _required,
+          autovalidateMode: AutovalidateMode.onUserInteraction,
+        ),
+        _ChoiceField(
+          controller: station,
+          focusNode: _stationFocusNode,
+          label: 'Estação',
+          keyboardOptimized: widget.keyboardOptimized,
+          values: const {'P': 'Portátil', 'M': 'Móvel', 'F': 'Fixa'},
+          onSubmitted: (_) => _energyFocusNode.requestFocus(),
+        ),
+        _ChoiceField(
+          controller: energy,
+          focusNode: _energyFocusNode,
+          label: 'Energia',
+          keyboardOptimized: widget.keyboardOptimized,
+          values: const {'B': 'Bateria', 'G': 'Gerador', 'AC': 'Rede elétrica'},
+          onSubmitted: (_) => _trafficFocusNode.requestFocus(),
+        ),
+        _ChoiceField(
+          controller: traffic,
+          focusNode: _trafficFocusNode,
+          textInputAction: TextInputAction.next,
+          label: 'Tráfego',
+          keyboardOptimized: widget.keyboardOptimized,
+          values: const {'S': 'Sem tráfego', 'C': 'Com tráfego'},
+          onChanged: (_) => setState(() {}),
+          onSubmitted: (_) => _choiceCode(traffic.text) == 'C'
+              ? _trafficMessageFocusNode.requestFocus()
+              : FocusScope.of(context).nextFocus(),
+        ),
+      ],
+      message: _choiceCode(traffic.text) == 'C'
+          ? TextFormField(
+              controller: trafficMessage,
+              focusNode: _trafficMessageFocusNode,
+              textInputAction: TextInputAction.done,
+              inputFormatters: [UpperCaseFormatter()],
+              decoration: const InputDecoration(
+                labelText: 'Mensagem (tráfego)',
+              ),
+              validator: _required,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
+            )
+          : null,
+      closeButton: OutlinedButton.icon(
+        onPressed: _closeNetwork,
+        icon: const Icon(Icons.power_settings_new),
+        label: Text(fourColumns ? 'Fechar rede' : 'Fazer encerramento da rede'),
+        style: OutlinedButton.styleFrom(
+          backgroundColor: Colors.white,
+          foregroundColor: Theme.of(context).colorScheme.primary,
+        ),
+      ),
+      submitButton: FilledButton.icon(
+        onPressed: _register,
+        icon: const Icon(Icons.add),
+        label: Text(fourColumns ? 'Adicionar log' : 'Registrar log'),
+      ),
     ),
   );
 
@@ -1318,19 +1316,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   String _formatDate(DateTime value) =>
       TimeDisplay.of(context).format(value, compact: true);
 
-  String _networkTitle(DateTime? startedAt) {
-    if (startedAt == null) return 'Rede sem sessão';
-    final displayed = TimeDisplay.of(context).format(startedAt);
-    final parts = displayed.split(' ');
-    final date = parts.first;
-    final time = parts.length > 1 ? parts[1] : '';
-    final dateParts = date.split('/');
-    final now = DateTime.now();
-    final year = dateParts.length == 3 && dateParts[2] == now.year.toString()
-        ? ''
-        : '/${dateParts.length == 3 ? dateParts[2] : ''}';
-    return 'Rede ${dateParts[0]}/${dateParts[1]}$year ${time.substring(0, math.min(5, time.length))}';
-  }
+  String _networkTitle(DateTime? startedAt, [DateTime? endedAt]) =>
+      TimeDisplay.of(context).formatNetworkTitle(startedAt, endedAt);
 
   String _operatorNameFor(List<LogEntry> entries, String callsign) {
     final match = entries
@@ -1867,6 +1854,7 @@ class SettingsPage extends StatefulWidget {
     required this.mapMaxAgeHours,
     required this.keepScreenOn,
     this.keyboardOptimized = false,
+    this.homeLayout = HomeLayout.bottomPanels,
     required this.showCompass,
     required this.database,
     this.repeaterGrid = defaultRepeaterGrid,
@@ -1879,6 +1867,7 @@ class SettingsPage extends StatefulWidget {
   final int mapMaxAgeHours;
   final bool keepScreenOn;
   final bool keyboardOptimized;
+  final HomeLayout homeLayout;
   final bool showCompass;
   final UsraDatabase database;
   final String repeaterGrid;
@@ -1899,6 +1888,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool lastOnly = widget.lastOnly;
   late bool keepScreenOn = widget.keepScreenOn;
   late bool keyboardOptimized = widget.keyboardOptimized;
+  late HomeLayout homeLayout = widget.homeLayout;
   late bool showCompass = widget.showCompass;
   late final maxAgeHours = TextEditingController(
     text: widget.mapMaxAgeHours.toString(),
@@ -1951,6 +1941,26 @@ class _SettingsPageState extends State<SettingsPage> {
           },
         ),
         const SizedBox(height: 28),
+        DropdownButtonFormField<HomeLayout>(
+          initialValue: homeLayout,
+          decoration: const InputDecoration(
+            labelText: 'Layout da tela principal',
+          ),
+          items: const [
+            DropdownMenuItem(
+              value: HomeLayout.bottomPanels,
+              child: Text('Painéis inferiores'),
+            ),
+            DropdownMenuItem(
+              value: HomeLayout.sidebar,
+              child: Text('Barra lateral'),
+            ),
+          ],
+          onChanged: (value) {
+            if (value != null) setState(() => homeLayout = value);
+          },
+        ),
+        const SizedBox(height: 20),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
           title: const Text('Agrupar grids de precisões diferentes'),
@@ -2184,6 +2194,7 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
         keepScreenOn,
         keyboardOptimized,
+        homeLayout,
         showCompass,
         GridLocator.inspect(repeaterGrid.text).normalized,
         displayTimeZone,
@@ -2224,6 +2235,7 @@ class _SettingsResult {
     this.mapMaxAgeHours,
     this.keepScreenOn,
     this.keyboardOptimized,
+    this.homeLayout,
     this.showCompass,
     this.repeaterGrid,
     this.displayTimeZone,
@@ -2235,6 +2247,7 @@ class _SettingsResult {
   final int mapMaxAgeHours;
   final bool keepScreenOn;
   final bool keyboardOptimized;
+  final HomeLayout homeLayout;
   final bool showCompass;
   final String repeaterGrid;
   final DisplayTimeZone displayTimeZone;

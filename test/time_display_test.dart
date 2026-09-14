@@ -6,6 +6,42 @@ import 'package:usra_r3/time_display.dart';
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('network titles show end or open state with compact dates', () {
+    final now = DateTime.utc(2026, 9, 14);
+    String title(DateTime start, DateTime? end) =>
+        DisplayTimeZone.utc.formatNetworkTitle(start, end, now: now);
+    final start = DateTime.utc(2026, 9, 14, 10);
+    expect(title(start, null), 'Rede 14/09 10:00 — em aberto');
+    expect(
+      title(start, DateTime.utc(2026, 9, 14, 12, 30)),
+      'Rede 14/09 10:00 — 12:30',
+    );
+    expect(
+      title(start, DateTime.utc(2026, 9, 15, 1)),
+      'Rede 14/09 10:00 — 15/09 01:00',
+    );
+    expect(
+      title(DateTime.utc(2025, 12, 31, 23), DateTime.utc(2026, 1, 1, 1)),
+      'Rede 31/12/2025 23:00 — 01/01 01:00',
+    );
+    expect(
+      title(DateTime.utc(2024, 12, 31, 23), DateTime.utc(2025, 1, 1, 1)),
+      'Rede 31/12/2024 23:00 — 01/01/2025 01:00',
+    );
+    expect(
+      title(DateTime.utc(2025, 9, 14, 10), null),
+      'Rede 14/09/2025 10:00 — em aberto',
+    );
+    expect(
+      DisplayTimeZone.brasilia.formatNetworkTitle(
+        DateTime.utc(2026, 9, 14, 2),
+        DateTime.utc(2026, 9, 14, 4),
+        now: now,
+      ),
+      'Rede 13/09 23:00 — 14/09 01:00',
+    );
+  });
+
   test('formats UTC and fixed GMT-3 across day and year boundaries', () {
     final instant = DateTime.utc(2026, 1, 1, 1, 2, 3);
     expect(DisplayTimeZone.utc.format(instant), '01/01/2026 01:02:03 UTC');

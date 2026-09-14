@@ -1,0 +1,113 @@
+import 'package:flutter/material.dart';
+import 'package:flutter_test/flutter_test.dart';
+import 'package:usra_r3/widgets/contact_workspace.dart';
+
+void main() {
+  testWidgets('form stays below map; only logs occupy right panel', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+    await tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ContactWorkspace(
+            map: const ColoredBox(key: ValueKey('map'), color: Colors.blue),
+            form: const SizedBox(height: 460, child: Text('Formulário')),
+            logs: const Text('Registros salvos'),
+            formScrollController: controller,
+          ),
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    final form = find.byKey(const ValueKey('contact-form-panel'));
+    final logs = find.byKey(const ValueKey('contact-logs-panel'));
+    final map = find.byKey(const ValueKey('map'));
+    expect(
+      find.descendant(of: form, matching: find.text('Formulário')),
+      findsOneWidget,
+    );
+    expect(
+      find.descendant(of: logs, matching: find.text('Formulário')),
+      findsNothing,
+    );
+    expect(
+      find.descendant(of: logs, matching: find.text('Registros salvos')),
+      findsOneWidget,
+    );
+    expect(tester.getRect(form).top, greaterThan(tester.getRect(map).bottom));
+    expect(tester.getRect(logs).left, greaterThan(tester.getRect(map).right));
+    expect(tester.getRect(logs).top, 0);
+
+    await tester.drag(
+      find.byKey(const ValueKey('form-resize')),
+      const Offset(0, -600),
+    );
+    await tester.pumpAndSettle();
+    // 460 pixels of form plus the panel's 40 pixels of vertical padding.
+    expect(tester.getSize(form).height, 500);
+    expect(tester.getSize(map).height, greaterThan(0));
+    await tester.drag(
+      find.byKey(const ValueKey('form-resize')),
+      const Offset(0, 600),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.getSize(form).height, 160);
+    final originalWidth = tester.getSize(logs).width;
+    await tester.drag(
+      find.byKey(const ValueKey('logs-resize')),
+      const Offset(-80, 0),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.getSize(logs).width, greaterThan(originalWidth));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+
+  testWidgets('form limit follows changing content and available height', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+    Future<void> showForm(double height) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: ContactWorkspace(
+              map: const ColoredBox(color: Colors.blue),
+              form: SizedBox(height: height),
+              logs: const Text('Logs'),
+              formScrollController: controller,
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    final form = find.byKey(const ValueKey('contact-form-panel'));
+    await showForm(600);
+    await tester.drag(
+      find.byKey(const ValueKey('form-resize')),
+      const Offset(0, -600),
+    );
+    await tester.pumpAndSettle();
+    expect(tester.getSize(form).height, 640);
+    await showForm(100);
+    expect(tester.getSize(form).height, 140);
+    tester.view.physicalSize = const Size(1200, 300);
+    await tester.pumpAndSettle();
+    expect(tester.getSize(form).height, lessThanOrEqualTo(124));
+    expect(tester.takeException(), isNull);
+    await tester.pumpWidget(const SizedBox.shrink());
+  });
+}

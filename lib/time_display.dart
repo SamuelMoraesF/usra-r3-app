@@ -16,6 +16,29 @@ enum DisplayTimeZone {
   Future<void> save(SharedPreferences preferences) =>
       preferences.setString('display.timeZone', name);
 
+  String formatNetworkTitle(
+    DateTime? startedAt,
+    DateTime? endedAt, {
+    DateTime? now,
+  }) {
+    if (startedAt == null) return 'Rede sem sessão';
+    final start = startedAt.toUtc().add(offset);
+    final end = endedAt?.toUtc().add(offset);
+    final currentYear = (now ?? DateTime.now()).toUtc().add(offset).year;
+    String two(int value) => value.toString().padLeft(2, '0');
+    String date(DateTime value) =>
+        '${two(value.day)}/${two(value.month)}'
+        '${value.year == currentYear ? '' : '/${value.year}'}';
+    String time(DateTime value) => '${two(value.hour)}:${two(value.minute)}';
+    final beginning = 'Rede ${date(start)} ${time(start)}';
+    if (end == null) return '$beginning — em aberto';
+    final sameDay =
+        start.year == end.year &&
+        start.month == end.month &&
+        start.day == end.day;
+    return '$beginning — ${sameDay ? '' : '${date(end)} '}${time(end)}';
+  }
+
   String format(DateTime value, {bool compact = false, DateTime? now}) {
     final wallTime = value.toUtc().add(offset);
     final today = (now ?? DateTime.now()).toUtc().add(offset);

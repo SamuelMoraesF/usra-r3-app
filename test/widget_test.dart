@@ -9,6 +9,112 @@ import 'package:usra_r3/data/database.dart';
 import 'package:usra_r3/main.dart';
 
 void main() {
+  testWidgets('closed network shows empty logs when switching to simplex', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    SharedPreferences.setMockInitialValues({
+      'contact.frequency': 'repeater',
+      'network.startedAt': '2026-09-14T10:00:00Z',
+      'network.closedAt': '2026-09-14T11:00:00Z',
+    });
+    final database = UsraDatabase.test(NativeDatabase.memory());
+    addTearDown(() async {
+      debugDefaultTargetPlatformOverride = null;
+      await tester.runAsync(database.close);
+    });
+    await database.saveLog(
+      callsign: 'PY3REP',
+      operatorName: 'Operador',
+      location: 'GG30CH',
+      operatorGrid: 'GG30DH',
+      powerWatts: 5,
+      stationType: 'P',
+      traffic: 'S',
+    );
+    await tester.pumpWidget(
+      MaterialApp(
+        home: HomePage(
+          profile: const OperatorProfile(),
+          database: database,
+          onOpenSettings: () {},
+          mergePrecision: true,
+          lastOnly: false,
+          mapMaxAgeHours: 24,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Registros salvos'), findsOneWidget);
+    expect(find.text('Não há registros recentes.'), findsNothing);
+    await tester.tap(find.text('Simplex'));
+    await tester.pumpAndSettle();
+    expect(find.text('Registros salvos'), findsOneWidget);
+    expect(find.text('Não há registros recentes.'), findsOneWidget);
+    expect(find.text('Ainda não houve nenhum contato.'), findsNothing);
+    await tester.tap(find.text('Repetidora'));
+    await tester.pumpAndSettle();
+    expect(find.text('Não há registros recentes.'), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('open network remains visible before its first contact', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    final started = DateTime.utc(2026, 9, 14, 10);
+    SharedPreferences.setMockInitialValues({
+      'network.startedAt': started.toIso8601String(),
+    });
+    final database = UsraDatabase.test(NativeDatabase.memory());
+    tester.view.physicalSize = const Size(1000, 1800);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() async {
+      debugDefaultTargetPlatformOverride = null;
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+      await tester.runAsync(database.close);
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: HomePage(
+          profile: const OperatorProfile(),
+          database: database,
+          onOpenSettings: () {},
+          mergePrecision: true,
+          lastOnly: false,
+          mapMaxAgeHours: 24,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Registros salvos'), findsOneWidget);
+    expect(find.text('Ainda não houve nenhum contato.'), findsOneWidget);
+    expect(find.textContaining('Rede 14/09'), findsOneWidget);
+    Future<void> save(DateTime session) => database.saveLog(
+      callsign: 'PY3TEST',
+      operatorName: 'Operador',
+      location: 'GG30CH',
+      operatorGrid: 'GG30DH',
+      powerWatts: 5,
+      stationType: 'P',
+      traffic: 'S',
+      networkStartedAt: session,
+    );
+    await save(started.subtract(const Duration(days: 1)));
+    await tester.pumpAndSettle();
+    expect(find.text('Ainda não houve nenhum contato.'), findsOneWidget);
+    await save(started);
+    await tester.pumpAndSettle();
+    expect(find.text('Ainda não houve nenhum contato.'), findsNothing);
+    expect(find.textContaining('Rede 14/09'), findsOneWidget);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    debugDefaultTargetPlatformOverride = null;
+  });
+
   test('capitalizes every operator-name word initial', () {
     final formatter = CapitalizeWordsFormatter();
     final pasted = formatter.formatEditUpdate(
