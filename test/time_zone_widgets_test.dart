@@ -114,7 +114,11 @@ void main() {
     await tester.tap(find.text('UTC').last);
     await tester.pumpAndSettle();
     final saveButton = find.text('Salvar alterações');
-    await tester.ensureVisible(saveButton);
+    await tester.scrollUntilVisible(
+      saveButton,
+      400,
+      scrollable: find.byType(Scrollable).first,
+    );
     await tester.pumpAndSettle();
     await tester.tap(saveButton);
     await tester.pumpAndSettle();
