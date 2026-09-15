@@ -1,0 +1,21 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Sid": "GitHubActionsReleaseTagsOnly",
+      "Effect": "Allow",
+      "Principal": {
+        "Federated": "arn:aws:iam::339712978438:oidc-provider/token.actions.githubusercontent.com"
+      },
+      "Action": "sts:AssumeRoleWithWebIdentity",
+      "Condition": {
+        "StringEquals": {
+          "token.actions.githubusercontent.com:aud": "sts.amazonaws.com"
+        },
+        "StringLike": {
+          "token.actions.githubusercontent.com:sub": "repo:SamuelMoraesF/usra-r3-app:ref:refs/tags/v*"
+        }
+      }
+    }
+  ]
+}

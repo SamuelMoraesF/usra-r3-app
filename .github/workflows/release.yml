@@ -120,6 +120,11 @@ jobs:
     timeout-minutes: 10
     permissions:
       contents: write
+      id-token: write
+    env:
+      AWS_REGION: us-east-1
+      RELEASE_BUCKET: usra-r3-releases
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/download-artifact@v8.0.1
         with:
@@ -132,6 +137,18 @@ jobs:
           for checksum in SHA256SUMS-*.txt; do
             sha256sum -c "$checksum"
           done
+      - name: Configure AWS credentials with GitHub OIDC
+        uses: aws-actions/configure-aws-credentials@v4.2.0
+        with:
+          role-to-assume: arn:aws:iam::339712978438:role/GitHubActionsUsraR3Release
+          aws-region: ${{ env.AWS_REGION }}
+          role-session-name: github-release-${{ github.run_id }}
+      - name: Upload release artifacts to S3
+        working-directory: dist
+        run: |
+          aws s3 cp . "s3://${RELEASE_BUCKET}/${RELEASE_TAG}/" \
+            --recursive \
+            --only-show-errors
       - name: Attach packages to release
         uses: softprops/action-gh-release@v3
         with:

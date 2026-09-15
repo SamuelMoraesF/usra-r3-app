@@ -55,6 +55,12 @@ Use sempre versões crescentes. Não há publicação em lojas. Quando `VERCEL_T
 está configurado, o Web é implantado automaticamente após passar a qualidade.
 Para hospedar em subdiretório, ajuste o `--base-href` do build web.
 
+Os artefatos publicados também são enviados automaticamente ao bucket público de
+download `usra-r3-releases`, em `https://usra-r3-releases.s3.us-east-1.amazonaws.com/<tag>/<arquivo>`.
+O bucket só permite `GetObject` nesses caminhos; listagem, escrita, exclusão e
+qualquer acesso sem TLS permanecem bloqueados. A pipeline usa OIDC do GitHub,
+sem secret de chave AWS. As políticas reproduzíveis estão em `infra/aws/`.
+
 ## Chave de assinatura: backup obrigatório
 
 Foram cadastrados no GitHub os secrets:
