@@ -90,6 +90,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
   bool _drawing = false;
   bool _redrawRequested = false;
   bool _repositioning = false;
+  bool _orbitingMarkersVisible = true;
   bool? _renderedShowLines;
   bool? _renderedShowPrecision;
   List<ContactRoute> _renderedRoutes = const [];
@@ -136,6 +137,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     _renderedShowPrecision = null;
     _renderedRoutes = const [];
     _renderedCallsignsKey = '';
+    _orbitingMarkersVisible = (controller?.cameraPosition?.zoom ?? 12) >= 15;
     _styleReady = true;
 
     // This callback runs after MapLibre has initialized annotation managers.
@@ -230,7 +232,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     await map.animateCamera(
       CameraUpdate.newLatLngZoom(
         LatLng(bounds.centerLatitude, bounds.centerLongitude),
-        13,
+        zoom,
       ),
     );
   }
@@ -338,140 +340,146 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
           Positioned(
             left: 12,
             bottom: 12,
-            child: ValueListenableBuilder<double>(
-              valueListenable: _mapBearing,
-              builder: (context, bearing, child) =>
-                  MapCompass(bearing: bearing, onTap: _resetMapNorth),
+            child: MouseRegion(
+              cursor: SystemMouseCursors.click,
+              child: ValueListenableBuilder<double>(
+                valueListenable: _mapBearing,
+                builder: (context, bearing, child) =>
+                    MapCompass(bearing: bearing, onTap: _resetMapNorth),
+              ),
             ),
           ),
         Positioned(
           top: 12,
           right: 12,
-          child: Material(
-            elevation: 3,
-            borderRadius: BorderRadius.circular(12),
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                IconButton(
-                  tooltip: 'Centralizar na minha localização',
-                  icon: const Icon(Icons.my_location),
-                  onPressed: () =>
-                      _animateToGrid(widget.operatorGrid, zoom: 14),
-                ),
-                IconButton(
-                  tooltip: 'Exportar mapa como PNG',
-                  icon: const Icon(Icons.image_outlined),
-                  onPressed: controller == null || widget.onExportPng == null
-                      ? null
-                      : () async {
-                          final bytes = await controller!.takeSnapshot();
-                          await widget.onExportPng!(bytes);
-                        },
-                ),
-                IconButton(
-                  tooltip: 'Mostrar linhas de distância',
-                  isSelected: widget.settings.showLines,
-                  color: widget.settings.showLines
-                      ? Theme.of(context).colorScheme.primary
-                      : Colors.grey,
-                  icon: const Icon(Icons.straighten),
-                  onPressed: () => widget.onSettingsChanged?.call(
-                    MapSettings(
-                      showLines: !widget.settings.showLines,
-                      showCallsigns: widget.settings.showCallsigns,
-                      showAll: widget.settings.showAll,
-                      showPrecision: widget.settings.showPrecision,
-                      showElevation: widget.settings.showElevation,
-                      showCompass: widget.settings.showCompass,
-                      repeaterGrid: widget.settings.repeaterGrid,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Mostrar indicativos',
-                  isSelected: widget.settings.showCallsigns,
-                  color: widget.settings.showCallsigns
-                      ? Theme.of(context).colorScheme.primary
-                      : Colors.grey,
-                  icon: const Icon(Icons.abc),
-                  onPressed: () => widget.onSettingsChanged?.call(
-                    MapSettings(
-                      showLines: widget.settings.showLines,
-                      showAll: widget.settings.showAll,
-                      showPrecision: widget.settings.showPrecision,
-                      showElevation: widget.settings.showElevation,
-                      showCompass: widget.settings.showCompass,
-                      showCallsigns: !widget.settings.showCallsigns,
-                      repeaterGrid: widget.settings.repeaterGrid,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Mostrar precisão dos pontos',
-                  isSelected: widget.settings.showPrecision,
-                  color: widget.settings.showPrecision
-                      ? Theme.of(context).colorScheme.primary
-                      : Colors.grey,
-                  icon: const Icon(Icons.circle),
-                  onPressed: () => widget.onSettingsChanged?.call(
-                    MapSettings(
-                      showLines: widget.settings.showLines,
-                      showAll: widget.settings.showAll,
-                      showPrecision: !widget.settings.showPrecision,
-                      showCallsigns: widget.settings.showCallsigns,
-                      showElevation: widget.settings.showElevation,
-                      showCompass: widget.settings.showCompass,
-                      repeaterGrid: widget.settings.repeaterGrid,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Mostrar altitudes',
-                  isSelected: widget.settings.showElevation,
-                  color: widget.settings.showElevation
-                      ? Theme.of(context).colorScheme.primary
-                      : Colors.grey,
-                  icon: const Icon(Icons.terrain),
-                  onPressed: () => widget.onSettingsChanged?.call(
-                    MapSettings(
-                      showLines: widget.settings.showLines,
-                      showAll: widget.settings.showAll,
-                      showPrecision: widget.settings.showPrecision,
-                      showElevation: !widget.settings.showElevation,
-                      showCallsigns: widget.settings.showCallsigns,
-                      showCompass: widget.settings.showCompass,
-                      repeaterGrid: widget.settings.repeaterGrid,
-                    ),
-                  ),
-                ),
-                IconButton(
-                  tooltip: 'Ligar estações de todas as frequências',
-                  isSelected: widget.settings.showAll,
-                  color: widget.settings.showAll
-                      ? Theme.of(context).colorScheme.primary
-                      : Colors.grey,
-                  icon: const Icon(Icons.cell_tower),
-                  onPressed: () => widget.onSettingsChanged?.call(
-                    MapSettings(
-                      showLines: widget.settings.showLines,
-                      showAll: !widget.settings.showAll,
-                      showCallsigns: widget.settings.showCallsigns,
-                      showPrecision: widget.settings.showPrecision,
-                      showElevation: widget.settings.showElevation,
-                      showCompass: widget.settings.showCompass,
-                      focusNewRecord: widget.settings.focusNewRecord,
-                      repeaterGrid: widget.settings.repeaterGrid,
-                    ),
-                  ),
-                ),
-                if (kIsWeb)
+          child: MouseRegion(
+            cursor: SystemMouseCursors.click,
+            child: Material(
+              elevation: 3,
+              borderRadius: BorderRadius.circular(12),
+              child: Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
                   IconButton(
-                    tooltip: 'Alternar tela cheia',
-                    icon: const Icon(Icons.fullscreen),
-                    onPressed: toggleBrowserFullscreen,
+                    tooltip: 'Centralizar na minha localização',
+                    icon: const Icon(Icons.my_location),
+                    onPressed: () =>
+                        _animateToGrid(widget.operatorGrid, zoom: 16),
                   ),
-              ],
+                  IconButton(
+                    tooltip: 'Exportar mapa como PNG',
+                    icon: const Icon(Icons.image_outlined),
+                    onPressed: controller == null || widget.onExportPng == null
+                        ? null
+                        : () async {
+                            final bytes = await controller!.takeSnapshot();
+                            await widget.onExportPng!(bytes);
+                          },
+                  ),
+                  IconButton(
+                    tooltip: 'Mostrar linhas de distância',
+                    isSelected: widget.settings.showLines,
+                    color: widget.settings.showLines
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.grey,
+                    icon: const Icon(Icons.straighten),
+                    onPressed: () => widget.onSettingsChanged?.call(
+                      MapSettings(
+                        showLines: !widget.settings.showLines,
+                        showCallsigns: widget.settings.showCallsigns,
+                        showAll: widget.settings.showAll,
+                        showPrecision: widget.settings.showPrecision,
+                        showElevation: widget.settings.showElevation,
+                        showCompass: widget.settings.showCompass,
+                        repeaterGrid: widget.settings.repeaterGrid,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Mostrar indicativos',
+                    isSelected: widget.settings.showCallsigns,
+                    color: widget.settings.showCallsigns
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.grey,
+                    icon: const Icon(Icons.abc),
+                    onPressed: () => widget.onSettingsChanged?.call(
+                      MapSettings(
+                        showLines: widget.settings.showLines,
+                        showAll: widget.settings.showAll,
+                        showPrecision: widget.settings.showPrecision,
+                        showElevation: widget.settings.showElevation,
+                        showCompass: widget.settings.showCompass,
+                        showCallsigns: !widget.settings.showCallsigns,
+                        repeaterGrid: widget.settings.repeaterGrid,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Mostrar precisão dos pontos',
+                    isSelected: widget.settings.showPrecision,
+                    color: widget.settings.showPrecision
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.grey,
+                    icon: const Icon(Icons.circle),
+                    onPressed: () => widget.onSettingsChanged?.call(
+                      MapSettings(
+                        showLines: widget.settings.showLines,
+                        showAll: widget.settings.showAll,
+                        showPrecision: !widget.settings.showPrecision,
+                        showCallsigns: widget.settings.showCallsigns,
+                        showElevation: widget.settings.showElevation,
+                        showCompass: widget.settings.showCompass,
+                        repeaterGrid: widget.settings.repeaterGrid,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Mostrar altitudes',
+                    isSelected: widget.settings.showElevation,
+                    color: widget.settings.showElevation
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.grey,
+                    icon: const Icon(Icons.terrain),
+                    onPressed: () => widget.onSettingsChanged?.call(
+                      MapSettings(
+                        showLines: widget.settings.showLines,
+                        showAll: widget.settings.showAll,
+                        showPrecision: widget.settings.showPrecision,
+                        showElevation: !widget.settings.showElevation,
+                        showCallsigns: widget.settings.showCallsigns,
+                        showCompass: widget.settings.showCompass,
+                        repeaterGrid: widget.settings.repeaterGrid,
+                      ),
+                    ),
+                  ),
+                  IconButton(
+                    tooltip: 'Ligar estações de todas as frequências',
+                    isSelected: widget.settings.showAll,
+                    color: widget.settings.showAll
+                        ? Theme.of(context).colorScheme.primary
+                        : Colors.grey,
+                    icon: const Icon(Icons.cell_tower),
+                    onPressed: () => widget.onSettingsChanged?.call(
+                      MapSettings(
+                        showLines: widget.settings.showLines,
+                        showAll: !widget.settings.showAll,
+                        showCallsigns: widget.settings.showCallsigns,
+                        showPrecision: widget.settings.showPrecision,
+                        showElevation: widget.settings.showElevation,
+                        showCompass: widget.settings.showCompass,
+                        focusNewRecord: widget.settings.focusNewRecord,
+                        repeaterGrid: widget.settings.repeaterGrid,
+                      ),
+                    ),
+                  ),
+                  if (kIsWeb)
+                    IconButton(
+                      tooltip: 'Alternar tela cheia',
+                      icon: const Icon(Icons.fullscreen),
+                      onPressed: toggleBrowserFullscreen,
+                    ),
+                ],
+              ),
             ),
           ),
         ),
@@ -515,7 +523,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     if (cached != null) {
       _updateMapBearing(cached.bearing);
       _scheduleElevationRedraw(immediate: true);
-      unawaited(_repositionContactMarkers(map));
+      _updateOrbitingMarkerVisibility(map, cached.zoom);
       return;
     }
     // Keep the compass working on platform implementations that do not cache
@@ -524,9 +532,19 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
       if (mounted && position != null) {
         _updateMapBearing(position.bearing);
         _scheduleElevationRedraw(immediate: true);
-        unawaited(_repositionContactMarkers(map));
+        _updateOrbitingMarkerVisibility(map, position.zoom);
       }
     });
+  }
+
+  void _updateOrbitingMarkerVisibility(MapLibreMapController map, double zoom) {
+    final visible = zoom >= 15;
+    if (visible != _orbitingMarkersVisible) {
+      _orbitingMarkersVisible = visible;
+      unawaited(_drawContacts());
+    } else {
+      unawaited(_repositionContactMarkers(map));
+    }
   }
 
   void _updateMapBearing(double rawBearing) {
@@ -658,8 +676,16 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
       _labelImages.clear();
       _warningImages.clear();
     }
+    final visibleMarkers = scene.markers
+        .where(
+          (marker) =>
+              _orbitingMarkersVisible ||
+              marker.orbitCount == 1 ||
+              marker.orbitIndex == 0,
+        )
+        .toList();
     final markersChanged =
-        mapColorsChanged || !_sameRenderedMarkers(scene.markers);
+        mapColorsChanged || !_sameRenderedMarkers(visibleMarkers);
     final linesChanged =
         _renderedShowLines != widget.settings.showLines ||
         !_sameRoutes(scene.routes);
@@ -699,7 +725,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     if (markersChanged) {
       final orbitCenters = <String, math.Point<num>>{};
       final renderedMarkers = <_RenderedContactMarker>[];
-      for (final marker in scene.markers) {
+      for (final marker in visibleMarkers) {
         final bounds = GridLocator.bounds(marker.grid);
         if (bounds == null) continue;
         var position = LatLng(bounds.centerLatitude, bounds.centerLongitude);
