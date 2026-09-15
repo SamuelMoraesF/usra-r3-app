@@ -28,6 +28,13 @@ import 'map/map_settings.dart';
 import 'map/station_presence.dart';
 import 'browser_new_contact_shortcut_stub.dart'
     if (dart.library.js_interop) 'browser_new_contact_shortcut_web.dart';
+import 'app_update_service_stub.dart'
+    if (dart.library.js_interop) 'app_update_service_web.dart';
+import 'browser_connectivity_stub.dart'
+    if (dart.library.js_interop) 'browser_connectivity_web.dart';
+
+final _appUpdates = createAppUpdateService();
+final _browserConnectivity = createBrowserConnectivity();
 
 bool _defaultKeyboardOptimized() =>
     kIsWeb ||
@@ -64,6 +71,12 @@ Future<void> main() async {
     // Profiling is disabled; this option is experimental in the SDK.
     // ignore: experimental_member_use
     options.profilesSampleRate = 0.0;
+    // Do not enqueue or transmit events while the browser is offline. The
+    // online/offline listeners update this value without restarting the app.
+    options.beforeSend = (event, hint) =>
+        _browserConnectivity.isOnline ? event : null;
+    options.beforeSendTransaction = (event, hint) =>
+        _browserConnectivity.isOnline ? event : null;
   }, appRunner: () => runApp(const UsraR3App()));
 }
 
@@ -133,7 +146,10 @@ class _UsraR3AppState extends State<UsraR3App> {
               maintainBottomViewPadding: true,
               child: TimeDisplay(
                 zone: displayTimeZone,
-                child: child ?? const SizedBox.shrink(),
+                child: AppUpdateBanner(
+                  service: _appUpdates,
+                  child: child ?? const SizedBox.shrink(),
+                ),
               ),
             ),
           ),
@@ -322,6 +338,72 @@ class _UsraR3AppState extends State<UsraR3App> {
   Future<void> _setMapSettings(MapSettings value) async {
     setState(() => mapSettings = value);
     await value.save(await SharedPreferences.getInstance());
+  }
+}
+
+class AppUpdateBanner extends StatefulWidget {
+  const AppUpdateBanner({
+    required this.service,
+    required this.child,
+    super.key,
+  });
+
+  final AppUpdateService service;
+  final Widget child;
+
+  @override
+  State<AppUpdateBanner> createState() => _AppUpdateBannerState();
+}
+
+class _AppUpdateBannerState extends State<AppUpdateBanner> {
+  StreamSubscription<void>? _subscription;
+  bool _updateAvailable = false;
+
+  @override
+  void initState() {
+    super.initState();
+    _subscription = widget.service.updates.listen((_) {
+      if (mounted) setState(() => _updateAvailable = true);
+    });
+  }
+
+  @override
+  void dispose() {
+    _subscription?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Stack(
+      children: [
+        widget.child,
+        if (_updateAvailable)
+          Positioned(
+            left: 12,
+            right: 12,
+            bottom: 12,
+            child: Material(
+              elevation: 6,
+              borderRadius: BorderRadius.circular(12),
+              child: Padding(
+                padding: const EdgeInsets.fromLTRB(16, 12, 8, 12),
+                child: Row(
+                  children: [
+                    const Expanded(
+                      child: Text('Uma nova versão está disponível.'),
+                    ),
+                    TextButton(
+                      onPressed: widget.service.activate,
+                      child: const Text('Atualizar'),
+                    ),
+                  ],
+                ),
+              ),
+            ),
+          ),
+      ],
+    );
   }
 }
 
