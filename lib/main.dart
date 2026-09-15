@@ -1401,121 +1401,165 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Widget _buildContactForm(bool fourColumns) => Form(
     key: formKey,
-    child: ContactFormLayout(
-      fourColumns: fourColumns,
-      compact: fourColumns,
-      submitInLastColumn: fourColumns,
-      showCloseButton: !fourColumns,
-      fields: [
-        TextFormField(
-          controller: callsign,
-          focusNode: _callsignFocusNode,
-          onChanged: _onCallsignChanged,
-          textCapitalization: TextCapitalization.characters,
-          inputFormatters: [UpperCaseFormatter()],
-          textInputAction: TextInputAction.next,
-          decoration: const InputDecoration(labelText: 'Indicativo'),
-          onFieldSubmitted: (_) => _viaFocusNode.requestFocus(),
-          validator: _required,
-          autovalidateMode: AutovalidateMode.onUserInteraction,
-        ),
-        TextFormField(
-          controller: via,
-          focusNode: _viaFocusNode,
-          textCapitalization: TextCapitalization.characters,
-          inputFormatters: [UpperCaseFormatter()],
-          textInputAction: TextInputAction.next,
-          decoration: const InputDecoration(labelText: 'Via'),
-          onFieldSubmitted: (_) => _operatorFocusNode.requestFocus(),
-        ),
-        TextFormField(
-          controller: operator,
-          focusNode: _operatorFocusNode,
-          textCapitalization: TextCapitalization.words,
-          inputFormatters: [CapitalizeWordsFormatter()],
-          textInputAction: TextInputAction.next,
-          decoration: InputDecoration(
-            labelText: fourColumns ? 'Nome' : 'Nome do operador',
-          ),
-          onFieldSubmitted: (_) => _locationFocusNode.requestFocus(),
-          validator: _required,
-          autovalidateMode: AutovalidateMode.onUserInteraction,
-        ),
-        GridLocatorField(
-          controller: location,
-          labelText: fourColumns ? 'Grid' : 'Localização ou grid',
-          focusNode: _locationFocusNode,
-          allowInvalid: true,
-          onSubmitted: (_) => _powerFocusNode.requestFocus(),
-        ),
-        TextFormField(
-          controller: power,
-          focusNode: _powerFocusNode,
-          keyboardType: const TextInputType.numberWithOptions(decimal: true),
-          inputFormatters: [PowerFormatter()],
-          textInputAction: TextInputAction.next,
-          onFieldSubmitted: (_) => _stationFocusNode.requestFocus(),
-          decoration: const InputDecoration(labelText: 'Potência (W)'),
-          validator: _required,
-          autovalidateMode: AutovalidateMode.onUserInteraction,
-        ),
-        _ChoiceField(
-          controller: station,
-          focusNode: _stationFocusNode,
-          label: 'Estação',
-          keyboardOptimized: widget.keyboardOptimized,
-          values: const {'P': 'Portátil', 'M': 'Móvel', 'F': 'Fixa'},
-          onSubmitted: (_) => _energyFocusNode.requestFocus(),
-        ),
-        _ChoiceField(
-          controller: energy,
-          focusNode: _energyFocusNode,
-          label: 'Energia',
-          keyboardOptimized: widget.keyboardOptimized,
-          values: const {'B': 'Bateria', 'G': 'Gerador', 'AC': 'Rede elétrica'},
-          onSubmitted: (_) => _trafficFocusNode.requestFocus(),
-        ),
-        _ChoiceField(
-          controller: traffic,
-          focusNode: _trafficFocusNode,
-          textInputAction: TextInputAction.next,
-          label: 'Tráfego',
-          keyboardOptimized: widget.keyboardOptimized,
-          values: const {'S': 'Sem tráfego', 'C': 'Com tráfego'},
-          onChanged: (_) => setState(() {}),
-          onSubmitted: (_) => _choiceCode(traffic.text) == 'C'
-              ? _trafficMessageFocusNode.requestFocus()
-              : _register(),
-        ),
-      ],
-      message: _choiceCode(traffic.text) == 'C'
-          ? TextFormField(
-              controller: trafficMessage,
-              focusNode: _trafficMessageFocusNode,
-              textInputAction: TextInputAction.done,
+    child: FocusTraversalGroup(
+      policy: OrderedTraversalPolicy(),
+      child: ContactFormLayout(
+        fourColumns: fourColumns,
+        compact: fourColumns,
+        submitInLastColumn: fourColumns,
+        showCloseButton: !fourColumns,
+        fields: [
+          _orderedContactField(
+            0,
+            TextFormField(
+              controller: callsign,
+              focusNode: _callsignFocusNode,
+              onChanged: _onCallsignChanged,
+              textCapitalization: TextCapitalization.characters,
               inputFormatters: [UpperCaseFormatter()],
-              decoration: const InputDecoration(
-                labelText: 'Mensagem (tráfego)',
-              ),
-              onFieldSubmitted: (_) => _register(),
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(labelText: 'Indicativo'),
+              onFieldSubmitted: (_) => _viaFocusNode.requestFocus(),
               validator: _required,
               autovalidateMode: AutovalidateMode.onUserInteraction,
-            )
-          : null,
-      closeButton: _buildCloseNetworkButton(fourColumns),
-      submitButton: FilledButton.icon(
-        onPressed: _register,
-        icon: const Icon(Icons.add),
-        label: Text(fourColumns ? 'Adicionar log' : 'Registrar log'),
-        style: fourColumns
-            ? FilledButton.styleFrom(
-                minimumSize: const Size.fromHeight(40),
-                maximumSize: const Size.fromHeight(40),
-                padding: const EdgeInsets.symmetric(horizontal: 16),
+            ),
+          ),
+          _orderedContactField(
+            1,
+            TextFormField(
+              controller: via,
+              focusNode: _viaFocusNode,
+              textCapitalization: TextCapitalization.characters,
+              inputFormatters: [UpperCaseFormatter()],
+              textInputAction: TextInputAction.next,
+              decoration: const InputDecoration(labelText: 'Via'),
+              onFieldSubmitted: (_) => _operatorFocusNode.requestFocus(),
+            ),
+          ),
+          _orderedContactField(
+            2,
+            TextFormField(
+              controller: operator,
+              focusNode: _operatorFocusNode,
+              textCapitalization: TextCapitalization.words,
+              inputFormatters: [CapitalizeWordsFormatter()],
+              textInputAction: TextInputAction.next,
+              decoration: InputDecoration(
+                labelText: fourColumns ? 'Nome' : 'Nome do operador',
+              ),
+              onFieldSubmitted: (_) => _locationFocusNode.requestFocus(),
+              validator: _required,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
+            ),
+          ),
+          _orderedContactField(
+            3,
+            GridLocatorField(
+              controller: location,
+              labelText: fourColumns ? 'Grid' : 'Localização ou grid',
+              focusNode: _locationFocusNode,
+              allowInvalid: true,
+              onSubmitted: (_) => _powerFocusNode.requestFocus(),
+            ),
+          ),
+          _orderedContactField(
+            4,
+            TextFormField(
+              controller: power,
+              focusNode: _powerFocusNode,
+              keyboardType: const TextInputType.numberWithOptions(
+                decimal: true,
+              ),
+              inputFormatters: [PowerFormatter()],
+              textInputAction: TextInputAction.next,
+              onFieldSubmitted: (_) => _stationFocusNode.requestFocus(),
+              decoration: const InputDecoration(labelText: 'Potência (W)'),
+              validator: _required,
+              autovalidateMode: AutovalidateMode.onUserInteraction,
+            ),
+          ),
+          _orderedContactField(
+            5,
+            _ChoiceField(
+              controller: station,
+              focusNode: _stationFocusNode,
+              label: 'Estação',
+              keyboardOptimized: widget.keyboardOptimized,
+              values: const {'P': 'Portátil', 'M': 'Móvel', 'F': 'Fixa'},
+              onSubmitted: (_) => _energyFocusNode.requestFocus(),
+            ),
+          ),
+          _orderedContactField(
+            6,
+            _ChoiceField(
+              controller: energy,
+              focusNode: _energyFocusNode,
+              label: 'Energia',
+              keyboardOptimized: widget.keyboardOptimized,
+              values: const {
+                'B': 'Bateria',
+                'G': 'Gerador',
+                'AC': 'Rede elétrica',
+              },
+              onSubmitted: (_) => _trafficFocusNode.requestFocus(),
+            ),
+          ),
+          _orderedContactField(
+            7,
+            _ChoiceField(
+              controller: traffic,
+              focusNode: _trafficFocusNode,
+              textInputAction: TextInputAction.next,
+              label: 'Tráfego',
+              keyboardOptimized: widget.keyboardOptimized,
+              values: const {'S': 'Sem tráfego', 'C': 'Com tráfego'},
+              onChanged: (_) => setState(() {}),
+              onSubmitted: (_) => _choiceCode(traffic.text) == 'C'
+                  ? _trafficMessageFocusNode.requestFocus()
+                  : _register(),
+            ),
+          ),
+        ],
+        message: _choiceCode(traffic.text) == 'C'
+            ? _orderedContactField(
+                8,
+                TextFormField(
+                  controller: trafficMessage,
+                  focusNode: _trafficMessageFocusNode,
+                  textInputAction: TextInputAction.done,
+                  inputFormatters: [UpperCaseFormatter()],
+                  decoration: const InputDecoration(
+                    labelText: 'Mensagem (tráfego)',
+                  ),
+                  onFieldSubmitted: (_) => _register(),
+                  validator: _required,
+                  autovalidateMode: AutovalidateMode.onUserInteraction,
+                ),
               )
             : null,
+        closeButton: ExcludeFocus(child: _buildCloseNetworkButton(fourColumns)),
+        submitButton: _orderedContactField(
+          9,
+          FilledButton.icon(
+            onPressed: _register,
+            icon: const Icon(Icons.add),
+            label: Text(fourColumns ? 'Adicionar log' : 'Registrar log'),
+            style: fourColumns
+                ? FilledButton.styleFrom(
+                    minimumSize: const Size.fromHeight(40),
+                    maximumSize: const Size.fromHeight(40),
+                    padding: const EdgeInsets.symmetric(horizontal: 16),
+                  )
+                : null,
+          ),
+        ),
       ),
     ),
+  );
+
+  Widget _orderedContactField(int index, Widget child) => FocusTraversalOrder(
+    order: NumericFocusOrder(index.toDouble()),
+    child: child,
   );
 
   Widget _buildCloseNetworkButton(bool compact) => OutlinedButton.icon(
