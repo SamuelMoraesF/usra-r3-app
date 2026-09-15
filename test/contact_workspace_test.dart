@@ -3,6 +3,61 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:usra_r3/widgets/contact_workspace.dart';
 
 void main() {
+  testWidgets('fixes sidebar headers and falls back to one scroll when short', (
+    tester,
+  ) async {
+    tester.view.devicePixelRatio = 1;
+    tester.view.physicalSize = const Size(1200, 900);
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+    final controller = ScrollController();
+    addTearDown(controller.dispose);
+    Future<void> show() => tester.pumpWidget(
+      MaterialApp(
+        home: Scaffold(
+          body: ContactWorkspace(
+            map: const ColoredBox(color: Colors.blue),
+            form: const SizedBox(),
+            logsHeader: const Text('Cabeçalho lateral'),
+            logsTitle: const Text('Registros salvos'),
+            logs: const SizedBox(height: 1200, child: Text('Conteúdo')),
+            formScrollController: controller,
+          ),
+        ),
+      ),
+    );
+
+    await show();
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('contact-logs-fixed-header')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('contact-logs-content-scroll')),
+      findsOneWidget,
+    );
+    expect(
+      find.byKey(const ValueKey('contact-logs-single-scroll')),
+      findsNothing,
+    );
+
+    tester.view.physicalSize = const Size(1200, 250);
+    await tester.pumpAndSettle();
+    expect(
+      find.byKey(const ValueKey('contact-logs-fixed-header')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('contact-logs-content-scroll')),
+      findsNothing,
+    );
+    expect(
+      find.byKey(const ValueKey('contact-logs-single-scroll')),
+      findsOneWidget,
+    );
+  });
+
   testWidgets('form stays below map; only logs occupy right panel', (
     tester,
   ) async {

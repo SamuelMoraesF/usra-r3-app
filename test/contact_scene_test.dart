@@ -164,7 +164,8 @@ void main() {
         .where((marker) => marker.contactIndex != null)
         .toList();
     expect(contactMarkers, hasLength(3));
-    expect(contactMarkers.every((marker) => marker.multiple), isTrue);
+    expect(contactMarkers.map((marker) => marker.orbitCount), [3, 3, 3]);
+    expect(contactMarkers.map((marker) => marker.orbitIndex), [0, 1, 2]);
     expect(
       formatCallsigns(['PY3CCC', 'PY3AAA', 'PY3BBB']),
       'PY3AAA, PY3BBB e PY3CCC',
@@ -251,6 +252,17 @@ void main() {
     expect(scene(entries, hours: 1).contacts, isEmpty);
   });
 
+  test('last-only removes routes from previous locations', () {
+    final result = scene([
+      qso(callsign: 'PY3AA', grid: oldRepeater, ageHours: 2),
+      qso(callsign: 'PY3AA', grid: remoteGrid, ageHours: 1),
+    ], lastOnly: true);
+    expect(result.contacts, hasLength(1));
+    expect(result.contacts.single.latest.location, remoteGrid);
+    expect(result.routes, hasLength(1));
+    expect(result.routes.single.grids, [userGrid, remoteGrid]);
+  });
+
   test(
     'simplex direct route is gray with 90 percent opacity; ruler hides all routes',
     () {
@@ -310,10 +322,7 @@ void main() {
         lastOnly: true,
       );
       expect(result.contacts, hasLength(1));
-      expect(result.routes.map((r) => r.grids[1]), [
-        oldRepeater,
-        defaultRepeaterGrid,
-      ]);
+      expect(result.routes.map((r) => r.grids[1]), [defaultRepeaterGrid]);
       expect(result.routes.every((r) => !r.missingVia), isTrue);
       final repeaters = result.markers
           .where(

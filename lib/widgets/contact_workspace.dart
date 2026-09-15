@@ -11,12 +11,16 @@ class ContactWorkspace extends StatefulWidget {
     required this.form,
     required this.logs,
     required this.formScrollController,
+    this.logsHeader,
+    this.logsTitle,
   });
 
   final Widget map;
   final Widget form;
   final Widget logs;
   final ScrollController formScrollController;
+  final Widget? logsHeader;
+  final Widget? logsTitle;
 
   @override
   State<ContactWorkspace> createState() => _ContactWorkspaceState();
@@ -94,15 +98,56 @@ class _ContactWorkspaceState extends State<ContactWorkspace> {
           SizedBox(
             key: const ValueKey('contact-logs-panel'),
             width: logsWidth,
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(20),
-              child: widget.logs,
-            ),
+            child: _buildLogsPanel(constraints),
           ),
         ],
       );
     },
   );
+
+  Widget _buildLogsPanel(BoxConstraints constraints) {
+    final canFixHeaders =
+        widget.logsHeader != null &&
+        widget.logsTitle != null &&
+        constraints.maxHeight >= 300;
+    if (!canFixHeaders) {
+      return SingleChildScrollView(
+        key: const ValueKey('contact-logs-single-scroll'),
+        padding: const EdgeInsets.all(20),
+        child: widget.logs,
+      );
+    }
+    return Padding(
+      // Keep the existing 20 px visual margin for content while reserving
+      // that margin as a side rail for the scrollbar.
+      padding: const EdgeInsets.fromLTRB(20, 20, 0, 20),
+      child: Column(
+        key: const ValueKey('contact-logs-fixed-header'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(right: 20),
+            child: widget.logsHeader!,
+          ),
+          const SizedBox(height: 20),
+          Padding(
+            padding: const EdgeInsets.only(right: 20),
+            child: widget.logsTitle!,
+          ),
+          const SizedBox(height: 8),
+          Expanded(
+            child: Scrollbar(
+              key: const ValueKey('contact-logs-content-scroll'),
+              child: SingleChildScrollView(
+                padding: const EdgeInsets.only(right: 20),
+                child: widget.logs,
+              ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
 }
 
 class _ResizeHandle extends StatelessWidget {

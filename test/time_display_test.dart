@@ -60,6 +60,16 @@ void main() {
     );
   });
 
+  test('formats the landscape header clock and date in Portuguese', () {
+    final instant = DateTime.utc(2026, 8, 15, 15, 4, 9);
+    expect(DisplayTimeZone.utc.formatClock(instant), '15:04:09');
+    expect(DisplayTimeZone.utc.formatLongDate(instant), 'sábado, 15 de agosto');
+    expect(
+      DisplayTimeZone.brasilia.formatLongDate(instant),
+      'sábado, 15 de agosto',
+    );
+  });
+
   test('today is evaluated in the selected display zone', () {
     final instant = DateTime.utc(2026, 1, 1, 1);
     final now = DateTime.utc(2026, 1, 1, 4);

@@ -56,6 +56,41 @@ enum DisplayTimeZone {
         : '/${wallTime.year}';
     return '${two(wallTime.day)}/${two(wallTime.month)}$year $time';
   }
+
+  String formatClock(DateTime value) {
+    final wallTime = value.toUtc().add(offset);
+    String two(int n) => n.toString().padLeft(2, '0');
+    return '${two(wallTime.hour)}:${two(wallTime.minute)}:${two(wallTime.second)}';
+  }
+
+  String formatLongDate(DateTime value) {
+    final wallTime = value.toUtc().add(offset);
+    const weekdays = [
+      'segunda-feira',
+      'terça-feira',
+      'quarta-feira',
+      'quinta-feira',
+      'sexta-feira',
+      'sábado',
+      'domingo',
+    ];
+    const months = [
+      'janeiro',
+      'fevereiro',
+      'março',
+      'abril',
+      'maio',
+      'junho',
+      'julho',
+      'agosto',
+      'setembro',
+      'outubro',
+      'novembro',
+      'dezembro',
+    ];
+    return '${weekdays[wallTime.weekday - 1]}, ${wallTime.day} de '
+        '${months[wallTime.month - 1]}';
+  }
 }
 
 class TimeDisplay extends InheritedWidget {

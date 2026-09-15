@@ -205,7 +205,7 @@ void main() {
       expect(
         result.markers
             .where((m) => m.contactIndex != null)
-            .every((m) => m.multiple),
+            .every((m) => m.orbitCount == 3),
         isTrue,
       );
       expect(presence(entries, mode: 'repeater', mhz: 145.37).warnings, [

@@ -20,7 +20,8 @@ class ContactMarker {
     this.stationType = '',
     this.energy = '',
     this.warning = false,
-    this.multiple = false,
+    this.orbitIndex = 0,
+    this.orbitCount = 1,
   });
   final String grid;
   final MarkerKind kind;
@@ -28,7 +29,8 @@ class ContactMarker {
   final String stationType;
   final String energy;
   final bool warning;
-  final bool multiple;
+  final int orbitIndex;
+  final int orbitCount;
   double get radius => contactIndex == null ? 8 : 6;
   String get color => switch (kind) {
     MarkerKind.operator => '#2196F3',
@@ -185,16 +187,24 @@ ContactScene buildContactScene(
         stationType: contact.latest.stationType,
         energy: contact.latest.energy,
         warning: warningKeys.contains(stationPresenceKey(contact.latest)),
-        multiple:
-            contactsByGrid[normalized(contact.latest.location)]!.length > 1,
+        orbitIndex: contactsByGrid[normalized(contact.latest.location)]!
+            .indexOf(i),
+        orbitCount: contactsByGrid[normalized(contact.latest.location)]!.length,
       ),
     );
   }
   if (showLines && GridLocator.bounds(operatorGrid) != null) {
     final routeKeys = <String>{};
-    for (final entry in visible.where(
-      (e) => (showAll || selected(e)) && GridLocator.bounds(e.location) != null,
-    )) {
+    final routeEntries = lastOnly
+        ? contacts
+              .where((contact) => showAll || selected(contact.latest))
+              .map((contact) => contact.latest)
+        : visible.where(
+            (e) =>
+                (showAll || selected(e)) &&
+                GridLocator.bounds(e.location) != null,
+          );
+    for (final entry in routeEntries) {
       String? middle;
       var missingVia = false;
       if (entry.frequency == 'repeater') {

@@ -823,14 +823,23 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             ),
           ],
         );
-        final contactTitle = Text(
-          'Novo contato',
-          style:
-              (useBottomPanels
-                      ? Theme.of(context).textTheme.titleLarge
-                      : Theme.of(context).textTheme.headlineSmall)
-                  ?.copyWith(fontWeight: FontWeight.w700),
-        );
+        final titleStyle =
+            (useBottomPanels
+                    ? Theme.of(context).textTheme.titleLarge
+                    : Theme.of(context).textTheme.headlineSmall)
+                ?.copyWith(fontWeight: FontWeight.w700);
+        final showLandscapeClock =
+            constraints.maxWidth >= 700 &&
+            constraints.maxWidth > constraints.maxHeight;
+        final contactTitle = showLandscapeClock
+            ? Row(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Expanded(child: Text('Novo contato', style: titleStyle)),
+                  const _LandscapeDateTime(),
+                ],
+              )
+            : Text('Novo contato', style: titleStyle);
         final frequencySwitch = SegmentedButton<String>(
           segments: const [
             ButtonSegment(
@@ -1009,13 +1018,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   ),
                   const SizedBox(height: 16),
                 ],
-                Text(
-                  'Registros salvos',
-                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                    fontWeight: FontWeight.w700,
+                if (!useBottomPanels) ...[
+                  Text(
+                    'Registros salvos',
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
-                ),
-                const SizedBox(height: 8),
+                  const SizedBox(height: 8),
+                ],
                 if (entries.isEmpty && !openNetworkIsEmpty)
                   Text(
                     'Não há registros recentes.',
@@ -1245,7 +1256,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [...formChildren, const SizedBox(height: 8)],
               ),
-              logs: Column(
+              logsHeader: Column(
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
                   header,
@@ -1257,10 +1268,15 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       width: double.infinity,
                       child: _buildCloseNetworkButton(true),
                     ),
-                  const SizedBox(height: 20),
-                  logs,
                 ],
               ),
+              logsTitle: Text(
+                'Registros salvos',
+                style: Theme.of(
+                  context,
+                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+              ),
+              logs: logs,
               formScrollController: _panelScrollController,
             ),
           );
@@ -2072,6 +2088,50 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
 String _choiceCode(String value) =>
     value.split(' - ').first.trim().toUpperCase();
+
+class _LandscapeDateTime extends StatefulWidget {
+  const _LandscapeDateTime();
+
+  @override
+  State<_LandscapeDateTime> createState() => _LandscapeDateTimeState();
+}
+
+class _LandscapeDateTimeState extends State<_LandscapeDateTime> {
+  DateTime _now = DateTime.now();
+  Timer? _timer;
+
+  @override
+  void initState() {
+    super.initState();
+    _timer = Timer.periodic(const Duration(seconds: 1), (_) {
+      if (mounted) setState(() => _now = DateTime.now());
+    });
+  }
+
+  @override
+  void dispose() {
+    _timer?.cancel();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) => Column(
+    key: const Key('home-date-time'),
+    crossAxisAlignment: CrossAxisAlignment.end,
+    children: [
+      Text(
+        TimeDisplay.of(context).formatClock(_now),
+        key: const Key('home-clock'),
+        style: Theme.of(context).textTheme.titleMedium,
+      ),
+      Text(
+        TimeDisplay.of(context).formatLongDate(_now),
+        key: const Key('home-date'),
+        style: Theme.of(context).textTheme.bodySmall,
+      ),
+    ],
+  );
+}
 
 class _FrequencyLabel extends StatelessWidget {
   const _FrequencyLabel(this.name, this.frequency);

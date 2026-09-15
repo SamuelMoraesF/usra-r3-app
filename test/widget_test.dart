@@ -9,6 +9,44 @@ import 'package:usra_r3/data/database.dart';
 import 'package:usra_r3/main.dart';
 
 void main() {
+  testWidgets('landscape layouts show the clock and date beside new contact', (
+    tester,
+  ) async {
+    debugDefaultTargetPlatformOverride = TargetPlatform.linux;
+    SharedPreferences.setMockInitialValues({});
+    final database = UsraDatabase.test(NativeDatabase.memory());
+    tester.view.physicalSize = const Size(1000, 700);
+    tester.view.devicePixelRatio = 1;
+    addTearDown(() async {
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+      await tester.runAsync(database.close);
+    });
+    await tester.pumpWidget(
+      MaterialApp(
+        home: HomePage(
+          profile: const OperatorProfile(),
+          database: database,
+          onOpenSettings: () {},
+          mergePrecision: true,
+          lastOnly: false,
+          mapMaxAgeHours: 24,
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+    expect(find.text('Novo contato'), findsOneWidget);
+    expect(find.byKey(const Key('home-clock')), findsOneWidget);
+    expect(find.byKey(const Key('home-date')), findsOneWidget);
+    tester.view.physicalSize = const Size(700, 1000);
+    await tester.pump();
+    expect(find.byKey(const Key('home-clock')), findsNothing);
+    expect(find.byKey(const Key('home-date')), findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    debugDefaultTargetPlatformOverride = null;
+  });
+
   testWidgets('closed network shows empty logs when switching to simplex', (
     tester,
   ) async {

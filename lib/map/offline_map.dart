@@ -1,5 +1,7 @@
 import 'dart:async';
+import 'dart:math' as math;
 import 'dart:ui' as ui;
+import 'package:flutter/foundation.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter/material.dart';
 import 'package:maplibre_gl/maplibre_gl.dart';
@@ -15,6 +17,8 @@ import 'route_distance.dart';
 import 'map_palette.dart';
 import 'map_compass.dart';
 import 'elevation.dart';
+import '../browser_fullscreen_stub.dart'
+    if (dart.library.js_interop) '../browser_fullscreen_web.dart';
 import 'pmtiles_registration_stub.dart'
     if (dart.library.js_interop) 'pmtiles_registration_web.dart';
 import 'offline_map_style_stub.dart'
@@ -65,6 +69,14 @@ class OfflineContactsMap extends StatefulWidget {
   State<OfflineContactsMap> createState() => _OfflineContactsMapState();
 }
 
+class _RenderedContactMarker {
+  const _RenderedContactMarker(this.marker, {this.circle, this.symbol});
+
+  final ContactMarker marker;
+  final Circle? circle;
+  final Symbol? symbol;
+}
+
 class _OfflineContactsMapState extends State<OfflineContactsMap>
     with WidgetsBindingObserver {
   MapLibreMapController? controller;
@@ -77,10 +89,12 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
   Timer? _expiryTimer;
   bool _drawing = false;
   bool _redrawRequested = false;
+  bool _repositioning = false;
   bool _distanceLayerReady = false;
   bool _callsignLayerReady = false;
   final _labelImages = <String, String>{};
   final _warningImages = <String>{};
+  List<_RenderedContactMarker> _renderedMarkers = const [];
   final _mapBearing = ValueNotifier<double>(0);
   final _elevationRange = ValueNotifier<ElevationRange?>(null);
   ElevationGrid? _elevationGrid;
@@ -442,6 +456,12 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
                     ),
                   ),
                 ),
+                if (kIsWeb)
+                  IconButton(
+                    tooltip: 'Alternar tela cheia',
+                    icon: const Icon(Icons.fullscreen),
+                    onPressed: toggleBrowserFullscreen,
+                  ),
               ],
             ),
           ),
@@ -486,6 +506,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     if (cached != null) {
       _updateMapBearing(cached.bearing);
       _scheduleElevationRedraw(immediate: true);
+      unawaited(_repositionContactMarkers(map));
       return;
     }
     // Keep the compass working on platform implementations that do not cache
@@ -494,6 +515,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
       if (mounted && position != null) {
         _updateMapBearing(position.bearing);
         _scheduleElevationRedraw(immediate: true);
+        unawaited(_repositionContactMarkers(map));
       }
     });
   }
@@ -561,6 +583,56 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     }
   }
 
+  Future<void> _repositionContactMarkers(MapLibreMapController map) async {
+    if (_drawing || _repositioning || _renderedMarkers.isEmpty) return;
+    _repositioning = true;
+    try {
+      final orbitCenters = <String, math.Point<num>>{};
+      for (final rendered in _renderedMarkers) {
+        final marker = rendered.marker;
+        final bounds = GridLocator.bounds(marker.grid);
+        if (bounds == null) continue;
+        var position = LatLng(bounds.centerLatitude, bounds.centerLongitude);
+        if (marker.orbitCount > 1 && marker.orbitIndex > 0) {
+          final grid = GridLocator.inspect(marker.grid).normalized;
+          final center = orbitCenters[grid] ??= await map.toScreenLocation(
+            position,
+          );
+          final orbitingCount = marker.orbitCount - 1;
+          final minimumSeparation = 18.0;
+          final radius = orbitingCount == 1
+              ? minimumSeparation
+              : math.max(
+                  minimumSeparation,
+                  minimumSeparation / (2 * math.sin(math.pi / orbitingCount)),
+                );
+          final angle =
+              math.pi / 2 -
+              2 * math.pi * (marker.orbitIndex - 1) / orbitingCount;
+          position = await map.toLatLng(
+            math.Point(
+              center.x + radius * math.cos(angle),
+              center.y + radius * math.sin(angle),
+            ),
+          );
+        }
+        if (rendered.circle != null) {
+          await map.updateCircle(
+            rendered.circle!,
+            CircleOptions(geometry: position),
+          );
+        } else if (rendered.symbol != null) {
+          await map.updateSymbol(
+            rendered.symbol!,
+            SymbolOptions(geometry: position),
+          );
+        }
+      }
+    } finally {
+      _repositioning = false;
+    }
+  }
+
   Future<void> _renderScene(
     MapLibreMapController map,
     ContactScene scene,
@@ -598,22 +670,34 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
       );
     }
     await _drawDistances(map, scene);
+    final orbitCenters = <String, math.Point<num>>{};
+    final renderedMarkers = <_RenderedContactMarker>[];
     for (final marker in scene.markers) {
       final bounds = GridLocator.bounds(marker.grid);
       if (bounds == null) continue;
-      if (marker.multiple) {
-        await map.addCircle(
-          CircleOptions(
-            geometry: LatLng(bounds.centerLatitude, bounds.centerLongitude),
-            circleColor: mapColor(colors.surface),
-            circleRadius: marker.radius + 3,
-            circleOpacity: 0,
-            circleBlur: 0,
-            circleStrokeColor: mapColor(colors.onSurface),
-            circleStrokeWidth: 2.5,
-            circleStrokeOpacity: 1,
+      var position = LatLng(bounds.centerLatitude, bounds.centerLongitude);
+      if (marker.orbitCount > 1 && marker.orbitIndex > 0) {
+        final grid = GridLocator.inspect(marker.grid).normalized;
+        final center = orbitCenters[grid] ??= await map.toScreenLocation(
+          position,
+        );
+        final orbitingCount = marker.orbitCount - 1;
+        final minimumSeparation = 18.0;
+        final radius = orbitingCount == 1
+            ? minimumSeparation
+            : math.max(
+                minimumSeparation,
+                minimumSeparation / (2 * math.sin(math.pi / orbitingCount)),
+              );
+        // Keep the first station at the grid center. Place the second below
+        // it, then distribute the remaining stations counter-clockwise.
+        final angle =
+            math.pi / 2 - 2 * math.pi * (marker.orbitIndex - 1) / orbitingCount;
+        position = await map.toLatLng(
+          math.Point(
+            center.x + radius * math.cos(angle),
+            center.y + radius * math.sin(angle),
           ),
-          {'contactIndex': marker.contactIndex},
         );
       }
       if (marker.warning) {
@@ -651,19 +735,16 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
         }
         await map.setSymbolIconAllowOverlap(true);
         await map.setSymbolIconIgnorePlacement(true);
-        await map.addSymbol(
-          SymbolOptions(
-            geometry: LatLng(bounds.centerLatitude, bounds.centerLongitude),
-            iconImage: imageId,
-            iconSize: 0.65,
-          ),
+        final symbol = await map.addSymbol(
+          SymbolOptions(geometry: position, iconImage: imageId, iconSize: 0.65),
           {'contactIndex': marker.contactIndex},
         );
+        renderedMarkers.add(_RenderedContactMarker(marker, symbol: symbol));
         continue;
       }
       final circle = await map.addCircle(
         CircleOptions(
-          geometry: LatLng(bounds.centerLatitude, bounds.centerLongitude),
+          geometry: position,
           circleColor: marker.color,
           circleRadius: marker.radius,
           circleBlur: 0,
@@ -674,8 +755,10 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
         ),
         {'contactIndex': marker.contactIndex},
       );
+      renderedMarkers.add(_RenderedContactMarker(marker, circle: circle));
       assert(circle.id.isNotEmpty);
     }
+    _renderedMarkers = renderedMarkers;
     await _drawCallsigns(map, scene);
   }
 
@@ -883,8 +966,13 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     if (areas.isNotEmpty) await map.addFills(areas);
   }
 
-  Future<String> _labelImage(MapLibreMapController map, String label) async {
-    var imageId = _labelImages[label];
+  Future<String> _labelImage(
+    MapLibreMapController map,
+    String label, {
+    required double fontSize,
+  }) async {
+    final cacheKey = '$fontSize|$label';
+    var imageId = _labelImages[cacheKey];
     if (imageId == null) {
       imageId = 'map-label-${_labelImages.length}';
       // Rasterize locally: the offline map has no network glyph source.
@@ -892,7 +980,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
         text: TextSpan(
           text: label,
           style: TextStyle(
-            fontSize: 16,
+            fontSize: fontSize,
             fontWeight: FontWeight.w600,
             color: _mapColors!.onSurface,
           ),
@@ -917,7 +1005,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
       bitmap.dispose();
       picture.dispose();
       painter.dispose();
-      _labelImages[label] = imageId;
+      _labelImages[cacheKey] = imageId;
     }
     return imageId;
   }
@@ -941,6 +1029,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
         final imageId = await _labelImage(
           map,
           formatCallsigns(contacts.map((contact) => contact.latest.callsign)),
+          fontSize: 12,
         );
         features.add({
           'type': 'Feature',
@@ -975,7 +1064,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
             0.625,
           ],
           iconAnchor: 'bottom',
-          iconOffset: [0, -12],
+          iconOffset: [0, -30],
           iconAllowOverlap: true,
           iconIgnorePlacement: true,
         ),
@@ -991,7 +1080,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
   ) async {
     final features = <Map<String, dynamic>>[];
     for (final distance in routeDistances(scene.routes)) {
-      final imageId = await _labelImage(map, distance.label);
+      final imageId = await _labelImage(map, distance.label, fontSize: 10);
       features.add({
         'type': 'Feature',
         'geometry': {
