@@ -90,6 +90,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
   bool _drawing = false;
   bool _redrawRequested = false;
   bool _repositioning = false;
+  bool _repositionRequested = false;
   bool _orbitingMarkersVisible = true;
   bool? _renderedShowLines;
   bool? _renderedShowPrecision;
@@ -505,9 +506,16 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
   }
 
   void _onCameraMove(CameraPosition position) {
-    if (!mounted) return;
+    final map = controller;
+    if (!mounted || map == null) return;
     _updateMapBearing(position.bearing);
     _scheduleElevationRedraw();
+    if (_renderedMarkers.any(
+      (rendered) =>
+          rendered.marker.orbitCount > 1 && rendered.marker.orbitIndex > 0,
+    )) {
+      unawaited(_repositionContactMarkers(map));
+    }
   }
 
   void _onMapControllerChanged() {
@@ -607,54 +615,65 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
       } while (_redrawRequested && mounted && _styleReady);
     } finally {
       _drawing = false;
+      if (_repositionRequested && mounted && _styleReady) {
+        unawaited(_repositionContactMarkers(map));
+      }
     }
   }
 
   Future<void> _repositionContactMarkers(MapLibreMapController map) async {
-    if (_drawing || _repositioning || _renderedMarkers.isEmpty) return;
+    if (_renderedMarkers.isEmpty) return;
+    if (_drawing || _repositioning) {
+      _repositionRequested = true;
+      return;
+    }
     _repositioning = true;
     try {
-      final orbitCenters = <String, math.Point<num>>{};
-      for (final rendered in _renderedMarkers) {
-        final marker = rendered.marker;
-        final bounds = GridLocator.bounds(marker.grid);
-        if (bounds == null) continue;
-        var position = LatLng(bounds.centerLatitude, bounds.centerLongitude);
-        if (marker.orbitCount > 1 && marker.orbitIndex > 0) {
-          final grid = GridLocator.inspect(marker.grid).normalized;
-          final center = orbitCenters[grid] ??= await map.toScreenLocation(
-            position,
-          );
-          final orbitingCount = marker.orbitCount - 1;
-          final minimumSeparation = 18.0;
-          final radius = orbitingCount == 1
-              ? minimumSeparation
-              : math.max(
-                  minimumSeparation,
-                  minimumSeparation / (2 * math.sin(math.pi / orbitingCount)),
-                );
-          final angle =
-              math.pi / 2 -
-              2 * math.pi * (marker.orbitIndex - 1) / orbitingCount;
-          position = await map.toLatLng(
-            math.Point(
-              center.x + radius * math.cos(angle),
-              center.y + radius * math.sin(angle),
-            ),
-          );
+      do {
+        _repositionRequested = false;
+        final orbitCenters = <String, math.Point<num>>{};
+        for (final rendered in _renderedMarkers) {
+          final marker = rendered.marker;
+          if (marker.orbitCount <= 1 || marker.orbitIndex == 0) continue;
+          final bounds = GridLocator.bounds(marker.grid);
+          if (bounds == null) continue;
+          var position = LatLng(bounds.centerLatitude, bounds.centerLongitude);
+          if (marker.orbitCount > 1 && marker.orbitIndex > 0) {
+            final grid = GridLocator.inspect(marker.grid).normalized;
+            final center = orbitCenters[grid] ??= await map.toScreenLocation(
+              position,
+            );
+            final orbitingCount = marker.orbitCount - 1;
+            final minimumSeparation = 18.0;
+            final radius = orbitingCount == 1
+                ? minimumSeparation
+                : math.max(
+                    minimumSeparation,
+                    minimumSeparation / (2 * math.sin(math.pi / orbitingCount)),
+                  );
+            final angle =
+                math.pi / 2 -
+                2 * math.pi * (marker.orbitIndex - 1) / orbitingCount;
+            position = await map.toLatLng(
+              math.Point(
+                center.x + radius * math.cos(angle),
+                center.y + radius * math.sin(angle),
+              ),
+            );
+          }
+          if (rendered.circle != null) {
+            await map.updateCircle(
+              rendered.circle!,
+              CircleOptions(geometry: position),
+            );
+          } else if (rendered.symbol != null) {
+            await map.updateSymbol(
+              rendered.symbol!,
+              SymbolOptions(geometry: position),
+            );
+          }
         }
-        if (rendered.circle != null) {
-          await map.updateCircle(
-            rendered.circle!,
-            CircleOptions(geometry: position),
-          );
-        } else if (rendered.symbol != null) {
-          await map.updateSymbol(
-            rendered.symbol!,
-            SymbolOptions(geometry: position),
-          );
-        }
-      }
+      } while (_repositionRequested && mounted);
     } finally {
       _repositioning = false;
     }
