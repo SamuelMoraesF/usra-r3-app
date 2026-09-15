@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 
 import '../grid_locator.dart';
 
@@ -60,7 +61,7 @@ class _GridLocatorFieldState extends State<GridLocatorField> {
         _info.isValid &&
         _controller.text != _info.normalized) {
       _controller.value = _controller.value.copyWith(
-        text: _info.normalized,
+        text: _info.normalized.toLowerCase(),
         selection: TextSelection.collapsed(offset: _info.normalized.length),
       );
     }
@@ -75,7 +76,8 @@ class _GridLocatorFieldState extends State<GridLocatorField> {
     return TextField(
       controller: _controller,
       focusNode: _focusNode,
-      textCapitalization: TextCapitalization.characters,
+      textCapitalization: TextCapitalization.none,
+      inputFormatters: [LowerCaseFormatter()],
       textInputAction: TextInputAction.next,
       onSubmitted: widget.onSubmitted,
       decoration: InputDecoration(
@@ -94,4 +96,15 @@ class _GridLocatorFieldState extends State<GridLocatorField> {
       ),
     );
   }
+}
+
+class LowerCaseFormatter extends TextInputFormatter {
+  @override
+  TextEditingValue formatEditUpdate(
+    TextEditingValue oldValue,
+    TextEditingValue newValue,
+  ) => newValue.copyWith(
+    text: newValue.text.toLowerCase(),
+    selection: newValue.selection,
+  );
 }
