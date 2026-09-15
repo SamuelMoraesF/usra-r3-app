@@ -24,6 +24,19 @@ class AppUpdateService {
     await Future<void>.delayed(const Duration(milliseconds: 500));
     html.window.location.reload();
   }
+
+  Future<void> checkForUpdate() async {
+    final registration = await html.window.navigator.serviceWorker?.ready;
+    await registration?.update();
+    if (registration?.waiting != null) _updates.add(null);
+  }
+
+  Future<void> clearCache() async {
+    final registration = await html.window.navigator.serviceWorker?.ready;
+    registration?.active?.postMessage({'type': 'usra-clear-cache'});
+    await Future<void>.delayed(const Duration(milliseconds: 300));
+    html.window.location.reload();
+  }
 }
 
 AppUpdateService createAppUpdateService() => AppUpdateService();

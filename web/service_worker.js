@@ -1,6 +1,7 @@
 'use strict';
 
-const VERSION = new URL(self.location.href).searchParams.get('v') || 'dev';
+// Replaced by the release pipeline in build/web.
+const VERSION = new URL(self.location.href).searchParams.get('v') || '__USRA_WEB_VERSION__';
 const CACHE_NAME = `usra-r3-${VERSION}`;
 const SHELL = [
   './',
@@ -138,6 +139,13 @@ self.addEventListener('message', (event) => {
     self.skipWaiting();
   } else if (event.data?.type === 'usra-new-version-available') {
     notifyClients();
+  } else if (event.data?.type === 'usra-clear-cache') {
+    event.waitUntil((async () => {
+      const names = await caches.keys();
+      await Promise.all(names
+        .filter((name) => name.startsWith('usra-r3-'))
+        .map((name) => caches.delete(name)));
+    })());
   }
 });
 

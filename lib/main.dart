@@ -391,11 +391,14 @@ class _AppUpdateBannerState extends State<AppUpdateBanner> {
                 child: Row(
                   children: [
                     const Expanded(
-                      child: Text('Uma nova versão está disponível.'),
+                      child: Text(
+                        'O software foi atualizado em segundo plano.\n'
+                        'Recarregue a página para usar a nova versão.',
+                      ),
                     ),
                     TextButton(
                       onPressed: widget.service.activate,
-                      child: const Text('Atualizar'),
+                      child: const Text('Recarregar'),
                     ),
                   ],
                 ),
@@ -2434,6 +2437,8 @@ class _SettingsPageState extends State<SettingsPage> {
   late AppTheme theme = widget.theme;
   late DisplayTimeZone displayTimeZone = widget.displayTimeZone;
   bool locating = false;
+  bool _checkingWebUpdate = false;
+  bool _clearingWebCache = false;
   late bool mergePrecision = widget.mergePrecision;
   late bool lastOnly = widget.lastOnly;
   late bool keepScreenOn = widget.keepScreenOn;
@@ -2654,6 +2659,31 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
         const SizedBox(height: 18),
         FilledButton(onPressed: _save, child: const Text('Salvar alterações')),
+        if (kIsWeb) ...[
+          const SizedBox(height: 24),
+          Text(
+            'Versão web',
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: _checkingWebUpdate ? null : _checkWebUpdate,
+            icon: const Icon(Icons.system_update_outlined),
+            label: Text(
+              _checkingWebUpdate ? 'Verificando...' : 'Verificar atualizações',
+            ),
+          ),
+          const SizedBox(height: 8),
+          OutlinedButton.icon(
+            onPressed: _clearingWebCache ? null : _clearWebCache,
+            icon: const Icon(Icons.delete_sweep_outlined),
+            label: Text(
+              _clearingWebCache ? 'Limpando cache...' : 'Limpar cache web',
+            ),
+          ),
+        ],
         const SizedBox(height: 28),
         const Divider(),
         const SizedBox(height: 16),
@@ -2687,6 +2717,48 @@ class _SettingsPageState extends State<SettingsPage> {
     ),
   );
   bool _importing = false;
+
+  Future<void> _checkWebUpdate() async {
+    setState(() => _checkingWebUpdate = true);
+    try {
+      await _appUpdates.checkForUpdate();
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('Verificação de atualização concluída.'),
+          ),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _checkingWebUpdate = false);
+    }
+  }
+
+  Future<void> _clearWebCache() async {
+    final confirmed = await showDialog<bool>(
+      context: context,
+      builder: (context) => AlertDialog(
+        title: const Text('Limpar cache web?'),
+        content: const Text(
+          'A aplicação será recarregada e os arquivos serão baixados novamente. '
+          'Se estiver offline, ela poderá não abrir até o cache ser recriado.',
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(context, false),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.pop(context, true),
+            child: const Text('Limpar'),
+          ),
+        ],
+      ),
+    );
+    if (confirmed != true || !mounted) return;
+    setState(() => _clearingWebCache = true);
+    await _appUpdates.clearCache();
+  }
 
   Future<void> _exportCsv() async {
     try {

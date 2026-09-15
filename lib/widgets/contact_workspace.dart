@@ -29,6 +29,13 @@ class ContactWorkspace extends StatefulWidget {
 class _ContactWorkspaceState extends State<ContactWorkspace> {
   double? _contentHeight;
   double _logsWidth = 440;
+  final _logsScrollController = ScrollController();
+
+  @override
+  void dispose() {
+    _logsScrollController.dispose();
+    super.dispose();
+  }
 
   @override
   Widget build(BuildContext context) => LayoutBuilder(
@@ -138,7 +145,11 @@ class _ContactWorkspaceState extends State<ContactWorkspace> {
           Expanded(
             child: Scrollbar(
               key: const ValueKey('contact-logs-content-scroll'),
+              controller: _logsScrollController,
+              thumbVisibility: true,
+              interactive: true,
               child: SingleChildScrollView(
+                controller: _logsScrollController,
                 padding: const EdgeInsets.only(right: 20),
                 child: widget.logs,
               ),

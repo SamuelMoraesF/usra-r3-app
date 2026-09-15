@@ -4,7 +4,9 @@
   if (!('serviceWorker' in navigator)) return;
 
   try {
-    const registration = await navigator.serviceWorker.register('service_worker.js', {
+    // Replaced by the release pipeline in build/web.
+    const version = '__USRA_WEB_VERSION__';
+    const registration = await navigator.serviceWorker.register(`service_worker.js?v=${encodeURIComponent(version)}`, {
       updateViaCache: 'none',
     });
 

@@ -116,6 +116,16 @@ jobs:
             )
           fi
           flutter build "$target" "${options[@]}"
+          if [[ "$PLATFORM" == web ]]; then
+            if [[ -n "${RELEASE_VERSION:-}" ]]; then
+              web_version="${RELEASE_VERSION}+${RELEASE_BUILD}"
+            else
+              web_version="dev-${GITHUB_SHA:0:12}"
+            fi
+            sed -i "s/__USRA_WEB_VERSION__/${web_version}/g" \
+              build/web/service_worker.js \
+              build/web/service_worker_client.js
+          fi
           if [[ "$PLATFORM" == android && -n "$RELEASE_TAG" ]]; then
             APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
             "$APKSIGNER" verify --verbose build/app/outputs/flutter-apk/app-release.apk
