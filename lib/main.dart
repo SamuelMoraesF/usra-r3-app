@@ -1273,7 +1273,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Padding(
-            padding: const EdgeInsets.only(top: 12, bottom: 6),
+            padding: const EdgeInsets.only(
+              top: 12,
+              right: 8,
+              bottom: 6,
+              left: 8,
+            ),
             child: Text(
               title,
               style: Theme.of(
@@ -1300,7 +1305,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             }
           });
         },
-        tilePadding: EdgeInsets.zero,
+        tilePadding: const EdgeInsets.only(left: 8),
         title: Row(
           children: [
             Expanded(
