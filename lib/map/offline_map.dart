@@ -1313,6 +1313,21 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
                         ],
                       ),
                     ),
+                    if (widget.onDisconnect != null)
+                      IconButton(
+                        tooltip: 'Desligar estação da rede',
+                        icon: const Icon(Icons.power_settings_new),
+                        color: colors.onErrorContainer,
+                        style: IconButton.styleFrom(
+                          backgroundColor: colors.errorContainer,
+                        ),
+                        onPressed: () async {
+                          await widget.onDisconnect!(contact.latest);
+                          if (sheetContext.mounted) {
+                            Navigator.of(sheetContext).pop();
+                          }
+                        },
+                      ),
                   ],
                 ),
                 const SizedBox(height: 18),
@@ -1367,19 +1382,6 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
                   'Último contato: ${_formatDate(contact.last.createdAt)}',
                   style: TextStyle(color: colors.onSurfaceVariant),
                 ),
-                if (widget.onDisconnect != null) ...[
-                  const SizedBox(height: 16),
-                  FilledButton.icon(
-                    icon: const Icon(Icons.power_settings_new),
-                    label: const Text('Desligar estação da rede'),
-                    onPressed: () async {
-                      await widget.onDisconnect!(contact.latest);
-                      if (sheetContext.mounted) {
-                        Navigator.of(sheetContext).pop();
-                      }
-                    },
-                  ),
-                ],
               ],
             ),
           ),
