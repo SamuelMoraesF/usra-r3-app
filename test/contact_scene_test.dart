@@ -154,6 +154,29 @@ void main() {
     expect(const ContactMarker('', MarkerKind.otherContact).color, '#9E9E9E');
   });
 
+  test('same grid keeps markers separate and formats all callsigns', () {
+    final result = scene([
+      qso(callsign: 'PY3CCC'),
+      qso(callsign: 'PY3AAA'),
+      qso(callsign: 'PY3BBB'),
+    ]);
+    final contactMarkers = result.markers
+        .where((marker) => marker.contactIndex != null)
+        .toList();
+    expect(contactMarkers, hasLength(3));
+    expect(contactMarkers.every((marker) => marker.multiple), isTrue);
+    expect(
+      formatCallsigns(['PY3CCC', 'PY3AAA', 'PY3BBB']),
+      'PY3AAA, PY3BBB e PY3CCC',
+    );
+    expect(formatCallsigns(['PY3BBB', 'PY3CCC']), 'PY3BBB e PY3CCC');
+    expect(
+      formatCallsigns(['PY3AAA', 'PY3BBB', 'PY3CCC', 'PY3DDD']),
+      'PY3AAA, PY3BBB, PY3CCC e PY3DDD',
+    );
+    expect(result.routes, hasLength(1));
+  });
+
   test(
     'default grid contains supplied coordinates at maximum supported precision',
     () {

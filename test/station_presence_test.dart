@@ -202,6 +202,12 @@ void main() {
         result.markers.where((m) => m.kind == MarkerKind.otherContact),
         hasLength(2),
       );
+      expect(
+        result.markers
+            .where((m) => m.contactIndex != null)
+            .every((m) => m.multiple),
+        isTrue,
+      );
       expect(presence(entries, mode: 'repeater', mhz: 145.37).warnings, [
         repeater,
       ]);

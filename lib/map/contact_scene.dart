@@ -20,6 +20,7 @@ class ContactMarker {
     this.stationType = '',
     this.energy = '',
     this.warning = false,
+    this.multiple = false,
   });
   final String grid;
   final MarkerKind kind;
@@ -27,6 +28,7 @@ class ContactMarker {
   final String stationType;
   final String energy;
   final bool warning;
+  final bool multiple;
   double get radius => contactIndex == null ? 8 : 6;
   String get color => switch (kind) {
     MarkerKind.operator => '#2196F3',
@@ -68,6 +70,19 @@ class ContactScene {
             contact.latest.callsign.trim().toUpperCase() !=
             operatorCallsign.trim().toUpperCase(),
       );
+}
+
+String formatCallsigns(Iterable<String> values) {
+  final callsigns =
+      values
+          .map((value) => value.trim().toUpperCase())
+          .where((value) => value.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort();
+  if (callsigns.length < 2) return callsigns.join();
+  if (callsigns.length == 2) return '${callsigns[0]} e ${callsigns[1]}';
+  return '${callsigns.sublist(0, callsigns.length - 1).join(', ')} e ${callsigns.last}';
 }
 
 ContactScene buildContactScene(
@@ -138,6 +153,11 @@ ContactScene buildContactScene(
   marker(operatorGrid, MarkerKind.operator);
   final repeaters = <String>{};
   String normalized(String grid) => GridLocator.inspect(grid).normalized;
+  final contactsByGrid = <String, List<int>>{};
+  for (var i = 0; i < contacts.length; i++) {
+    final grid = normalized(contacts[i].latest.location);
+    contactsByGrid.putIfAbsent(grid, () => []).add(i);
+  }
   if (selectedMode == 'repeater' ||
       visible.any((e) => e.frequency == 'repeater')) {
     marker(repeaterGrid, MarkerKind.currentRepeater);
@@ -155,20 +175,23 @@ ContactScene buildContactScene(
   }
   for (var i = 0; i < contacts.length; i++) {
     final contact = contacts[i];
-    final matching = selected(contact.latest);
     markers.add(
       ContactMarker(
         contact.latest.location,
-        matching ? MarkerKind.selectedContact : MarkerKind.otherContact,
+        selected(contact.latest)
+            ? MarkerKind.selectedContact
+            : MarkerKind.otherContact,
         contactIndex: i,
         stationType: contact.latest.stationType,
         energy: contact.latest.energy,
         warning: warningKeys.contains(stationPresenceKey(contact.latest)),
+        multiple:
+            contactsByGrid[normalized(contact.latest.location)]!.length > 1,
       ),
     );
   }
   if (showLines && GridLocator.bounds(operatorGrid) != null) {
-    // Each QSO retains its own route, even when its remote marker is grouped.
+    final routeKeys = <String>{};
     for (final entry in visible.where(
       (e) => (showAll || selected(e)) && GridLocator.bounds(e.location) != null,
     )) {
@@ -199,13 +222,10 @@ ContactScene buildContactScene(
           missingVia = true;
         }
       }
-      routes.add(
-        ContactRoute([
-          operatorGrid,
-          ?middle,
-          entry.location,
-        ], missingVia: missingVia),
-      );
+      final grids = [operatorGrid, ?middle, entry.location];
+      if (routeKeys.add(grids.map(normalized).join('|'))) {
+        routes.add(ContactRoute(grids, missingVia: missingVia));
+      }
     }
   }
   return ContactScene(contacts, markers, routes);

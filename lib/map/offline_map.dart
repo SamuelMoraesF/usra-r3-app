@@ -601,6 +601,21 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     for (final marker in scene.markers) {
       final bounds = GridLocator.bounds(marker.grid);
       if (bounds == null) continue;
+      if (marker.multiple) {
+        await map.addCircle(
+          CircleOptions(
+            geometry: LatLng(bounds.centerLatitude, bounds.centerLongitude),
+            circleColor: mapColor(colors.surface),
+            circleRadius: marker.radius + 3,
+            circleOpacity: 0,
+            circleBlur: 0,
+            circleStrokeColor: mapColor(colors.onSurface),
+            circleStrokeWidth: 2.5,
+            circleStrokeOpacity: 1,
+          ),
+          {'contactIndex': marker.contactIndex},
+        );
+      }
       if (marker.warning) {
         final imageId =
             'station-warning-${marker.color}-${mapColor(colors.surface)}';
@@ -914,12 +929,18 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     if (!widget.settings.showCallsigns && !_callsignLayerReady) return;
     final features = <Map<String, dynamic>>[];
     if (widget.settings.showCallsigns) {
+      final contactsByGrid = <String, List<MapContact>>{};
       for (final contact in scene.callsignContacts(widget.operatorCallsign)) {
+        final grid = GridLocator.inspect(contact.latest.location).normalized;
+        contactsByGrid.putIfAbsent(grid, () => []).add(contact);
+      }
+      for (final contacts in contactsByGrid.values) {
+        final contact = contacts.first;
         final bounds = contact.bounds;
         if (bounds == null) continue;
         final imageId = await _labelImage(
           map,
-          contact.latest.callsign.trim().toUpperCase(),
+          formatCallsigns(contacts.map((contact) => contact.latest.callsign)),
         );
         features.add({
           'type': 'Feature',

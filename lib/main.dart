@@ -1252,10 +1252,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   const SizedBox(height: 8),
                   SizedBox(width: double.infinity, child: frequencySwitch),
                   const SizedBox(height: 8),
-                  SizedBox(
-                    width: double.infinity,
-                    child: _buildCloseNetworkButton(true),
-                  ),
+                  if (_networkStartedAt != null)
+                    SizedBox(
+                      width: double.infinity,
+                      child: _buildCloseNetworkButton(true),
+                    ),
                   const SizedBox(height: 20),
                   logs,
                 ],
