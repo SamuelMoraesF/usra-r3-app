@@ -608,6 +608,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   int _mapFocusRequest = 0;
   String _lastMapFocusGrid = '';
   DateTime? _networkStartedAt;
+  final _expandedClosedNetworks = <DateTime>{};
   StationDisconnections _disconnections = StationDisconnections();
   Timer? _presenceTimer;
   String? _prefilledPresenceKey;
@@ -1136,173 +1137,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     ),
                   ),
                 ],
-                ...entries.asMap().entries.map((indexed) {
-                  final entry = indexed.value;
-                  final canModify = _canModifyLog(entry);
-                  final previous = indexed.key == 0
-                      ? null
-                      : entries[indexed.key - 1];
-                  return Column(
-                    crossAxisAlignment: CrossAxisAlignment.stretch,
-                    children: [
-                      if (previous == null ||
-                          previous.networkStartedAt != entry.networkStartedAt)
-                        Padding(
-                          padding: const EdgeInsets.only(top: 12, bottom: 6),
-                          child: Text(
-                            _networkTitle(
-                              entry.networkStartedAt,
-                              entry.networkEndedAt,
-                            ),
-                            style: Theme.of(context).textTheme.titleSmall
-                                ?.copyWith(fontWeight: FontWeight.w700),
-                          ),
-                        ),
-                      Dismissible(
-                        key: ValueKey('saved-log-${entry.id}'),
-                        direction: canModify
-                            ? DismissDirection.endToStart
-                            : DismissDirection.none,
-                        background: Container(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          alignment: Alignment.centerRight,
-                          padding: const EdgeInsets.only(right: 20),
-                          decoration: BoxDecoration(
-                            color: Theme.of(context).colorScheme.errorContainer,
-                            borderRadius: BorderRadius.circular(14),
-                          ),
-                          child: Icon(
-                            Icons.delete_outline,
-                            color: Theme.of(
-                              context,
-                            ).colorScheme.onErrorContainer,
-                          ),
-                        ),
-                        confirmDismiss: (_) async {
-                          if (!_canModifyLog(entry)) return false;
-                          final confirmed = await _confirmDeleteLog(entry);
-                          if (confirmed) {
-                            await widget.database.deleteLog(entry.id);
-                          }
-                          return confirmed;
-                        },
-                        child: Card(
-                          margin: const EdgeInsets.only(bottom: 8),
-                          elevation: 0,
-                          shape: RoundedRectangleBorder(
-                            borderRadius: BorderRadius.circular(14),
-                            side: BorderSide(
-                              color: Theme.of(
-                                context,
-                              ).dividerColor.withValues(alpha: 0.55),
-                            ),
-                          ),
-                          child: ListTile(
-                            onTap: canModify ? () => _editLog(entry) : null,
-                            contentPadding: const EdgeInsets.symmetric(
-                              horizontal: 14,
-                              vertical: 4,
-                            ),
-                            title: Row(
-                              children: [
-                                Expanded(
-                                  child: RichText(
-                                    overflow: TextOverflow.ellipsis,
-                                    text: TextSpan(
-                                      style: DefaultTextStyle.of(context).style,
-                                      children: [
-                                        TextSpan(
-                                          text:
-                                              '${entry.callsign} · ${entry.operatorName}',
-                                          style: Theme.of(context)
-                                              .textTheme
-                                              .titleMedium
-                                              ?.copyWith(
-                                                fontWeight: FontWeight.w700,
-                                              ),
-                                        ),
-                                        if (entry.via.trim().isNotEmpty) ...[
-                                          const TextSpan(text: '  '),
-                                          _viaTitleSpan(
-                                            context,
-                                            allEntries,
-                                            entry.via,
-                                          ),
-                                        ],
-                                      ],
-                                    ),
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Icon(
-                                  Icons.schedule,
-                                  size: 15,
-                                  color: Theme.of(
-                                    context,
-                                  ).colorScheme.onSurfaceVariant,
-                                ),
-                                const SizedBox(width: 3),
-                                Text(
-                                  _formatDate(entry.createdAt),
-                                  style: Theme.of(context).textTheme.labelSmall,
-                                ),
-                              ],
-                            ),
-                            subtitle: Column(
-                              crossAxisAlignment: CrossAxisAlignment.start,
-                              children: [
-                                Row(
-                                  children: [
-                                    const Icon(Icons.power, size: 16),
-                                    const SizedBox(width: 4),
-                                    Text(_energyLabel(entry.energy)),
-                                    const SizedBox(width: 8),
-                                    const Text('·'),
-                                    const SizedBox(width: 8),
-                                    const Icon(Icons.bolt, size: 16),
-                                    const SizedBox(width: 4),
-                                    Text('${entry.powerWatts} W'),
-                                    const SizedBox(width: 8),
-                                    const Text('·'),
-                                    const SizedBox(width: 8),
-                                    const Icon(Icons.radio, size: 16),
-                                    const SizedBox(width: 4),
-                                    Text(_stationLabel(entry.stationType)),
-                                  ],
-                                ),
-                                const SizedBox(height: 4),
-                                _contactMeta(entry),
-                                if (entry.traffic == 'C' &&
-                                    entry.trafficMessage.isNotEmpty)
-                                  Container(
-                                    margin: const EdgeInsets.only(top: 8),
-                                    padding: const EdgeInsets.only(top: 8),
-                                    decoration: BoxDecoration(
-                                      border: Border(
-                                        top: BorderSide(
-                                          color: Theme.of(
-                                            context,
-                                          ).colorScheme.outlineVariant,
-                                          width: 1,
-                                        ),
-                                      ),
-                                    ),
-                                    width: double.infinity,
-                                    child: Text(
-                                      entry.trafficMessage,
-                                      style: const TextStyle(
-                                        fontFamily: 'monospace',
-                                      ),
-                                    ),
-                                  ),
-                              ],
-                            ),
-                          ),
-                        ),
-                      ),
-                    ],
-                  );
-                }),
+                ..._buildSavedLogSessions(entries, allEntries),
               ],
             );
           },
@@ -1398,6 +1233,219 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       },
     ),
   );
+
+  List<Widget> _buildSavedLogSessions(
+    List<LogEntry> entries,
+    List<LogEntry> allEntries,
+  ) {
+    final groups = <({DateTime? startedAt, List<LogEntry> entries})>[];
+    for (final entry in entries) {
+      if (groups.isEmpty || groups.last.startedAt != entry.networkStartedAt) {
+        groups.add((startedAt: entry.networkStartedAt, entries: [entry]));
+      } else {
+        groups.last.entries.add(entry);
+      }
+    }
+
+    return [
+      for (final group in groups)
+        _buildSavedLogSession(group.startedAt, group.entries, allEntries),
+    ];
+  }
+
+  Widget _buildSavedLogSession(
+    DateTime? startedAt,
+    List<LogEntry> entries,
+    List<LogEntry> allEntries,
+  ) {
+    final isActive = startedAt != null && startedAt == _networkStartedAt;
+    final isClosed =
+        startedAt != null &&
+        !isActive &&
+        entries.any((entry) => entry.networkEndedAt != null);
+    final title = _networkTitle(startedAt, entries.first.networkEndedAt);
+    final cards = entries
+        .map((entry) => _buildSavedLogCard(entry, allEntries))
+        .toList();
+
+    if (!isClosed) {
+      return Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Padding(
+            padding: const EdgeInsets.only(top: 12, bottom: 6),
+            child: Text(
+              title,
+              style: Theme.of(
+                context,
+              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+            ),
+          ),
+          ...cards,
+        ],
+      );
+    }
+
+    return Padding(
+      padding: const EdgeInsets.only(top: 8),
+      child: ExpansionTile(
+        key: ValueKey('saved-session-$startedAt'),
+        initiallyExpanded: _expandedClosedNetworks.contains(startedAt),
+        onExpansionChanged: (expanded) {
+          setState(() {
+            if (expanded) {
+              _expandedClosedNetworks.add(startedAt);
+            } else {
+              _expandedClosedNetworks.remove(startedAt);
+            }
+          });
+        },
+        tilePadding: EdgeInsets.zero,
+        title: Row(
+          children: [
+            Expanded(
+              child: Text(
+                title,
+                style: Theme.of(
+                  context,
+                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+              ),
+            ),
+            IconButton(
+              tooltip: 'Exportar relatório',
+              icon: const Icon(Icons.summarize_outlined),
+              onPressed: () {},
+            ),
+          ],
+        ),
+        children: cards,
+      ),
+    );
+  }
+
+  Widget _buildSavedLogCard(LogEntry entry, List<LogEntry> allEntries) {
+    final canModify = _canModifyLog(entry);
+    return Dismissible(
+      key: ValueKey('saved-log-${entry.id}'),
+      direction: canModify
+          ? DismissDirection.endToStart
+          : DismissDirection.none,
+      background: Container(
+        margin: const EdgeInsets.only(bottom: 8),
+        alignment: Alignment.centerRight,
+        padding: const EdgeInsets.only(right: 20),
+        decoration: BoxDecoration(
+          color: Theme.of(context).colorScheme.errorContainer,
+          borderRadius: BorderRadius.circular(14),
+        ),
+        child: Icon(
+          Icons.delete_outline,
+          color: Theme.of(context).colorScheme.onErrorContainer,
+        ),
+      ),
+      confirmDismiss: (_) async {
+        if (!_canModifyLog(entry)) return false;
+        final confirmed = await _confirmDeleteLog(entry);
+        if (confirmed) await widget.database.deleteLog(entry.id);
+        return confirmed;
+      },
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 8),
+        elevation: 0,
+        shape: RoundedRectangleBorder(
+          borderRadius: BorderRadius.circular(14),
+          side: BorderSide(
+            color: Theme.of(context).dividerColor.withValues(alpha: 0.55),
+          ),
+        ),
+        child: ListTile(
+          onTap: canModify ? () => _editLog(entry) : null,
+          contentPadding: const EdgeInsets.symmetric(
+            horizontal: 14,
+            vertical: 4,
+          ),
+          title: Row(
+            children: [
+              Expanded(
+                child: RichText(
+                  overflow: TextOverflow.ellipsis,
+                  text: TextSpan(
+                    style: DefaultTextStyle.of(context).style,
+                    children: [
+                      TextSpan(
+                        text: '${entry.callsign} · ${entry.operatorName}',
+                        style: Theme.of(context).textTheme.titleMedium
+                            ?.copyWith(fontWeight: FontWeight.w700),
+                      ),
+                      if (entry.via.trim().isNotEmpty) ...[
+                        const TextSpan(text: '  '),
+                        _viaTitleSpan(context, allEntries, entry.via),
+                      ],
+                    ],
+                  ),
+                ),
+              ),
+              const SizedBox(width: 8),
+              Icon(
+                Icons.schedule,
+                size: 15,
+                color: Theme.of(context).colorScheme.onSurfaceVariant,
+              ),
+              const SizedBox(width: 3),
+              Text(
+                _formatDate(entry.createdAt),
+                style: Theme.of(context).textTheme.labelSmall,
+              ),
+            ],
+          ),
+          subtitle: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  const Icon(Icons.power, size: 16),
+                  const SizedBox(width: 4),
+                  Text(_energyLabel(entry.energy)),
+                  const SizedBox(width: 8),
+                  const Text('·'),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.bolt, size: 16),
+                  const SizedBox(width: 4),
+                  Text('${entry.powerWatts} W'),
+                  const SizedBox(width: 8),
+                  const Text('·'),
+                  const SizedBox(width: 8),
+                  const Icon(Icons.radio, size: 16),
+                  const SizedBox(width: 4),
+                  Text(_stationLabel(entry.stationType)),
+                ],
+              ),
+              const SizedBox(height: 4),
+              _contactMeta(entry),
+              if (entry.traffic == 'C' && entry.trafficMessage.isNotEmpty)
+                Container(
+                  margin: const EdgeInsets.only(top: 8),
+                  padding: const EdgeInsets.only(top: 8),
+                  decoration: BoxDecoration(
+                    border: Border(
+                      top: BorderSide(
+                        color: Theme.of(context).colorScheme.outlineVariant,
+                        width: 1,
+                      ),
+                    ),
+                  ),
+                  width: double.infinity,
+                  child: Text(
+                    entry.trafficMessage,
+                    style: const TextStyle(fontFamily: 'monospace'),
+                  ),
+                ),
+            ],
+          ),
+        ),
+      ),
+    );
+  }
 
   Widget _buildContactForm(bool fourColumns) => Form(
     key: formKey,
