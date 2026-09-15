@@ -3,10 +3,17 @@
 O CI executa em pushes na `main`, em pull requests e pelo botão **Run workflow**
 em **Actions → CI**. Pelo CLI: `gh workflow run ci.yml --ref main`.
 Verifica formatação, análise, testes com cobertura, código gerado pelo Drift e
-builds Android debug e web release. Os artefatos ficam disponíveis por 7 dias.
+builds Android debug e Web/Linux/Windows/macOS release em paralelo. Os artefatos
+ficam disponíveis por 7 dias, com checksums individuais. CI e Release usam o
+mesmo workflow reutilizável de build por plataforma.
 Flutter está fixado em 3.47.3; ao atualizar, valide também o `pubspec.lock`.
 Os builds Android usam JDK 21, exigido pelo plugin MapLibre, mesmo com o código
 do aplicativo configurado para gerar bytecode Java 17.
+
+O CI na `main` aquece os caches de SDK, Pub, Gradle, dependências nativas e
+build_runner. Releases e PRs apenas restauram esses caches. Deixe o CI concluir
+antes da primeira tag para evitar um build com cache frio.
+Veja [tempos medidos, caches e estrutura dos builds](../.github/BUILD_PERFORMANCE.md).
 
 ## Distribuir uma versão
 
@@ -17,7 +24,12 @@ git tag v1.0.0
 git push origin v1.0.0
 ```
 
-Publicar uma release pelo GitHub também dispara o workflow para a tag selecionada.
+Publicar uma release pelo GitHub não dispara outro build. Para repetir uma tag
+existente, use **Actions → Release → Run workflow**, informando a tag, ou
+`gh workflow run release.yml --ref main -f tag=v1.0.0 -F benchmark=false`.
+O modo `benchmark` (padrão na execução manual) compila o commit selecionado em
+`--ref` com a versão informada, sem deploy, publicação ou envio ao Sentry:
+`gh workflow run release.yml --ref main -f tag=v1.0.0 -F benchmark=true`.
 O código é sempre obtido da tag, não do estado atual da main. Tags de release
 devem conter os workflows e não devem ser movidas após a distribuição.
 Reexecuções atualizam os anexos da mesma release.
@@ -27,12 +39,20 @@ Anexos:
 - `usra-r3-app-<tag>.apk`: APK universal assinado, instalável diretamente no Android.
 - `usra-r3-app-<tag>.zip`: APK, `web/` pronto para hospedagem e `source/` com os arquivos
   versionados do projeto Flutter. Chaves e senhas não entram no arquivo.
-- `SHA256SUMS-<tag>.txt`: checksums dos dois arquivos.
+- `usra-r3-app-<tag>-web.zip`: site Web separado.
+- `usra-r3-app-<tag>-linux.tar.gz`, `-windows.zip` e `-macos.zip`: aplicativos desktop.
+- `SHA256SUMS-usra-r3-app-<tag>-<plataforma>.txt`: checksum individual do pacote.
+- `SHA256SUMS-<tag>.txt`: checksum do ZIP combinado, mantendo o nome histórico.
+
+Os checksums usam somente o nome do arquivo, sem `dist/`. Verifique-os com
+`sha256sum -c NOME-DO-CHECKSUM.txt` na pasta dos downloads. O workflow também
+verifica os pacotes antes de publicá-los.
 
 O nome da versão vem da tag. O versionCode Android é calculado como
 `major * 1000000 + minor * 1000 + patch`, permitindo repetir a mesma release sem
 mudar a versão. Major deve ser no máximo 2099; minor e patch, no máximo 999.
-Use sempre versões crescentes. Não há publicação em lojas nem hospedagem automática.
+Use sempre versões crescentes. Não há publicação em lojas. Quando `VERCEL_TOKEN`
+está configurado, o Web é implantado automaticamente após passar a qualidade.
 Para hospedar em subdiretório, ajuste o `--base-href` do build web.
 
 ## Chave de assinatura: backup obrigatório
@@ -65,6 +85,6 @@ desinstalação remove os dados locais. As próximas versões release poderão s
 instaladas por cima, com a mesma chave e versionCode crescente.
 
 Actions utilizadas: `actions/checkout`, `actions/setup-java`,
-`subosito/flutter-action`, `gradle/actions/setup-gradle`,
+`subosito/flutter-action`, `actions/cache`, `gradle/actions/setup-gradle`,
 `actions/upload-artifact`, `actions/download-artifact` e
 `softprops/action-gh-release`.

@@ -1,12 +1,49 @@
 name: Flutter setup
-description: Install the pinned Flutter SDK and dependencies
+description: Install Flutter with caches shared from the default branch
+inputs:
+  target:
+    description: Platform to precache (empty for quality checks)
+    default: ''
 runs:
   using: composite
   steps:
+    # Tag-scoped SDK caches cannot be reused by the next tag. Only main saves.
     - uses: subosito/flutter-action@v2
+      id: sdk
       with:
         flutter-version: '3.47.3'
         channel: stable
-        cache: true
+        dry-run: true
+    - uses: actions/cache/restore@v5
+      id: flutter-cache
+      with:
+        path: ${{ steps.sdk.outputs.CACHE-PATH }}
+        key: ${{ steps.sdk.outputs.CACHE-KEY }}
+    - uses: actions/cache/restore@v5
+      id: pub-cache
+      with:
+        path: ${{ steps.sdk.outputs.PUB-CACHE-PATH }}
+        key: pub-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.sdk.outputs.VERSION }}-${{ hashFiles('pubspec.lock') }}
+        restore-keys: pub-v2-${{ runner.os }}-${{ runner.arch }}-${{ steps.sdk.outputs.VERSION }}-
+    - uses: subosito/flutter-action@v2
+      with:
+        flutter-version: ${{ steps.sdk.outputs.VERSION }}
+        channel: stable
+    - name: Precache platform tools
+      if: inputs.target != ''
+      shell: bash
+      env:
+        TARGET: ${{ inputs.target }}
+      run: flutter precache "--$TARGET"
     - shell: bash
       run: flutter pub get --enforce-lockfile
+    - uses: actions/cache/save@v5
+      if: github.workflow == 'CI' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && steps.flutter-cache.outputs.cache-hit != 'true'
+      with:
+        path: ${{ steps.sdk.outputs.CACHE-PATH }}
+        key: ${{ steps.flutter-cache.outputs.cache-primary-key }}
+    - uses: actions/cache/save@v5
+      if: github.workflow == 'CI' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && steps.pub-cache.outputs.cache-hit != 'true'
+      with:
+        path: ${{ steps.sdk.outputs.PUB-CACHE-PATH }}
+        key: ${{ steps.pub-cache.outputs.cache-primary-key }}

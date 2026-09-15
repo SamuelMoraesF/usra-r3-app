@@ -1,0 +1,160 @@
+name: Build platform
+on:
+  workflow_call:
+    inputs:
+      platform:
+        type: string
+        required: true
+      runner:
+        type: string
+        required: true
+      tag:
+        type: string
+        default: ''
+      ref:
+        type: string
+        default: ''
+      upload-symbols:
+        type: boolean
+        default: true
+permissions:
+  contents: read
+jobs:
+  build:
+    runs-on: ${{ inputs.runner }}
+    timeout-minutes: 40
+    defaults:
+      run:
+        shell: bash
+    env:
+      PLATFORM: ${{ inputs.platform }}
+      RELEASE_TAG: ${{ inputs.tag }}
+      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
+      SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
+      SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
+    steps:
+      - uses: actions/checkout@v7.0.1
+        with:
+          ref: ${{ inputs.ref || inputs.tag }}
+      - name: Validate version
+        id: metadata
+        run: |
+          if [[ -n "$RELEASE_TAG" ]]; then
+            python3 tool/release_version.py "$RELEASE_TAG" >> "$GITHUB_ENV"
+          fi
+          python3 -c 'import os; print("CMAKE_BUILD_PARALLEL_LEVEL=" + str(os.cpu_count() or 2))' >> "$GITHUB_ENV"
+          echo "runner-image=${ImageOS:-$RUNNER_OS}-${ImageVersion:-unknown}" >> "$GITHUB_OUTPUT"
+      - uses: actions/setup-java@v6.0.1
+        if: inputs.platform == 'android'
+        with:
+          distribution: temurin
+          java-version: '21'
+      - uses: gradle/actions/setup-gradle@v6.3.0
+        if: inputs.platform == 'android'
+        with:
+          # Main warms reusable task outputs; tags/PRs only restore them.
+          cache-read-only: ${{ github.workflow != 'CI' || github.ref != 'refs/heads/main' || github.event_name == 'pull_request' }}
+      - name: Install Linux desktop dependencies
+        if: inputs.platform == 'linux'
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y --no-install-recommends clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libcurl4-openssl-dev
+      - uses: ./.github/actions/setup
+        with:
+          target: ${{ inputs.platform }}
+      - name: Restore native dependencies
+        if: contains(fromJSON('["linux", "windows", "macos"]'), inputs.platform)
+        id: native-cache
+        uses: actions/cache/restore@v5
+        with:
+          # Reuse FetchContent downloads and their compiled libraries, not
+          # application outputs. Runner-image changes invalidate native ABI state.
+          path: |
+            build/windows/x64/_deps
+            build/linux/x64/release/_deps
+            ~/Library/Caches/org.swift.swiftpm
+            ~/Library/Caches/CocoaPods
+          key: native-v1-${{ runner.os }}-${{ runner.arch }}-${{ steps.metadata.outputs.runner-image }}-${{ hashFiles('pubspec.lock', '.github/actions/setup/action.yml', 'windows/**/CMakeLists.txt', 'linux/**/CMakeLists.txt', 'macos/**/*.pbxproj', 'macos/**/Package.resolved') }}
+      - name: Build application
+        env:
+          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
+          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
+          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
+          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
+          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
+        run: |
+          set -euo pipefail
+          target="$PLATFORM"
+          options=(--release --no-pub)
+          if [[ "$PLATFORM" == android ]]; then
+            target=apk
+            if [[ -z "$RELEASE_TAG" ]]; then
+              options=(--debug --no-pub)
+            else
+              : "${ANDROID_KEYSTORE_BASE64:?Missing signing secret}"
+              : "${ANDROID_KEYSTORE_PASSWORD:?Missing signing secret}"
+              : "${ANDROID_KEY_ALIAS:?Missing signing secret}"
+              : "${ANDROID_KEY_PASSWORD:?Missing signing secret}"
+              export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/release.jks"
+              trap 'rm -f "$ANDROID_KEYSTORE_PATH"' EXIT
+              umask 077
+              printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_PATH"
+            fi
+          fi
+          if [[ "$PLATFORM" == web ]]; then
+            # This app ships JavaScript; the Wasm compatibility probe is unused.
+            options+=(--no-wasm-dry-run)
+            if [[ -n "$RELEASE_TAG" ]]; then options+=(--source-maps); fi
+          fi
+          if [[ -n "$RELEASE_TAG" ]]; then
+            options+=(
+              "--build-name=$RELEASE_VERSION" "--build-number=$RELEASE_BUILD"
+              "--dart-define=SENTRY_DSN=$SENTRY_DSN"
+              "--dart-define=SENTRY_RELEASE=$RELEASE_VERSION"
+              "--dart-define=SENTRY_DIST=$RELEASE_BUILD"
+              --dart-define=SENTRY_ENVIRONMENT=production
+            )
+          fi
+          flutter build "$target" "${options[@]}"
+          if [[ "$PLATFORM" == android && -n "$RELEASE_TAG" ]]; then
+            APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
+            "$APKSIGNER" verify --verbose build/app/outputs/flutter-apk/app-release.apk
+          fi
+      - name: Upload Web source maps to Sentry
+        if: inputs.upload-symbols && inputs.tag != '' && inputs.platform == 'web' && env.SENTRY_AUTH_TOKEN != '' && env.SENTRY_ORG != '' && env.SENTRY_PROJECT != ''
+        env:
+          SENTRY_RELEASE: ${{ env.RELEASE_VERSION }}
+        run: dart run sentry_dart_plugin
+      - name: Remove Web source maps from public artifacts
+        if: inputs.platform == 'web'
+        run: find build/web -type f \( -name '*.js.map' -o -name '*.wasm.map' \) -delete
+      - name: Upload desktop debug symbols to Sentry
+        if: inputs.upload-symbols && inputs.tag != '' && contains(fromJSON('["linux", "windows", "macos"]'), inputs.platform) && env.SENTRY_AUTH_TOKEN != '' && env.SENTRY_ORG != '' && env.SENTRY_PROJECT != ''
+        run: |
+          case "$PLATFORM" in
+            linux) symbols_path="build/linux/x64/release/bundle" ;;
+            windows) symbols_path="build/windows/x64/runner/Release" ;;
+            macos) symbols_path="build/macos/Build/Products/Release" ;;
+          esac
+          npx --yes @sentry/cli@2.47.0 debug-files upload "$symbols_path" \
+            --org "$SENTRY_ORG" --project "$SENTRY_PROJECT" \
+            --auth-token "$SENTRY_AUTH_TOKEN" --include-sources
+      - name: Package application and individual checksum
+        run: python3 tool/package_build.py "$PLATFORM" --tag "$RELEASE_TAG"
+      - uses: actions/upload-artifact@v7.0.1
+        with:
+          name: ${{ inputs.tag != '' && format('release-{0}', inputs.platform) || format('build-{0}', inputs.platform) }}
+          path: dist/*
+          compression-level: 0
+          retention-days: 7
+          if-no-files-found: error
+      - name: Save native dependencies on main
+        if: github.workflow == 'CI' && github.ref == 'refs/heads/main' && github.event_name != 'pull_request' && steps.native-cache.outputs.cache-hit != 'true' && contains(fromJSON('["linux", "windows", "macos"]'), inputs.platform)
+        uses: actions/cache/save@v5
+        with:
+          path: |
+            build/windows/x64/_deps
+            build/linux/x64/release/_deps
+            ~/Library/Caches/org.swift.swiftpm
+            ~/Library/Caches/CocoaPods
+          key: ${{ steps.native-cache.outputs.cache-primary-key }}

@@ -2,235 +2,140 @@ name: Release
 on:
   push:
     tags: ['v*']
-  release:
-    types: [published]
+  # Publishing a GitHub Release no longer starts a second build of the same tag.
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: Existing release tag (vMAJOR.MINOR.PATCH)
+        required: true
+        type: string
+      benchmark:
+        description: Build the selected workflow ref with this version, without publishing or deploying
+        type: boolean
+        default: true
 permissions:
   contents: read
 concurrency:
-  group: release-${{ github.event.release.tag_name || github.ref_name }}
-  # Creating a release from a pushed tag emits both `push` and `release`
-  # events. Keep only one package job for that tag.
+  group: release-${{ inputs.benchmark && 'benchmark-' || '' }}${{ inputs.tag || github.ref_name }}
   cancel-in-progress: true
 jobs:
-  package:
-    runs-on: ubuntu-latest
-    timeout-minutes: 45
-    env:
-      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-      SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-      SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
-      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
-      VERCEL_ORG_ID: team_nBew5dIaGJaUQhj2zPUob7ch
-      VERCEL_PROJECT_ID: prj_5bghjve59ScbBQuBSnV929dd3LuQ
-    steps:
-      - uses: actions/checkout@v7.0.1
-        with:
-          ref: ${{ github.event.release.tag_name || github.ref_name }}
-      - uses: actions/setup-java@v6.0.1
-        with:
-          distribution: temurin
-          java-version: '21'
-      - uses: gradle/actions/setup-gradle@v6.3.0
-      - uses: ./.github/actions/setup
-      - name: Validate version
-        env:
-          RELEASE_TAG: ${{ github.event.release.tag_name || github.ref_name }}
-        run: |
-          echo "RELEASE_TAG=$RELEASE_TAG" >> "$GITHUB_ENV"
-          echo "ARTIFACT_STEM=usra-r3-app-$RELEASE_TAG" >> "$GITHUB_ENV"
-          echo "CHECKSUM_FILE=SHA256SUMS-$RELEASE_TAG.txt" >> "$GITHUB_ENV"
-          python3 tool/release_version.py "$RELEASE_TAG" >> "$GITHUB_ENV"
-      - run: flutter analyze --fatal-infos
-      - run: flutter test
-      - name: Build signed APK
-        env:
-          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
-          ANDROID_KEYSTORE_BASE64: ${{ secrets.ANDROID_KEYSTORE_BASE64 }}
-          ANDROID_KEYSTORE_PASSWORD: ${{ secrets.ANDROID_KEYSTORE_PASSWORD }}
-          ANDROID_KEY_ALIAS: ${{ secrets.ANDROID_KEY_ALIAS }}
-          ANDROID_KEY_PASSWORD: ${{ secrets.ANDROID_KEY_PASSWORD }}
-        run: |
-          set -euo pipefail
-          : "${ANDROID_KEYSTORE_BASE64:?Missing signing secret}"
-          : "${ANDROID_KEYSTORE_PASSWORD:?Missing signing secret}"
-          : "${ANDROID_KEY_ALIAS:?Missing signing secret}"
-          : "${ANDROID_KEY_PASSWORD:?Missing signing secret}"
-          export ANDROID_KEYSTORE_PATH="$RUNNER_TEMP/release.jks"
-          trap 'rm -f "$ANDROID_KEYSTORE_PATH"' EXIT
-          umask 077
-          printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_PATH"
-          flutter build apk --release --build-name="$RELEASE_VERSION" --build-number="$RELEASE_BUILD" \
-            --dart-define=SENTRY_DSN="$SENTRY_DSN" \
-            --dart-define=SENTRY_RELEASE="$RELEASE_VERSION" \
-            --dart-define=SENTRY_DIST="$RELEASE_BUILD" \
-            --dart-define=SENTRY_ENVIRONMENT=production
-          APKSIGNER=$(find "$ANDROID_HOME/build-tools" -name apksigner | sort -V | tail -1)
-          "$APKSIGNER" verify --verbose build/app/outputs/flutter-apk/app-release.apk
-      - name: Build web
-        env:
-          SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
-        run: |
-          flutter build web --release --build-name="$RELEASE_VERSION" --build-number="$RELEASE_BUILD" \
-            --source-maps \
-            --dart-define=SENTRY_DSN="$SENTRY_DSN" \
-            --dart-define=SENTRY_RELEASE="$RELEASE_VERSION" \
-            --dart-define=SENTRY_DIST="$RELEASE_BUILD" \
-            --dart-define=SENTRY_ENVIRONMENT=production
-      - name: Upload Web source maps to Sentry
-        if: ${{ env.SENTRY_AUTH_TOKEN != '' && env.SENTRY_ORG != '' && env.SENTRY_PROJECT != '' }}
-        env:
-          SENTRY_RELEASE: ${{ env.RELEASE_VERSION }}
-        run: dart run sentry_dart_plugin
-      - name: Remove Web source maps from public artifacts
-        run: find build/web -type f \( -name '*.js.map' -o -name '*.wasm.map' \) -delete
-      - name: Deploy Web to Vercel
-        if: ${{ env.VERCEL_TOKEN != '' }}
-        run: |
-          npx --yes vercel@59.16.0 deploy build/web --prod --yes \
-            --token="$VERCEL_TOKEN" \
-            --scope="$VERCEL_ORG_ID" \
-            --project="$VERCEL_PROJECT_ID"
-      - name: Package web, source and APK
-        run: |
-          mkdir -p dist/bundle/web dist/bundle/source
-          cp -a build/web/. dist/bundle/web/
-          git archive HEAD | tar -x -C dist/bundle/source
-          cp build/app/outputs/flutter-apk/app-release.apk "dist/${ARTIFACT_STEM}.apk"
-          # The APK and Web files are already copied into dist. Remove the
-          # large intermediate build trees before creating the ZIP so the
-          # temporary archive does not exhaust the runner disk.
-          rm -rf build/app build/web
-          cp "dist/${ARTIFACT_STEM}.apk" dist/bundle/
-          (cd dist/bundle && zip -qr "../${ARTIFACT_STEM}.zip" .)
-          (cd dist && sha256sum "${ARTIFACT_STEM}.apk" "${ARTIFACT_STEM}.zip" > "$CHECKSUM_FILE")
-      - uses: actions/upload-artifact@v7.0.1
-        with:
-          name: release-files
-          path: |
-            dist/${{ env.ARTIFACT_STEM }}.apk
-            dist/${{ env.ARTIFACT_STEM }}.zip
-            dist/${{ env.CHECKSUM_FILE }}
-          retention-days: 7
-          if-no-files-found: error
-  publish:
-    needs: [package, desktop-package]
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-    permissions:
-      contents: write
-    env:
-      RELEASE_TAG: ${{ github.event.release.tag_name || github.ref_name }}
-      ARTIFACT_STEM: usra-r3-app-${{ github.event.release.tag_name || github.ref_name }}
-      CHECKSUM_FILE: SHA256SUMS-${{ github.event.release.tag_name || github.ref_name }}.txt
-    steps:
-      - uses: actions/download-artifact@v8.0.1
-        with:
-          name: release-files
-          path: dist
-      - uses: actions/download-artifact@v8.0.1
-        with:
-          pattern: desktop-release-*
-          path: dist
-          merge-multiple: true
-      - name: Attach packages to release
-        uses: softprops/action-gh-release@v3
-        with:
-          tag_name: ${{ github.event.release.tag_name || github.ref_name }}
-          generate_release_notes: true
-          fail_on_unmatched_files: true
-          files: |
-            dist/*
-
-  desktop-package:
+  quality:
+    uses: ./.github/workflows/quality.yml
+    with:
+      ref: ${{ inputs.benchmark && github.sha || inputs.tag || github.ref_name }}
+  android:
+    uses: ./.github/workflows/build-platform.yml
+    with:
+      platform: android
+      runner: ubuntu-latest
+      tag: ${{ inputs.tag || github.ref_name }}
+      ref: ${{ inputs.benchmark && github.sha || '' }}
+      upload-symbols: ${{ !inputs.benchmark }}
+    secrets: inherit
+  web:
+    uses: ./.github/workflows/build-platform.yml
+    with:
+      platform: web
+      runner: ubuntu-latest
+      tag: ${{ inputs.tag || github.ref_name }}
+      ref: ${{ inputs.benchmark && github.sha || '' }}
+      upload-symbols: ${{ !inputs.benchmark }}
+    secrets: inherit
+  desktop:
     strategy:
       fail-fast: false
       matrix:
         include:
-          - os: ubuntu-latest
-            platform: linux
-            archive: tar.gz
-          - os: windows-latest
-            platform: windows
-            archive: zip
-          - os: macos-latest
-            platform: macos
-            archive: zip
-    runs-on: ${{ matrix.os }}
-    timeout-minutes: 45
+          - platform: linux
+            runner: ubuntu-latest
+          - platform: windows
+            runner: windows-latest
+          - platform: macos
+            runner: macos-latest
+    uses: ./.github/workflows/build-platform.yml
+    with:
+      platform: ${{ matrix.platform }}
+      runner: ${{ matrix.runner }}
+      tag: ${{ inputs.tag || github.ref_name }}
+      ref: ${{ inputs.benchmark && github.sha || '' }}
+      upload-symbols: ${{ !inputs.benchmark }}
+    secrets: inherit
+  bundle:
+    needs: [android, web]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
-      SENTRY_AUTH_TOKEN: ${{ secrets.SENTRY_AUTH_TOKEN }}
-      SENTRY_ORG: ${{ secrets.SENTRY_ORG }}
-      SENTRY_PROJECT: ${{ secrets.SENTRY_PROJECT }}
-      SENTRY_DSN: ${{ secrets.SENTRY_DSN }}
-      RELEASE_TAG: ${{ github.event.release.tag_name || github.ref_name }}
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - uses: actions/checkout@v7.0.1
         with:
-          ref: ${{ github.event.release.tag_name || github.ref_name }}
-      - name: Install Linux desktop dependencies
-        if: ${{ matrix.platform == 'linux' }}
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y clang cmake ninja-build pkg-config libgtk-3-dev liblzma-dev libcurl4-openssl-dev
-      - uses: ./.github/actions/setup
-      - name: Validate version
-        shell: bash
-        run: |
-          python3 tool/release_version.py "$RELEASE_TAG" >> "$GITHUB_ENV"
-          echo "ARTIFACT_STEM=usra-r3-app-${RELEASE_TAG}-${{ matrix.platform }}" >> "$GITHUB_ENV"
-      - name: Build desktop application
-        shell: bash
-        run: |
-          flutter build "${{ matrix.platform }}" --release \
-            --build-name="$RELEASE_VERSION" \
-            --build-number="$RELEASE_BUILD" \
-            --dart-define=SENTRY_DSN="$SENTRY_DSN" \
-            --dart-define=SENTRY_RELEASE="$RELEASE_VERSION" \
-            --dart-define=SENTRY_DIST="$RELEASE_BUILD" \
-            --dart-define=SENTRY_ENVIRONMENT=production
-      - name: Upload desktop debug symbols to Sentry
-        if: ${{ env.SENTRY_AUTH_TOKEN != '' && env.SENTRY_ORG != '' && env.SENTRY_PROJECT != '' }}
-        shell: bash
-        run: |
-          set -euo pipefail
-          case "${{ matrix.platform }}" in
-            linux) symbols_path="build/linux/x64/release/bundle" ;;
-            windows) symbols_path="build/windows/x64/runner/Release" ;;
-            macos) symbols_path="build/macos/Build/Products/Release" ;;
-          esac
-          npx --yes @sentry/cli@2.47.0 debug-files upload "$symbols_path" \
-            --org "$SENTRY_ORG" \
-            --project "$SENTRY_PROJECT" \
-            --auth-token "$SENTRY_AUTH_TOKEN" \
-            --include-sources
-      - name: Package desktop application
-        shell: bash
-        run: |
-          set -euo pipefail
-          mkdir -p dist
-          case "${{ matrix.platform }}" in
-            linux)  package_dir="build/linux/x64/release/bundle" ;;
-            windows) package_dir="build/windows/x64/runner/Release" ;;
-            macos) package_dir="build/macos/Build/Products/Release" ;;
-          esac
-          archive="dist/${ARTIFACT_STEM}.${{ matrix.archive }}"
-          if [[ "${{ matrix.archive }}" == "zip" ]]; then
-            if [[ "${{ matrix.os }}" == "windows-latest" ]]; then
-              (cd "$package_dir" && 7z a -tzip "$GITHUB_WORKSPACE/$archive" .)
-            else
-              (cd "$package_dir" && zip -qr "$GITHUB_WORKSPACE/$archive" .)
-            fi
-          else
-            tar -czf "$archive" -C "$package_dir" .
-          fi
-          if command -v sha256sum >/dev/null; then
-            sha256sum "$archive" > "dist/SHA256SUMS-${ARTIFACT_STEM}.txt"
-          else
-            shasum -a 256 "$archive" > "dist/SHA256SUMS-${ARTIFACT_STEM}.txt"
-          fi
+          ref: ${{ inputs.benchmark && github.sha || inputs.tag || github.ref_name }}
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          name: release-android
+          path: dist
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          name: release-web
+          path: dist
+      - name: Assemble compatible Web, source and APK bundle
+        run: python3 tool/package_build.py bundle --tag "$RELEASE_TAG"
       - uses: actions/upload-artifact@v7.0.1
         with:
-          name: desktop-release-${{ matrix.platform }}
-          path: dist/*
-          if-no-files-found: error
+          name: release-bundle
+          path: |
+            dist/usra-r3-app-${{ env.RELEASE_TAG }}.zip
+            dist/SHA256SUMS-${{ env.RELEASE_TAG }}.txt
+          compression-level: 0
           retention-days: 7
+          if-no-files-found: error
+  deploy-web:
+    if: ${{ !inputs.benchmark }}
+    needs: [quality, web]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: team_nBew5dIaGJaUQhj2zPUob7ch
+      VERCEL_PROJECT_ID: prj_5bghjve59ScbBQuBSnV929dd3LuQ
+    steps:
+      - uses: actions/download-artifact@v8.0.1
+        if: env.VERCEL_TOKEN != ''
+        with:
+          name: release-web
+          path: dist
+      - name: Deploy Web to Vercel
+        if: env.VERCEL_TOKEN != ''
+        run: |
+          mkdir -p build/web
+          (cd dist && sha256sum -c "SHA256SUMS-usra-r3-app-${RELEASE_TAG}-web.txt")
+          unzip -q "dist/usra-r3-app-${RELEASE_TAG}-web.zip" -d build/web
+          npx --yes vercel@59.16.0 deploy build/web --prod --yes \
+            --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID" --project="$VERCEL_PROJECT_ID"
+  publish:
+    if: ${{ !inputs.benchmark }}
+    needs: [quality, bundle, desktop, deploy-web]
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v8.0.1
+        with:
+          pattern: release-*
+          path: dist
+          merge-multiple: true
+      - name: Verify individual checksums
+        working-directory: dist
+        run: |
+          for checksum in SHA256SUMS-*.txt; do
+            sha256sum -c "$checksum"
+          done
+      - name: Attach packages to release
+        uses: softprops/action-gh-release@v3
+        with:
+          tag_name: ${{ inputs.tag || github.ref_name }}
+          generate_release_notes: true
+          fail_on_unmatched_files: true
+          files: dist/*
