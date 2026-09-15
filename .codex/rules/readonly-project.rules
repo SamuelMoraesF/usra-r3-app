@@ -1,0 +1,16 @@
+# Safe project inspection and validation commands.
+#
+# Deliberately excluded: dart format (can modify source files), git add,
+# git commit, and any command that writes or deletes project data.
+
+prefix_rule(pattern=["/home/samuel/opt/flutter/bin/flutter", "test"], decision="allow")
+prefix_rule(pattern=["/home/samuel/opt/flutter/bin/flutter", "analyze"], decision="allow")
+
+prefix_rule(pattern=["git", "status"], decision="allow")
+prefix_rule(pattern=["git", "diff"], decision="allow")
+prefix_rule(pattern=["git", "show"], decision="allow")
+prefix_rule(pattern=["git", "log"], decision="allow")
+prefix_rule(pattern=["git", "rev-parse"], decision="allow")
+
+prefix_rule(pattern=["pwd"], decision="allow")
+prefix_rule(pattern=["rg"], decision="allow")

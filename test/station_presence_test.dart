@@ -56,13 +56,14 @@ StationPresence presence(
 
 ContactScene scene(
   List<LogEntry> entries, {
+  DateTime? at,
   DateTime? currentSession,
   StationDisconnections? disconnected,
   bool closed = false,
   bool all = false,
 }) => buildContactScene(
   entries,
-  now: now,
+  now: at ?? now,
   maxAgeHours: 3,
   operatorGrid: 'GG30DH',
   repeaterGrid: 'GG30BG',
@@ -136,6 +137,14 @@ void main() {
       expect(expired.entries, isEmpty);
       expect(expired.warnings, isEmpty);
       expect(expired.nextChange, isNull);
+      final expiredScene = scene([
+        entry,
+      ], at: now.add(const Duration(minutes: 30)));
+      expect(expiredScene.contacts, isEmpty);
+      expect(
+        expiredScene.markers.where((marker) => marker.contactIndex != null),
+        isEmpty,
+      );
     },
   );
 
@@ -261,8 +270,17 @@ void main() {
       SharedPreferences.setMockInitialValues({});
       final prefs = await SharedPreferences.getInstance();
       final entry = contact();
-      final entries = [entry, contact(id: 2, location: 'GG30AA')];
+      final entries = [
+        entry,
+        contact(
+          id: 2,
+          age: const Duration(hours: 2, minutes: 50),
+          location: 'GG30AA',
+        ),
+      ];
       final before = entries.map((e) => e.toJson()).toList();
+      expect(presence(entries).warnings, [entry]);
+      expect(scene(entries).contacts, isNotEmpty);
       final disconnected = StationDisconnections().disconnect(entry, now);
       await disconnected.save(prefs);
       await prefs.reload();
