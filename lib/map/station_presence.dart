@@ -131,7 +131,9 @@ StationPresence stationPresence(
       // Browser clocks have millisecond precision; wake after the strict limit.
       schedule(warning.add(const Duration(milliseconds: 1)));
     }
-    if (warningMinutes > 0 && now.isAfter(warning)) {
+    if (warningMinutes > 0 &&
+        now.isAfter(warning) &&
+        now.isBefore(expiration)) {
       warnings.add(entry);
     }
   }

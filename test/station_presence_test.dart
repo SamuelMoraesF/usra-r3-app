@@ -134,7 +134,7 @@ void main() {
         entry,
       ], at: now.add(const Duration(minutes: 30)));
       expect(expired.entries, isEmpty);
-      expect(expired.warnings, [entry]);
+      expect(expired.warnings, isEmpty);
       expect(expired.nextChange, isNull);
     },
   );
