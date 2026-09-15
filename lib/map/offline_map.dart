@@ -1064,7 +1064,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
             0.625,
           ],
           iconAnchor: 'bottom',
-          iconOffset: [0, -30],
+          iconOffset: [0, -18],
           iconAllowOverlap: true,
           iconIgnorePlacement: true,
         ),
