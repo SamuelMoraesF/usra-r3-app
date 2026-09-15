@@ -90,6 +90,10 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
   bool _drawing = false;
   bool _redrawRequested = false;
   bool _repositioning = false;
+  bool? _renderedShowLines;
+  bool? _renderedShowPrecision;
+  List<ContactRoute> _renderedRoutes = const [];
+  String _renderedCallsignsKey = '';
   bool _distanceLayerReady = false;
   bool _callsignLayerReady = false;
   final _labelImages = <String, String>{};
@@ -127,6 +131,11 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     _warningImages.clear();
     _elevationLayerReady = false;
     _elevationRange.value = null;
+    _renderedMarkers = const [];
+    _renderedShowLines = null;
+    _renderedShowPrecision = null;
+    _renderedRoutes = const [];
+    _renderedCallsignsKey = '';
     _styleReady = true;
 
     // This callback runs after MapLibre has initialized annotation managers.
@@ -638,7 +647,8 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     ContactScene scene,
   ) async {
     final colors = _mapColors!;
-    if (_appliedMapColors != colors) {
+    final mapColorsChanged = _appliedMapColors != colors;
+    if (mapColorsChanged) {
       for (final layer in themedMapPaint(_sourceStyle!, colors).entries) {
         await map.setLayerProperties(layer.key, layer.value);
         if (!mounted || !_styleReady) return;
@@ -648,119 +658,196 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
       _labelImages.clear();
       _warningImages.clear();
     }
-    await map.clearCircles();
-    await map.clearSymbols();
-    await map.clearLines();
-    await map.clearFills();
-    if (widget.settings.showPrecision) {
+    final markersChanged =
+        mapColorsChanged || !_sameRenderedMarkers(scene.markers);
+    final linesChanged =
+        _renderedShowLines != widget.settings.showLines ||
+        !_sameRoutes(scene.routes);
+    final precisionChanged =
+        markersChanged ||
+        _renderedShowPrecision != widget.settings.showPrecision;
+    if (markersChanged) {
+      await map.clearCircles();
+      await map.clearSymbols();
+    }
+    if (linesChanged) {
+      await map.clearLines();
+    }
+    if (precisionChanged) {
+      await map.clearFills();
+    }
+    if (precisionChanged && widget.settings.showPrecision) {
       await _drawPrecisionAreas(map, scene);
     }
     await _drawElevation();
-    for (final route in scene.routes) {
-      await map.addLine(
-        LineOptions(
-          geometry: route.grids.map((grid) {
-            final bounds = GridLocator.bounds(grid)!;
-            return LatLng(bounds.centerLatitude, bounds.centerLongitude);
-          }).toList(),
-          lineColor: route.color,
-          lineOpacity: route.opacity,
-          lineWidth: 3.5,
-        ),
-      );
-    }
-    await _drawDistances(map, scene);
-    final orbitCenters = <String, math.Point<num>>{};
-    final renderedMarkers = <_RenderedContactMarker>[];
-    for (final marker in scene.markers) {
-      final bounds = GridLocator.bounds(marker.grid);
-      if (bounds == null) continue;
-      var position = LatLng(bounds.centerLatitude, bounds.centerLongitude);
-      if (marker.orbitCount > 1 && marker.orbitIndex > 0) {
-        final grid = GridLocator.inspect(marker.grid).normalized;
-        final center = orbitCenters[grid] ??= await map.toScreenLocation(
-          position,
-        );
-        final orbitingCount = marker.orbitCount - 1;
-        final minimumSeparation = 18.0;
-        final radius = orbitingCount == 1
-            ? minimumSeparation
-            : math.max(
-                minimumSeparation,
-                minimumSeparation / (2 * math.sin(math.pi / orbitingCount)),
-              );
-        // Keep the first station at the grid center. Place the second below
-        // it, then distribute the remaining stations counter-clockwise.
-        final angle =
-            math.pi / 2 - 2 * math.pi * (marker.orbitIndex - 1) / orbitingCount;
-        position = await map.toLatLng(
-          math.Point(
-            center.x + radius * math.cos(angle),
-            center.y + radius * math.sin(angle),
+    if (linesChanged) {
+      for (final route in scene.routes) {
+        await map.addLine(
+          LineOptions(
+            geometry: route.grids.map((grid) {
+              final bounds = GridLocator.bounds(grid)!;
+              return LatLng(bounds.centerLatitude, bounds.centerLongitude);
+            }).toList(),
+            lineColor: route.color,
+            lineOpacity: route.opacity,
+            lineWidth: 3.5,
           ),
         );
       }
-      if (marker.warning) {
-        final imageId =
-            'station-warning-${marker.color}-${mapColor(colors.surface)}';
-        if (!_warningImages.contains(imageId)) {
-          final recorder = ui.PictureRecorder();
-          final canvas = Canvas(recorder);
-          final path = Path()
-            ..moveTo(3, 4)
-            ..lineTo(29, 4)
-            ..lineTo(16, 28)
-            ..close();
-          canvas.drawPath(
-            path,
-            Paint()
-              ..color = Color(
-                int.parse(marker.color.replaceFirst('#', 'FF'), radix: 16),
-              ),
+      await _drawDistances(map, scene);
+    }
+    if (markersChanged) {
+      final orbitCenters = <String, math.Point<num>>{};
+      final renderedMarkers = <_RenderedContactMarker>[];
+      for (final marker in scene.markers) {
+        final bounds = GridLocator.bounds(marker.grid);
+        if (bounds == null) continue;
+        var position = LatLng(bounds.centerLatitude, bounds.centerLongitude);
+        if (marker.orbitCount > 1 && marker.orbitIndex > 0) {
+          final grid = GridLocator.inspect(marker.grid).normalized;
+          final center = orbitCenters[grid] ??= await map.toScreenLocation(
+            position,
           );
-          canvas.drawPath(
-            path,
-            Paint()
-              ..color = colors.surface
-              ..style = PaintingStyle.stroke
-              ..strokeWidth = 3,
+          final orbitingCount = marker.orbitCount - 1;
+          final minimumSeparation = 18.0;
+          final radius = orbitingCount == 1
+              ? minimumSeparation
+              : math.max(
+                  minimumSeparation,
+                  minimumSeparation / (2 * math.sin(math.pi / orbitingCount)),
+                );
+          // Keep the first station at the grid center. Place the second below
+          // it, then distribute the remaining stations counter-clockwise.
+          final angle =
+              math.pi / 2 -
+              2 * math.pi * (marker.orbitIndex - 1) / orbitingCount;
+          position = await map.toLatLng(
+            math.Point(
+              center.x + radius * math.cos(angle),
+              center.y + radius * math.sin(angle),
+            ),
           );
-          final picture = recorder.endRecording();
-          final bitmap = await picture.toImage(32, 32);
-          final bytes = await bitmap.toByteData(format: ui.ImageByteFormat.png);
-          await map.addImage(imageId, bytes!.buffer.asUint8List());
-          bitmap.dispose();
-          picture.dispose();
-          _warningImages.add(imageId);
         }
-        await map.setSymbolIconAllowOverlap(true);
-        await map.setSymbolIconIgnorePlacement(true);
-        final symbol = await map.addSymbol(
-          SymbolOptions(geometry: position, iconImage: imageId, iconSize: 0.65),
+        if (marker.warning) {
+          final imageId =
+              'station-warning-${marker.color}-${mapColor(colors.surface)}';
+          if (!_warningImages.contains(imageId)) {
+            final recorder = ui.PictureRecorder();
+            final canvas = Canvas(recorder);
+            final path = Path()
+              ..moveTo(3, 4)
+              ..lineTo(29, 4)
+              ..lineTo(16, 28)
+              ..close();
+            canvas.drawPath(
+              path,
+              Paint()
+                ..color = Color(
+                  int.parse(marker.color.replaceFirst('#', 'FF'), radix: 16),
+                ),
+            );
+            canvas.drawPath(
+              path,
+              Paint()
+                ..color = colors.surface
+                ..style = PaintingStyle.stroke
+                ..strokeWidth = 3,
+            );
+            final picture = recorder.endRecording();
+            final bitmap = await picture.toImage(32, 32);
+            final bytes = await bitmap.toByteData(
+              format: ui.ImageByteFormat.png,
+            );
+            await map.addImage(imageId, bytes!.buffer.asUint8List());
+            bitmap.dispose();
+            picture.dispose();
+            _warningImages.add(imageId);
+          }
+          await map.setSymbolIconAllowOverlap(true);
+          await map.setSymbolIconIgnorePlacement(true);
+          final symbol = await map.addSymbol(
+            SymbolOptions(
+              geometry: position,
+              iconImage: imageId,
+              iconSize: 0.65,
+            ),
+            {'contactIndex': marker.contactIndex},
+          );
+          renderedMarkers.add(_RenderedContactMarker(marker, symbol: symbol));
+          continue;
+        }
+        final circle = await map.addCircle(
+          CircleOptions(
+            geometry: position,
+            circleColor: marker.color,
+            circleRadius: marker.radius,
+            circleBlur: 0,
+            circleOpacity: 1,
+            circleStrokeColor: mapColor(colors.surface),
+            circleStrokeWidth: 2,
+            circleStrokeOpacity: 1,
+          ),
           {'contactIndex': marker.contactIndex},
         );
-        renderedMarkers.add(_RenderedContactMarker(marker, symbol: symbol));
-        continue;
+        renderedMarkers.add(_RenderedContactMarker(marker, circle: circle));
+        assert(circle.id.isNotEmpty);
       }
-      final circle = await map.addCircle(
-        CircleOptions(
-          geometry: position,
-          circleColor: marker.color,
-          circleRadius: marker.radius,
-          circleBlur: 0,
-          circleOpacity: 1,
-          circleStrokeColor: mapColor(colors.surface),
-          circleStrokeWidth: 2,
-          circleStrokeOpacity: 1,
-        ),
-        {'contactIndex': marker.contactIndex},
-      );
-      renderedMarkers.add(_RenderedContactMarker(marker, circle: circle));
-      assert(circle.id.isNotEmpty);
+      _renderedMarkers = renderedMarkers;
     }
-    _renderedMarkers = renderedMarkers;
-    await _drawCallsigns(map, scene);
+    final callsignsKey = _callsignsKey(scene);
+    if (callsignsKey != _renderedCallsignsKey ||
+        _callsignLayerReady != widget.settings.showCallsigns) {
+      await _drawCallsigns(map, scene);
+    }
+    _renderedShowLines = widget.settings.showLines;
+    _renderedShowPrecision = widget.settings.showPrecision;
+    _renderedRoutes = List.unmodifiable(scene.routes);
+    _renderedCallsignsKey = callsignsKey;
   }
+
+  bool _sameRenderedMarkers(List<ContactMarker> markers) {
+    if (_renderedMarkers.length != markers.length) return false;
+    for (var i = 0; i < markers.length; i++) {
+      final previous = _renderedMarkers[i].marker;
+      final current = markers[i];
+      if (previous.grid != current.grid ||
+          previous.kind != current.kind ||
+          previous.contactIndex != current.contactIndex ||
+          previous.stationType != current.stationType ||
+          previous.energy != current.energy ||
+          previous.warning != current.warning ||
+          previous.orbitIndex != current.orbitIndex ||
+          previous.orbitCount != current.orbitCount) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  bool _sameRoutes(List<ContactRoute> routes) {
+    if (_renderedRoutes.length != routes.length) return false;
+    for (var i = 0; i < routes.length; i++) {
+      final previous = _renderedRoutes[i];
+      final current = routes[i];
+      if (previous.missingVia != current.missingVia ||
+          previous.grids.length != current.grids.length) {
+        return false;
+      }
+      for (var j = 0; j < current.grids.length; j++) {
+        if (previous.grids[j] != current.grids[j]) return false;
+      }
+    }
+    return true;
+  }
+
+  String _callsignsKey(ContactScene scene) => [
+    widget.settings.showCallsigns,
+    ...scene
+        .callsignContacts(widget.operatorCallsign)
+        .map(
+          (contact) => '${contact.latest.callsign}|${contact.latest.location}',
+        ),
+  ].join(';');
 
   Future<ElevationGrid?> _loadElevation() async {
     try {
