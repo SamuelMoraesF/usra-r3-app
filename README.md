@@ -71,6 +71,9 @@ Para desenvolvimento rápido, a inserção rápida aceita uma linha como:
 PY3SC SAMUEL GG30CH 5W PORT BAT ST
 ```
 
+Consulte o [padrão de sintaxe da inserção rápida](docs/insercao-rapida.md)
+para a lista completa de tokens, aliases, regras de tráfego e validações.
+
 Use `tool/` para tarefas de mapas, empacotamento e assinatura. O processo de
 CI, releases, artefatos e backup da chave Android está documentado em
 [CI/CD](docs/ci-cd.md).
