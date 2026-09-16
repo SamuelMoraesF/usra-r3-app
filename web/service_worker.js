@@ -3,6 +3,7 @@
 // Replaced by the release pipeline in build/web.
 const VERSION = new URL(self.location.href).searchParams.get('v') || '__USRA_WEB_VERSION__';
 const CACHE_NAME = `usra-r3-${VERSION}`;
+const OFFLINE_MAP = './assets/assets/maps/santa-maria-rs.pmtiles';
 const SHELL = [
   './',
   './index.html',
@@ -72,7 +73,7 @@ async function responseForRange(response, request) {
   });
 }
 
-async function handlePmtiles(request, event) {
+async function handlePmtiles(request) {
   const cache = await caches.open(CACHE_NAME);
   const key = pmtilesCacheKey(request);
   const full = await cache.match(key);
@@ -84,20 +85,11 @@ async function handlePmtiles(request, event) {
     return responseForRange(response, request);
   }
 
-  if (response.ok && response.status === 206) {
-    // Keep the first range request fast, then persist the complete map for
-    // subsequent offline sessions. This is deliberately not awaited.
-    event.waitUntil((async () => {
-      try {
-        const complete = await fetch(key);
-        if (complete.ok && complete.status === 200) {
-          await cache.put(key, complete.clone());
-        }
-      } catch (_) {
-        // The current range response remains usable online.
-      }
-    })());
-  }
+  // PMTiles intentionally requests many byte ranges. Do not turn each 206
+  // response into a second request for the complete archive: on a cold cache
+  // that creates one full download per range and stalls the map startup.
+  // Partial responses cannot be stored in Cache Storage, so let PMTiles' own
+  // in-memory directory cache and the browser's HTTP cache handle them.
   return response;
 }
 
@@ -112,6 +104,10 @@ async function refreshInBackground(request) {
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
     const cache = await caches.open(CACHE_NAME);
+    // The map must be cached as a complete 200 response. PMTiles will issue
+    // Range requests at runtime; handlePmtiles() serves those ranges from
+    // this full response when the app is offline.
+    await cache.add(OFFLINE_MAP);
     await Promise.all(SHELL.map(async (url) => {
       try {
         await cache.add(url);
@@ -170,7 +166,7 @@ self.addEventListener('fetch', (event) => {
   if (isPmtiles(request)) {
     event.respondWith((async () => {
       try {
-        return await handlePmtiles(request, event);
+        return await handlePmtiles(request);
       } catch (_) {
         const cached = await caches.match(pmtilesCacheKey(request));
         if (cached) return responseForRange(cached, request);

@@ -339,7 +339,25 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
   Widget build(BuildContext context) {
     final style = _cachedStyle;
     if (style == null || !_webReady) {
-      return const Center(child: CircularProgressIndicator());
+      return Center(
+        child: _webLoadFailed
+            ? Text(_webLoadStatus)
+            : Column(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  const CircularProgressIndicator(),
+                  const SizedBox(height: 16),
+                  Text(_webLoadStatus),
+                  if (kIsWeb) ...[
+                    const SizedBox(height: 8),
+                    Text(
+                      'O mapa será disponibilizado para uso offline.',
+                      style: Theme.of(context).textTheme.bodySmall,
+                    ),
+                  ],
+                ],
+              ),
+      );
     }
     return Stack(
       children: [
@@ -630,9 +648,28 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
   }
 
   Future<void> _prepareWeb() async {
-    await MapLibreMap.ensureWebLibraryLoaded();
-    await registerPmtilesProtocol();
-    if (mounted) setState(() => _webReady = true);
+    if (!kIsWeb) {
+      if (mounted) setState(() => _webReady = true);
+      return;
+    }
+    if (mounted) {
+      setState(() => _webLoadStatus = 'Preparando o mapa offline...');
+    }
+    try {
+      await MapLibreMap.ensureWebLibraryLoaded();
+      if (mounted) {
+        setState(() => _webLoadStatus = 'Baixando o mapa offline...');
+      }
+      await registerPmtilesProtocol();
+      if (mounted) setState(() => _webReady = true);
+    } catch (_) {
+      if (mounted) {
+        setState(() {
+          _webLoadFailed = true;
+          _webLoadStatus = 'Não foi possível carregar o mapa offline.';
+        });
+      }
+    }
   }
 
   Future<void> _drawContacts() async {
@@ -1438,6 +1475,8 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
   String? _cachedStyle;
   String? _sourceStyle;
   bool _webReady = false;
+  bool _webLoadFailed = false;
+  String _webLoadStatus = 'Carregando o mapa...';
 }
 
 Future<String> loadOfflineMapStyle() async {
