@@ -7,7 +7,7 @@ import 'database.dart';
 
 class SessionReportPdf {
   static const _repeaterCallsign = 'PY3SMA';
-  static const _repeaterName = 'RPT USRA';
+  static const _repeaterName = 'Repetidora USRA';
 
   static Future<Uint8List> build({
     required List<LogEntry> entries,
@@ -149,29 +149,20 @@ class SessionReportPdf {
   ) {
     final first = entries.isEmpty ? null : entries.first;
     final repeated = frequency == 'repeater';
-    final stations = <String, LogEntry>{};
-    for (final entry in entries) {
-      stations.putIfAbsent(entry.callsign, () => entry);
-    }
-    final traffic = entries
-        .where(
-          (entry) =>
-              entry.traffic == 'C' && entry.trafficMessage.trim().isNotEmpty,
-        )
-        .toList();
     final qrg = entries.isEmpty
         ? (repeated
-              ? 'QRG: 145.370 -600 $_repeaterCallsign $_repeaterName'
-              : 'QRG: 146.520')
+              ? '145.370 MHz -600 $_repeaterCallsign $_repeaterName'
+              : '146.520 MHz')
         : repeated
-        ? 'QRG: ${(first!.frequencyMhz ?? 145.37).toStringAsFixed(3)} -600 $_repeaterCallsign $_repeaterName'
-        : 'QRG: ${(first!.frequencyMhz ?? 146.52).toStringAsFixed(3)} ${first.callsign} ${first.operatorName}';
+        ? '${(first!.frequencyMhz ?? 145.37).toStringAsFixed(3)} MHz -600 $_repeaterCallsign $_repeaterName'
+        : '${(first!.frequencyMhz ?? 146.52).toStringAsFixed(3)} MHz';
+    final sectionName = repeated ? 'Repetidora' : 'Simplex';
 
     return [
       if (repeated) ...[pw.SizedBox(height: 8), pw.Divider()],
       pw.SizedBox(height: 14),
       pw.Text(
-        '$qrg (${repeated ? 'repetidora' : 'simplex'})',
+        '$sectionName — $qrg',
         style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
       ),
       if (entries.isEmpty)
@@ -195,151 +186,88 @@ class SessionReportPdf {
         ),
       ],
       pw.SizedBox(height: 8),
-      pw.Header(level: 3, text: 'Estações'),
-      _stationsTable(stations.values.toList(), otherFrequencyEntries),
-      if (traffic.isNotEmpty) ...[
-        pw.SizedBox(height: 10),
-        pw.Header(level: 3, text: 'Tráfego'),
-        _trafficTable(traffic),
-      ],
+      pw.Header(level: 3, text: 'Estações visíveis na $sectionName'),
+      _stationsTable(entries),
+      _hiddenStationsTable(
+        otherFrequencyEntries,
+        sectionName,
+        entries.map((entry) => entry.callsign).toSet(),
+      ),
     ];
   }
 
-  static pw.Widget _stationsTable(
-    List<LogEntry> entries,
+  static const _stationHeaders = [
+    'Indicativo',
+    'Operador',
+    'Via',
+    'Data e Hora',
+    'Grid/Localização',
+    'Tipo Estação',
+    'Potência',
+    'Energia',
+    'Tráfego',
+    'Mensagem',
+  ];
+
+  static final _stationColumnWidths = <int, pw.TableColumnWidth>{
+    0: const pw.FractionColumnWidth(0.10),
+    1: const pw.FractionColumnWidth(0.12),
+    2: const pw.FractionColumnWidth(0.07),
+    3: const pw.FractionColumnWidth(0.15),
+    4: const pw.FractionColumnWidth(0.18),
+    5: const pw.FractionColumnWidth(0.10),
+    6: const pw.FractionColumnWidth(0.07),
+    7: const pw.FractionColumnWidth(0.07),
+    8: const pw.FractionColumnWidth(0.07),
+    9: const pw.FractionColumnWidth(0.07),
+  };
+
+  static pw.Widget _stationsTable(List<LogEntry> entries) =>
+      pw.TableHelper.fromTextArray(
+        headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7),
+        cellStyle: const pw.TextStyle(fontSize: 7),
+        headerDecoration: const pw.BoxDecoration(color: PdfColors.orange100),
+        cellPadding: const pw.EdgeInsets.all(3),
+        columnWidths: _stationColumnWidths,
+        headers: _stationHeaders,
+        data: entries.map(_stationRow).toList(),
+      );
+
+  static pw.Widget _hiddenStationsTable(
     List<LogEntry> otherFrequencyEntries,
+    String sectionName,
+    Set<String> visibleCallsigns,
   ) {
-    final current = {for (final entry in entries) entry.callsign: entry};
-    final other = {
-      for (final entry in otherFrequencyEntries) entry.callsign: entry,
-    };
-    final both = current.keys
-        .where(other.containsKey)
-        .map((callsign) => current[callsign]!)
+    final hidden = otherFrequencyEntries
+        .where((entry) => !visibleCallsigns.contains(entry.callsign))
         .toList();
-    final currentOnly = current.keys
-        .where((callsign) => !other.containsKey(callsign))
-        .map((callsign) => current[callsign]!)
-        .toList();
-    final otherOnly = other.keys
-        .where((callsign) => !current.containsKey(callsign))
-        .map((callsign) => other[callsign]!)
-        .toList();
-    final groups = <({String title, List<LogEntry> entries})>[
-      if (both.isNotEmpty)
-        (title: 'Acessíveis por ambas as frequências', entries: both),
-      if (currentOnly.isNotEmpty)
-        (title: 'Visíveis somente nesta frequência', entries: currentOnly),
-      if (otherOnly.isNotEmpty)
-        (title: 'Não visíveis nesta frequência', entries: otherOnly),
-    ];
-    final columnWidths = <int, pw.TableColumnWidth>{
-      0: const pw.FractionColumnWidth(0.10),
-      1: const pw.FractionColumnWidth(0.12),
-      2: const pw.FractionColumnWidth(0.07),
-      3: const pw.FractionColumnWidth(0.21),
-      4: const pw.FractionColumnWidth(0.12),
-      5: const pw.FractionColumnWidth(0.15),
-      6: const pw.FractionColumnWidth(0.08),
-      7: const pw.FractionColumnWidth(0.07),
-      8: const pw.FractionColumnWidth(0.08),
-    };
+    if (hidden.isEmpty) return pw.SizedBox();
 
     return pw.Column(
       crossAxisAlignment: pw.CrossAxisAlignment.stretch,
       children: [
-        pw.TableHelper.fromTextArray(
-          headerStyle: pw.TextStyle(
-            fontWeight: pw.FontWeight.bold,
-            fontSize: 7,
-          ),
-          cellStyle: const pw.TextStyle(fontSize: 7),
-          headerDecoration: const pw.BoxDecoration(color: PdfColors.orange100),
-          cellPadding: const pw.EdgeInsets.all(4),
-          columnWidths: columnWidths,
-          headers: const [
-            'Indicativo',
-            'Nome',
-            'Via',
-            'Primeiro contato',
-            'Grid',
-            'Localização',
-            'Potência',
-            'Estação',
-            'Energia',
-          ],
-          data: const [],
+        pw.SizedBox(height: 10),
+        pw.Header(
+          level: 3,
+          text: 'Estações ocultas para o controle na $sectionName',
         ),
-        for (final group in groups) ...[
-          pw.Container(
-            width: double.infinity,
-            padding: const pw.EdgeInsets.symmetric(vertical: 4),
-            decoration: const pw.BoxDecoration(
-              color: PdfColors.orange100,
-              border: pw.Border(
-                top: pw.BorderSide(width: 0.5),
-                bottom: pw.BorderSide(width: 0.5),
-                left: pw.BorderSide(width: 1),
-                right: pw.BorderSide(width: 1),
-              ),
-            ),
-            alignment: pw.Alignment.center,
-            child: pw.Text(
-              group.title,
-              style: pw.TextStyle(fontSize: 7, fontWeight: pw.FontWeight.bold),
-            ),
-          ),
-          _stationDataTable(group.entries, columnWidths),
-        ],
+        _stationsTable(hidden),
       ],
     );
   }
 
-  static pw.Widget _stationDataTable(
-    List<LogEntry> entries,
-    Map<int, pw.TableColumnWidth> columnWidths,
-  ) => pw.TableHelper.fromTextArray(
-    headerCount: 0,
-    cellStyle: const pw.TextStyle(fontSize: 7),
-    cellPadding: const pw.EdgeInsets.all(4),
-    columnWidths: columnWidths,
-    data: entries
-        .map(
-          (entry) => [
-            entry.callsign.toUpperCase(),
-            entry.operatorName,
-            entry.via.toUpperCase(),
-            _date(entry.createdAt),
-            entry.operatorGrid.toUpperCase(),
-            entry.location.toUpperCase(),
-            '${entry.powerWatts} W',
-            _station(entry.stationType),
-            _energy(entry.energy),
-          ],
-        )
-        .toList(),
-  );
-
-  static pw.Widget _trafficTable(List<LogEntry> entries) =>
-      pw.TableHelper.fromTextArray(
-        headerStyle: pw.TextStyle(fontWeight: pw.FontWeight.bold, fontSize: 7),
-        cellStyle: const pw.TextStyle(fontSize: 6),
-        headerDecoration: const pw.BoxDecoration(color: PdfColors.grey200),
-        cellPadding: const pw.EdgeInsets.all(4),
-        headers: const ['Data/hora', 'Indicativo', 'Mensagem'],
-        data: entries
-            .map(
-              (entry) => [
-                _date(entry.createdAt),
-                entry.callsign,
-                pw.Text(
-                  entry.trafficMessage.toUpperCase(),
-                  style: pw.TextStyle(font: pw.Font.courier(), fontSize: 6),
-                ),
-              ],
-            )
-            .toList(),
-      );
+  static List<String> _stationRow(LogEntry entry) => [
+    entry.callsign.toUpperCase(),
+    entry.operatorName,
+    entry.via.toUpperCase(),
+    _date(entry.createdAt),
+    '${entry.operatorGrid}\n${entry.location}',
+    _station(entry.stationType),
+    '${entry.powerWatts} W',
+    _energy(entry.energy),
+    entry.traffic == 'C' ? 'Sim' : 'Não',
+    entry.traffic == 'C' ? entry.trafficMessage.trim() : '',
+  ];
 
   static String _date(DateTime value) {
     final local = value.toUtc().subtract(const Duration(hours: 3));
