@@ -1,0 +1,112 @@
+# USRA R3 — backlog de implementação
+# Itens selecionados da revisão do projeto.
+
+
+## Produto e dados
+
+- [ ] Modelo formal de sessão de rede
+  - Criar uma tabela `networks` com ID único, nome/código da operação,
+    abertura, encerramento, operador responsável, local, objetivo,
+    observações, status e contagem de contatos.
+  - Relacionar cada contato a uma sessão por chave estável.
+  - Permitir criar, consultar, editar, encerrar, arquivar e reabrir sessões.
+  - Preservar sessões sem nenhum contato.
+  - Migrar o estado hoje mantido em `SharedPreferences` (`network.startedAt`
+    e `network.closedAt`) para o modelo persistente.
+  - Usar os dados da sessão nos filtros, relatórios e exportações.
+
+- [ ] Filtros e busca nas sessões
+  - Buscar estações por indicativo, nome, grid, localização e mensagem.
+  - Filtrar por sessão, intervalo de datas, frequência, tipo de estação,
+    situação de tráfego e status.
+  - Permitir ordenar por horário, indicativo, distância e atividade recente.
+  - Exibir contadores e estado vazio coerentes com os filtros aplicados.
+  - Implementar consultas SQL, índices e paginação para evitar carregar todo
+    o histórico em memória.
+
+- [ ] Cadastro de canais e frequências configuráveis
+  - Substituir as frequências fixas atuais por um cadastro de canais.
+  - Permitir nome, frequência, tipo (repetidora/simplex), offset, subtom,
+    grid da repetidora e observações.
+  - Permitir escolher o canal padrão por sessão.
+  - Preservar a configuração histórica utilizada em cada contato.
+  - Atualizar formulário, mapa, filtros, importação, exportação e PDF para
+    usar canais configuráveis.
+
+- [ ] Importação inteligente e deduplicação
+  - Mostrar prévia antes de importar um arquivo.
+  - Informar registros novos, duplicados, conflitantes e inválidos.
+  - Oferecer as opções de ignorar duplicados, substituir ou importar tudo.
+  - Adicionar UUID estável aos registros e metadados de origem.
+  - Tornar a importação idempotente e preservar a transação em caso de erro.
+  - Exibir erros por linha com possibilidade de corrigir e repetir a operação.
+
+- [ ] Backup e restauração completos
+  - Criar formato próprio versionado, por exemplo `.usra`.
+  - Incluir sessões, contatos, canais, perfil, configurações e metadados.
+  - Adicionar versão do esquema, data do backup e checksum.
+  - Permitir restauração com prévia, confirmação e estratégia para conflitos.
+  - Oferecer backup automático periódico e indicação do último backup.
+  - Avaliar criptografia por senha para backups que contenham dados pessoais.
+
+
+## Relatórios e mapa
+
+- [ ] Indicadores e resumo da sessão
+  - Exibir contatos totais e estações únicas.
+  - Agrupar por frequência, potência, localidade e período.
+  - Calcular duração, contatos por hora e maior distância.
+  - Destacar estações sem atualização recente.
+  - Incorporar o resumo ao relatório PDF e permitir exportação dos dados.
+
+- [ ] Camadas configuráveis no mapa
+  - Permitir ativar e desativar camadas individualmente.
+  - Adicionar cadastro de repetidoras, pontos de apoio, hospitais, abrigos,
+    quartéis e rotas.
+  - Permitir marcadores manuais e pontos importados por arquivo.
+  - Adicionar áreas de cobertura e outras geometrias úteis à operação.
+  - Persistir preferências de visibilidade por usuário ou sessão.
+
+- [ ] Medição e planejamento geográfico
+  - Medir distância e azimute entre dois grids ou pontos do mapa.
+  - Exibir perfil de elevação entre operador e estação.
+  - Indicar possível linha de visada e regiões sem cobertura.
+  - Permitir planejar rotas e pontos de operação.
+  - Exportar dados geográficos em GeoJSON/KML quando aplicável.
+
+
+## Arquitetura e qualidade
+
+- [ ] Dividir o `main.dart` por responsabilidades
+  - Separar funcionalidades de sessão, contato, histórico, configurações,
+    exportação e captura de mapas.
+  - Criar camadas de domínio, repositórios e serviços.
+  - Reduzir o estado compartilhado e tornar os fluxos testáveis isoladamente.
+  - Manter widgets de apresentação separados da persistência e regras de
+    negócio.
+
+- [ ] Substituir strings de domínio por tipos
+  - Criar enums/modelos para frequência, tipo de estação, energia e tráfego.
+  - Centralizar códigos, rótulos, validação e serialização.
+  - Evitar combinações inválidas e comparações espalhadas pelo código.
+  - Garantir compatibilidade dos tipos com dados legados e CSV.
+
+- [ ] Histórico de alterações e exclusão recuperável
+  - Substituir exclusão definitiva por soft delete ou mecanismo de lixeira.
+  - Permitir desfazer exclusões recentes.
+  - Registrar criação, edição, exclusão e restauração dos contatos.
+  - Exibir quando e por que um registro foi corrigido, quando essa informação
+    estiver disponível.
+  - Definir política para auditoria e exportação do histórico de alterações.
+
+- [ ] Testes de integração e desempenho
+  - Testar migrações de todas as versões do banco.
+  - Testar o fluxo completo de abrir, registrar, encerrar e exportar sessão.
+  - Cobrir importação duplicada, conflitos, restauração e arquivos inválidos.
+  - Testar bases com milhares de registros, busca, filtros e paginação.
+  - Validar mapa, exportação PDF e comportamento offline nas plataformas
+    suportadas.
+  - Medir tempo de abertura, renderização, consumo de memória e tamanho dos
+    arquivos exportados.
+  - Acompanhar cobertura e manter análise estática, formatação e testes no CI.
+
