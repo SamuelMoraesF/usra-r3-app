@@ -2257,9 +2257,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final name = _operatorNameFor(entries, normalized).trim();
     return TextSpan(
       text: name.isEmpty ? 'via $normalized' : 'via $normalized · $name',
-      style: TextStyle(
+      style: Theme.of(context).textTheme.bodySmall?.copyWith(
         color: Theme.of(context).colorScheme.onSurfaceVariant,
         fontWeight: FontWeight.normal,
+        decoration: TextDecoration.none,
       ),
     );
   }
