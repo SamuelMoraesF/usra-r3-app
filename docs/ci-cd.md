@@ -55,6 +55,12 @@ Use sempre versões crescentes. Não há publicação em lojas. Quando `VERCEL_T
 está configurado, o Web é implantado automaticamente após passar a qualidade.
 Para hospedar em subdiretório, ajuste o `--base-href` do build web.
 
+PRs executam o workflow `Web Preview`: o Flutter Web é compilado no GitHub
+Actions e o diretório `build/web` é enviado pela CLI da Vercel sem `--prod`.
+Esses deploys pertencem ao ambiente Preview; o ambiente Development da Vercel
+continua sendo local. Ao fechar ou fazer merge de uma PR, o workflow remove
+somente os Previews marcados com o número daquela PR.
+
 Os artefatos publicados também são enviados automaticamente ao bucket público de
 download `usra-r3-releases`, em `https://usra-r3-releases.s3.us-east-1.amazonaws.com/<tag>/<arquivo>`.
 O bucket só permite `GetObject` nesses caminhos; listagem, escrita, exclusão e

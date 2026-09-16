@@ -1,0 +1,64 @@
+name: Web Preview
+
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, closed]
+
+permissions:
+  contents: read
+
+jobs:
+  web:
+    if: github.event.action != 'closed'
+    uses: ./.github/workflows/build-platform.yml
+    with:
+      platform: web
+      runner: ubuntu-latest
+      upload-symbols: false
+    secrets: inherit
+
+  deploy:
+    if: github.event.action != 'closed'
+    needs: web
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: team_nBew5dIaGJaUQhj2zPUob7ch
+      VERCEL_PROJECT_ID: prj_5bghjve59ScbBQuBSnV929dd3LuQ
+      PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+    steps:
+      - name: Download Web build
+        uses: actions/download-artifact@v8.0.1
+        with:
+          name: build-web
+          path: dist
+      - name: Deploy Web Preview to Vercel
+        if: env.VERCEL_TOKEN != ''
+        run: |
+          rm -f dist/SHA256SUMS-web.txt
+          npx --yes vercel@59.16.0 deploy dist --yes \
+            --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID" --project="$VERCEL_PROJECT_ID" \
+            $([[ -n "$PR_NUMBER" ]] && echo "--meta githubPrNumber=$PR_NUMBER")
+
+  cleanup:
+    if: github.event.action == 'closed'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      VERCEL_TOKEN: ${{ secrets.VERCEL_TOKEN }}
+      VERCEL_ORG_ID: team_nBew5dIaGJaUQhj2zPUob7ch
+      VERCEL_PROJECT_ID: prj_5bghjve59ScbBQuBSnV929dd3LuQ
+      PR_NUMBER: ${{ github.event.pull_request.number || '' }}
+    steps:
+      - name: Remove closed PR Previews from Vercel
+        if: env.VERCEL_TOKEN != '' && env.PR_NUMBER != ''
+        run: |
+          set -euo pipefail
+          deployments=$(npx --yes vercel@59.16.0 list usra-r3 --format=json --limit=100 \
+            --meta "githubPrNumber=$PR_NUMBER" \
+            --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID")
+          echo "$deployments" | jq -r '.deployments[]?.url' | while read -r deployment; do
+            [ -z "$deployment" ] || npx --yes vercel@59.16.0 remove "$deployment" --yes \
+              --token="$VERCEL_TOKEN" --scope="$VERCEL_ORG_ID"
+          done
