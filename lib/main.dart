@@ -483,6 +483,8 @@ class _SetupWizardState extends State<SetupWizard> {
                   const SizedBox(height: 28),
                   TextFormField(
                     controller: callsign,
+                    autocorrect: false,
+                    enableSuggestions: false,
                     textCapitalization: TextCapitalization.characters,
                     inputFormatters: [UpperCaseFormatter()],
                     decoration: const InputDecoration(labelText: 'Indicativo'),
@@ -492,6 +494,8 @@ class _SetupWizardState extends State<SetupWizard> {
                   const SizedBox(height: 14),
                   TextFormField(
                     controller: name,
+                    autocorrect: false,
+                    enableSuggestions: false,
                     textCapitalization: TextCapitalization.words,
                     inputFormatters: [CapitalizeWordsFormatter()],
                     decoration: const InputDecoration(
@@ -1559,7 +1563,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         : RegExp(r'\s$').hasMatch(quickContact.text)
         ? completion.text
         : ' ${completion.text}';
+    // Keep the ghost completion on the same metrics as the editable text.
+    // TextPainter does not inherit Android's system text scale automatically,
+    // while TextField does. This made the suggestion drift into/away from the
+    // caret on Android even though it looked correct in the browser.
     final textStyle = Theme.of(context).textTheme.bodyLarge;
+    final textScaler = MediaQuery.textScalerOf(context);
     var cursorWidth = 0.0;
     if (completion != null &&
         quickContact.selection.isValid &&
@@ -1574,6 +1583,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           style: textStyle,
         ),
         textDirection: Directionality.of(context),
+        textScaler: textScaler,
       )..layout();
       cursorWidth = painter.width;
     }
@@ -1594,6 +1604,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             key: const Key('quick-contact-input'),
             controller: quickContact,
             focusNode: _quickContactFocusNode,
+            autocorrect: false,
+            enableSuggestions: false,
+            style: textStyle,
             textCapitalization: TextCapitalization.characters,
             inputFormatters: [UpperCaseFormatter()],
             textInputAction: TextInputAction.done,
@@ -1609,12 +1622,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           ),
           if (completion != null)
             Positioned(
-              left: 48 + cursorWidth,
-              top: 8,
+              // The Material prefix icon leaves a slightly wider text inset
+              // on Android than the browser renderer does. Match the real
+              // caret position instead of letting the ghost start too early.
+              left: 52 + cursorWidth,
+              top: 7,
               child: IgnorePointer(
                 child: Text(
                   completionText!,
                   maxLines: 1,
+                  textScaler: textScaler,
                   style: textStyle?.copyWith(
                     color: Theme.of(context).colorScheme.outline,
                   ),
@@ -1796,6 +1813,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             TextFormField(
               controller: callsign,
               focusNode: _callsignFocusNode,
+              autocorrect: false,
+              enableSuggestions: false,
               onChanged: _onCallsignChanged,
               textCapitalization: TextCapitalization.characters,
               inputFormatters: [UpperCaseFormatter()],
@@ -1811,6 +1830,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             TextFormField(
               controller: via,
               focusNode: _viaFocusNode,
+              autocorrect: false,
+              enableSuggestions: false,
               textCapitalization: TextCapitalization.characters,
               inputFormatters: [UpperCaseFormatter()],
               textInputAction: TextInputAction.next,
@@ -1823,6 +1844,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             TextFormField(
               controller: operator,
               focusNode: _operatorFocusNode,
+              autocorrect: false,
+              enableSuggestions: false,
               textCapitalization: TextCapitalization.words,
               inputFormatters: [CapitalizeWordsFormatter()],
               textInputAction: TextInputAction.next,
@@ -1849,6 +1872,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             TextFormField(
               controller: power,
               focusNode: _powerFocusNode,
+              autocorrect: false,
+              enableSuggestions: false,
               keyboardType: const TextInputType.numberWithOptions(
                 decimal: true,
               ),
@@ -1908,6 +1933,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 TextFormField(
                   controller: trafficMessage,
                   focusNode: _trafficMessageFocusNode,
+                  autocorrect: false,
+                  enableSuggestions: false,
                   textInputAction: TextInputAction.done,
                   inputFormatters: [UpperCaseFormatter()],
                   decoration: const InputDecoration(
@@ -2596,6 +2623,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         Expanded(
                           child: TextFormField(
                             controller: callsign,
+                            autocorrect: false,
+                            enableSuggestions: false,
                             textCapitalization: TextCapitalization.characters,
                             inputFormatters: [UpperCaseFormatter()],
                             textInputAction: TextInputAction.next,
@@ -2611,6 +2640,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         Expanded(
                           child: TextFormField(
                             controller: via,
+                            autocorrect: false,
+                            enableSuggestions: false,
                             textCapitalization: TextCapitalization.characters,
                             inputFormatters: [UpperCaseFormatter()],
                             textInputAction: TextInputAction.next,
@@ -2622,6 +2653,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     const SizedBox(height: 12),
                     TextFormField(
                       controller: operator,
+                      autocorrect: false,
+                      enableSuggestions: false,
                       textCapitalization: TextCapitalization.words,
                       inputFormatters: [CapitalizeWordsFormatter()],
                       decoration: const InputDecoration(
@@ -2639,6 +2672,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                         Expanded(
                           child: TextFormField(
                             controller: power,
+                            autocorrect: false,
+                            enableSuggestions: false,
                             inputFormatters: [PowerFormatter()],
                             keyboardType: const TextInputType.numberWithOptions(
                               decimal: true,
@@ -2698,6 +2733,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                       const SizedBox(height: 12),
                       TextFormField(
                         controller: trafficMessage,
+                        autocorrect: false,
+                        enableSuggestions: false,
                         inputFormatters: [UpperCaseFormatter()],
                         decoration: const InputDecoration(
                           labelText: 'Mensagem (tráfego)',
@@ -2903,11 +2940,23 @@ class _FrequencyLabel extends StatelessWidget {
   Widget build(BuildContext context) => Row(
     mainAxisSize: MainAxisSize.min,
     children: [
-      Text(name),
+      Flexible(
+        child: Text(
+          name,
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          softWrap: false,
+        ),
+      ),
       const SizedBox(width: 6),
-      Text(
-        '$frequency MHz',
-        style: const TextStyle(fontFamily: 'monospace', fontSize: 10.5),
+      Flexible(
+        child: Text(
+          '$frequency MHz',
+          maxLines: 1,
+          overflow: TextOverflow.ellipsis,
+          softWrap: false,
+          style: const TextStyle(fontFamily: 'monospace', fontSize: 10.5),
+        ),
       ),
     ],
   );
@@ -2992,6 +3041,8 @@ class _ChoiceFieldState extends State<_ChoiceField> {
         builder: (context, value, _) => TextFormField(
           controller: widget.controller,
           focusNode: _focusNode,
+          autocorrect: false,
+          enableSuggestions: false,
           readOnly: !widget.keyboardOptimized,
           showCursor: widget.keyboardOptimized,
           onFieldSubmitted: (value) {
@@ -3265,6 +3316,8 @@ class _SettingsPageState extends State<SettingsPage> {
         const SizedBox(height: 12),
         TextField(
           controller: maxAgeHours,
+          autocorrect: false,
+          enableSuggestions: false,
           keyboardType: TextInputType.number,
           decoration: const InputDecoration(
             labelText: 'Expiração sem contato (horas)',
@@ -3275,6 +3328,8 @@ class _SettingsPageState extends State<SettingsPage> {
         const SizedBox(height: 12),
         TextField(
           controller: warningMinutes,
+          autocorrect: false,
+          enableSuggestions: false,
           keyboardType: TextInputType.number,
           decoration: const InputDecoration(
             labelText: 'Antecedência do aviso (minutos)',
@@ -3302,6 +3357,8 @@ class _SettingsPageState extends State<SettingsPage> {
         const SizedBox(height: 12),
         TextField(
           controller: callsign,
+          autocorrect: false,
+          enableSuggestions: false,
           textCapitalization: TextCapitalization.characters,
           inputFormatters: [UpperCaseFormatter()],
           decoration: const InputDecoration(labelText: 'Indicativo'),
@@ -3309,6 +3366,8 @@ class _SettingsPageState extends State<SettingsPage> {
         const SizedBox(height: 12),
         TextField(
           controller: name,
+          autocorrect: false,
+          enableSuggestions: false,
           textCapitalization: TextCapitalization.words,
           inputFormatters: [CapitalizeWordsFormatter()],
           decoration: const InputDecoration(labelText: 'Nome'),

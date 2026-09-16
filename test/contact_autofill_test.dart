@@ -55,6 +55,8 @@ void main() {
         (w) => w is TextField && w.decoration?.labelText == label,
       );
       TextField input(String label) => tester.widget<TextField>(field(label));
+      expect(input('Indicativo').autocorrect, isFalse);
+      expect(input('Indicativo').enableSuggestions, isFalse);
       Future<void> complete(String call) async {
         await tester.enterText(field('Indicativo'), call);
         await tester.tap(field('Via'));

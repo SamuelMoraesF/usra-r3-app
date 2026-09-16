@@ -76,6 +76,8 @@ class _GridLocatorFieldState extends State<GridLocatorField> {
     return TextField(
       controller: _controller,
       focusNode: _focusNode,
+      autocorrect: false,
+      enableSuggestions: false,
       textCapitalization: TextCapitalization.none,
       inputFormatters: [LowerCaseFormatter()],
       textInputAction: TextInputAction.next,

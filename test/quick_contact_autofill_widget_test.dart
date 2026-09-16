@@ -53,6 +53,9 @@ void main() {
     await tester.pumpAndSettle();
 
     final input = find.byKey(const Key('quick-contact-input'));
+    final quickField = tester.widget<TextField>(input);
+    expect(quickField.autocorrect, isFalse);
+    expect(quickField.enableSuggestions, isFalse);
     final controller = tester.widget<TextField>(input).controller!;
     await tester.enterText(input, 'PY3AA ');
     await tester.pump();
