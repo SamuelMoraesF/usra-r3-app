@@ -21,6 +21,7 @@ import 'data/csv_transfer.dart';
 import 'data/session_report_pdf.dart';
 import 'branding.dart';
 import 'grid_locator.dart';
+import 'quick_contact_parser.dart';
 import 'widgets/grid_locator_field.dart';
 import 'widgets/contact_workspace.dart';
 import 'widgets/contact_form_layout.dart';
@@ -115,6 +116,7 @@ class _UsraR3AppState extends State<UsraR3App> {
   int mapWarningMinutes = defaultContactWarningMinutes;
   bool keepScreenOn = true;
   bool keyboardOptimized = _defaultKeyboardOptimized();
+  bool quickInsertMode = false;
   HomeLayout homeLayout = _defaultHomeLayout();
   MapSettings mapSettings = const MapSettings();
 
@@ -177,6 +179,7 @@ class _UsraR3AppState extends State<UsraR3App> {
               mapWarningMinutes: mapWarningMinutes,
               mapSettings: mapSettings,
               keyboardOptimized: keyboardOptimized,
+              quickInsertMode: quickInsertMode,
               homeLayout: homeLayout,
               onMapSettingsChanged: _setMapSettings,
               onOpenSettings: _openSettings,
@@ -249,13 +252,24 @@ class _UsraR3AppState extends State<UsraR3App> {
       keyboardOptimized =
           preferences.getBool('keyboardOptimized') ??
           _defaultKeyboardOptimized();
+      quickInsertMode = preferences.getBool('quickInsertMode') ?? false;
       homeLayout = HomeLayout.values.firstWhere(
         (value) => value.name == preferences.getString('homeLayout'),
         orElse: _defaultHomeLayout,
       );
       loading = false;
     });
-    await WakelockPlus.toggle(enable: keepScreenOn);
+    await _toggleKeepScreenOn(keepScreenOn);
+  }
+
+  Future<void> _toggleKeepScreenOn(bool enable) async {
+    if (kIsWeb) return;
+    try {
+      await WakelockPlus.toggle(enable: enable);
+    } catch (_) {
+      // Some browsers do not expose the Screen Wake Lock API. This setting
+      // is optional and must never prevent the application from starting.
+    }
   }
 
   Future<void> _completeSetup(OperatorProfile value) async {
@@ -288,6 +302,7 @@ class _UsraR3AppState extends State<UsraR3App> {
           mapWarningMinutes: mapWarningMinutes,
           keepScreenOn: keepScreenOn,
           keyboardOptimized: keyboardOptimized,
+          quickInsertMode: quickInsertMode,
           homeLayout: homeLayout,
           showCompass: mapSettings.showCompass,
           focusNewRecord: mapSettings.focusNewRecord,
@@ -307,6 +322,7 @@ class _UsraR3AppState extends State<UsraR3App> {
       await preferences.setInt('map.warningMinutes', result.mapWarningMinutes);
       await preferences.setBool('keepScreenOn', result.keepScreenOn);
       await preferences.setBool('keyboardOptimized', result.keyboardOptimized);
+      await preferences.setBool('quickInsertMode', result.quickInsertMode);
       await preferences.setString('homeLayout', result.homeLayout.name);
       await _setMapSettings(
         MapSettings(
@@ -320,7 +336,7 @@ class _UsraR3AppState extends State<UsraR3App> {
           repeaterGrid: result.repeaterGrid,
         ),
       );
-      await WakelockPlus.toggle(enable: result.keepScreenOn);
+      await _toggleKeepScreenOn(result.keepScreenOn);
       if (mounted) {
         setState(() {
           profile = result.profile;
@@ -332,6 +348,7 @@ class _UsraR3AppState extends State<UsraR3App> {
           mapWarningMinutes = result.mapWarningMinutes;
           keepScreenOn = result.keepScreenOn;
           keyboardOptimized = result.keyboardOptimized;
+          quickInsertMode = result.quickInsertMode;
           homeLayout = result.homeLayout;
         });
       }
@@ -561,6 +578,7 @@ class HomePage extends StatefulWidget {
     required this.mapMaxAgeHours,
     this.mapWarningMinutes = defaultContactWarningMinutes,
     this.keyboardOptimized = false,
+    this.quickInsertMode = false,
     this.homeLayout = HomeLayout.bottomPanels,
     this.mapSettings = const MapSettings(),
     this.onMapSettingsChanged,
@@ -573,6 +591,7 @@ class HomePage extends StatefulWidget {
   final int mapMaxAgeHours;
   final int mapWarningMinutes;
   final bool keyboardOptimized;
+  final bool quickInsertMode;
   final HomeLayout homeLayout;
   final MapSettings mapSettings;
   final ValueChanged<MapSettings>? onMapSettingsChanged;
@@ -594,6 +613,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final _energyFocusNode = FocusNode();
   final _trafficFocusNode = FocusNode();
   final _trafficMessageFocusNode = FocusNode();
+  final _quickContactFocusNode = FocusNode();
   final callsign = TextEditingController();
   final via = TextEditingController();
   String frequency = _repeaterFrequency;
@@ -604,6 +624,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final traffic = TextEditingController(text: 'S - Sem tráfego');
   final energy = TextEditingController(text: 'B - Bateria');
   final trafficMessage = TextEditingController();
+  final quickContact = TextEditingController();
+  QuickContactDraft _quickDraft = const QuickContactDraft();
   final _panelScrollController = ScrollController();
   double? _scrollOffsetBeforeKeyboard;
   bool _keyboardWasOpen = false;
@@ -791,6 +813,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _forgetAutofill();
     _prefilledPresenceKey = null;
     formKey.currentState?.reset();
+    quickContact.clear();
+    _quickDraft = const QuickContactDraft();
     setState(() {
       callsign.clear();
       via.clear();
@@ -822,6 +846,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _presenceTimer?.cancel();
     _panelScrollController.dispose();
     _callsignFocusNode.dispose();
+    _quickContactFocusNode.dispose();
     _viaFocusNode.dispose();
     for (final node in [
       _operatorFocusNode,
@@ -844,6 +869,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       traffic,
       energy,
       trafficMessage,
+      quickContact,
     ]) {
       c.dispose();
     }
@@ -971,7 +997,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             SizedBox(width: double.infinity, child: frequencySwitch),
             if (_networkStartedAt != null) const SizedBox(height: 12),
           ],
-          if (_networkStartedAt != null) _buildContactForm(useBottomPanels),
+          if (_networkStartedAt != null)
+            widget.quickInsertMode
+                ? _buildQuickContactForm()
+                : _buildContactForm(useBottomPanels),
         ];
         final logs = StreamBuilder<List<LogEntry>>(
           stream: widget.database.watchLogs(),
@@ -1465,6 +1494,117 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
+  Widget _buildQuickContactForm() => Column(
+    crossAxisAlignment: CrossAxisAlignment.stretch,
+    children: [
+      Row(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Expanded(
+            child: TextField(
+              key: const Key('quick-contact-input'),
+              controller: quickContact,
+              focusNode: _quickContactFocusNode,
+              textCapitalization: TextCapitalization.characters,
+              inputFormatters: [UpperCaseFormatter()],
+              textInputAction: TextInputAction.done,
+              onChanged: (value) => setState(() {
+                _quickDraft = parseQuickContact(value);
+              }),
+              onSubmitted: (_) => _register(),
+              decoration: const InputDecoration(
+                labelText: 'Inserção rápida',
+                hintText: 'PY3SC SAMUEL GG30CH 5W PORT BAT ST',
+                prefixIcon: Icon(Icons.bolt),
+              ),
+            ),
+          ),
+          const SizedBox(width: 8),
+          SizedBox(
+            height: 56,
+            child: FilledButton.icon(
+              onPressed: _quickDraft.canRegister ? _register : null,
+              icon: const Icon(Icons.add),
+              label: const Text('Registrar'),
+            ),
+          ),
+        ],
+      ),
+      const SizedBox(height: 8),
+      _buildQuickDraftPreview(),
+    ],
+  );
+
+  Widget _buildQuickDraftPreview() {
+    final draft = _quickDraft;
+    final watts = draft.powerWatts;
+    final values = <String, String>{
+      'Indicativo': draft.callsign,
+      'Nome': draft.name,
+      'Via': draft.hasVia ? draft.via : '',
+      'Grid': draft.grid,
+      'Potência': watts == null
+          ? ''
+          : '${watts.toStringAsFixed(watts % 1 == 0 ? 0 : 1)} W',
+      'Estação': draft.hasStation ? _stationLabel(draft.station) : '',
+      'Energia': draft.hasEnergy ? _energyLabel(draft.energy) : '',
+      'Tráfego': !draft.hasTraffic
+          ? ''
+          : draft.traffic == 'C'
+          ? draft.trafficMessage
+          : _trafficLabel(draft.traffic),
+    };
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 8),
+      decoration: BoxDecoration(
+        color: Theme.of(context).colorScheme.surfaceContainerLow,
+        borderRadius: BorderRadius.circular(10),
+        border: Border.all(color: Theme.of(context).colorScheme.outlineVariant),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          Wrap(
+            spacing: 12,
+            runSpacing: 4,
+            children: values.entries
+                .map(
+                  (entry) => RichText(
+                    text: TextSpan(
+                      style: Theme.of(context).textTheme.bodySmall,
+                      children: [
+                        TextSpan(
+                          text: '${entry.key}: ',
+                          style: const TextStyle(fontWeight: FontWeight.w700),
+                        ),
+                        TextSpan(text: entry.value.isEmpty ? '—' : entry.value),
+                      ],
+                    ),
+                  ),
+                )
+                .toList(),
+          ),
+          SizedBox(
+            height: 32,
+            child: Align(
+              alignment: Alignment.centerLeft,
+              child: _quickDraft.errors.isEmpty
+                  ? null
+                  : Text(
+                      _quickDraft.errors.join(' '),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
+                      style: TextStyle(
+                        color: Theme.of(context).colorScheme.error,
+                      ),
+                    ),
+            ),
+          ),
+        ],
+      ),
+    );
+  }
+
   Widget _buildContactForm(bool fourColumns) => Form(
     key: formKey,
     child: FocusTraversalGroup(
@@ -1852,6 +1992,22 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       return;
     }
     setState(() {
+      if (widget.quickInsertMode) {
+        quickContact.text = [
+          entry.callsign,
+          entry.operatorName,
+          entry.location,
+          '${entry.powerWatts}W',
+          entry.stationType,
+          entry.energy,
+          if (entry.traffic == 'C') 'X',
+          if (entry.traffic == 'C') entry.trafficMessage,
+          if (entry.traffic == 'S') 'ST',
+          if (entry.via.isNotEmpty) 'VIA',
+          if (entry.via.isNotEmpty) entry.via,
+        ].join(' ');
+        _quickDraft = parseQuickContact(quickContact.text);
+      }
       _autofillRevision++;
       _forgetAutofill();
       _prefilledPresenceKey = stationPresenceKey(entry);
@@ -1866,10 +2022,58 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       trafficMessage.text = entry.trafficMessage;
       _rememberAutofill();
     });
-    _callsignFocusNode.requestFocus();
+    (widget.quickInsertMode ? _quickContactFocusNode : _callsignFocusNode)
+        .requestFocus();
   }
 
   Future<void> _register() async {
+    if (widget.quickInsertMode) {
+      final draft = _quickDraft;
+      if (!draft.canRegister) {
+        if (mounted) {
+          ScaffoldMessenger.of(context).showSnackBar(
+            SnackBar(
+              content: Text(
+                draft.errors.isNotEmpty
+                    ? draft.errors.join(' ')
+                    : 'Informe indicativo, nome, grid válido e potência.',
+              ),
+            ),
+          );
+          _quickContactFocusNode.requestFocus();
+        }
+        return;
+      }
+      if (_rejectInvalidGrid(widget.profile.grid, 'grid do operador')) return;
+      await widget.database.saveLog(
+        callsign: draft.callsign,
+        via: draft.via,
+        frequency: frequency,
+        frequencyMhz: frequency == _simplexFrequency ? 146.52 : 145.37,
+        repeaterGrid: widget.mapSettings.repeaterGrid,
+        energy: draft.energy,
+        operatorName: capitalizeWordInitials(draft.name),
+        location: draft.grid,
+        operatorGrid: widget.profile.grid,
+        powerWatts: draft.powerWatts ?? 0,
+        stationType: draft.station,
+        traffic: draft.traffic,
+        trafficMessage: draft.trafficMessage,
+        networkStartedAt: _networkStartedAt,
+      );
+      if (mounted) {
+        setState(() {
+          if (widget.mapSettings.focusNewRecord) {
+            _lastMapFocusGrid = draft.grid;
+            _mapFocusRequest++;
+          }
+          quickContact.clear();
+          _quickDraft = const QuickContactDraft();
+        });
+        _quickContactFocusNode.requestFocus();
+      }
+      return;
+    }
     if (!formKey.currentState!.validate()) return;
     final savedLocation = location.text.trim();
     if (_rejectInvalidGrid(savedLocation, 'localização')) return;
@@ -2709,6 +2913,7 @@ class SettingsPage extends StatefulWidget {
     this.mapWarningMinutes = defaultContactWarningMinutes,
     required this.keepScreenOn,
     this.keyboardOptimized = false,
+    this.quickInsertMode = false,
     this.homeLayout = HomeLayout.bottomPanels,
     required this.showCompass,
     this.focusNewRecord = false,
@@ -2724,6 +2929,7 @@ class SettingsPage extends StatefulWidget {
   final int mapWarningMinutes;
   final bool keepScreenOn;
   final bool keyboardOptimized;
+  final bool quickInsertMode;
   final HomeLayout homeLayout;
   final bool showCompass;
   final bool focusNewRecord;
@@ -2748,6 +2954,7 @@ class _SettingsPageState extends State<SettingsPage> {
   late bool lastOnly = widget.lastOnly;
   late bool keepScreenOn = widget.keepScreenOn;
   late bool keyboardOptimized = widget.keyboardOptimized;
+  late bool quickInsertMode = widget.quickInsertMode;
   late HomeLayout homeLayout = widget.homeLayout;
   late bool showCompass = widget.showCompass;
   late bool focusNewRecord = widget.focusNewRecord;
@@ -2861,6 +3068,15 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
           value: keyboardOptimized,
           onChanged: (value) => setState(() => keyboardOptimized = value),
+        ),
+        SwitchListTile(
+          contentPadding: EdgeInsets.zero,
+          title: const Text('Modo de inserção rápida'),
+          subtitle: const Text(
+            'Substitui o formulário por uma única linha interpretada automaticamente.',
+          ),
+          value: quickInsertMode,
+          onChanged: (value) => setState(() => quickInsertMode = value),
         ),
         SwitchListTile(
           contentPadding: EdgeInsets.zero,
@@ -3176,6 +3392,7 @@ class _SettingsPageState extends State<SettingsPage> {
         ),
         keepScreenOn,
         keyboardOptimized,
+        quickInsertMode,
         homeLayout,
         showCompass,
         focusNewRecord,
@@ -3219,6 +3436,7 @@ class _SettingsResult {
     this.mapMaxAgeHours,
     this.keepScreenOn,
     this.keyboardOptimized,
+    this.quickInsertMode,
     this.homeLayout,
     this.showCompass,
     this.focusNewRecord,
@@ -3233,6 +3451,7 @@ class _SettingsResult {
   final int mapMaxAgeHours;
   final bool keepScreenOn;
   final bool keyboardOptimized;
+  final bool quickInsertMode;
   final HomeLayout homeLayout;
   final bool showCompass;
   final bool focusNewRecord;
