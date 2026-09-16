@@ -21,6 +21,7 @@ import 'data/csv_transfer.dart';
 import 'data/session_report_pdf.dart';
 import 'branding.dart';
 import 'grid_locator.dart';
+import 'quick_contact_autofill.dart';
 import 'quick_contact_parser.dart';
 import 'widgets/grid_locator_field.dart';
 import 'widgets/contact_workspace.dart';
@@ -626,6 +627,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final trafficMessage = TextEditingController();
   final quickContact = TextEditingController();
   QuickContactDraft _quickDraft = const QuickContactDraft();
+  QuickContactCompletion? _quickCompletion;
+  int _quickAutofillRevision = 0;
   final _panelScrollController = ScrollController();
   double? _scrollOffsetBeforeKeyboard;
   bool _keyboardWasOpen = false;
@@ -1526,31 +1529,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: SizedBox(
-              height: 40,
-              child: TextField(
-                key: const Key('quick-contact-input'),
-                controller: quickContact,
-                focusNode: _quickContactFocusNode,
-                textCapitalization: TextCapitalization.characters,
-                inputFormatters: [UpperCaseFormatter()],
-                textInputAction: TextInputAction.done,
-                onChanged: (value) => setState(() {
-                  _quickDraft = parseQuickContact(value);
-                }),
-                onSubmitted: (_) => _register(),
-                decoration: const InputDecoration(
-                  isDense: true,
-                  contentPadding: EdgeInsets.symmetric(
-                    horizontal: 12,
-                    vertical: 8,
-                  ),
-                  labelText: 'Inserção rápida',
-                  hintText: 'PY3SC SAMUEL GG30CH 5W PORT BAT ST',
-                  prefixIcon: Icon(Icons.bolt),
-                ),
-              ),
-            ),
+            child: SizedBox(height: 40, child: _buildQuickContactInput()),
           ),
           const SizedBox(width: 8),
           SizedBox(
@@ -1572,6 +1551,165 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       _buildQuickDraftPreview(),
     ],
   );
+
+  Widget _buildQuickContactInput() {
+    final completion = _quickCompletion;
+    final completionText = completion == null
+        ? null
+        : RegExp(r'\s$').hasMatch(quickContact.text)
+        ? completion.text
+        : ' ${completion.text}';
+    final textStyle = Theme.of(context).textTheme.bodyLarge;
+    var cursorWidth = 0.0;
+    if (completion != null &&
+        quickContact.selection.isValid &&
+        quickContact.selection.isCollapsed) {
+      final cursor = quickContact.selection.baseOffset.clamp(
+        0,
+        quickContact.text.length,
+      );
+      final painter = TextPainter(
+        text: TextSpan(
+          text: quickContact.text.substring(0, cursor),
+          style: textStyle,
+        ),
+        textDirection: Directionality.of(context),
+      )..layout();
+      cursorWidth = painter.width;
+    }
+    return Focus(
+      onKeyEvent: (node, event) {
+        if (event is KeyDownEvent &&
+            event.logicalKey == LogicalKeyboardKey.tab &&
+            _quickCompletion != null) {
+          _acceptQuickCompletion();
+          return KeyEventResult.handled;
+        }
+        return KeyEventResult.ignored;
+      },
+      child: Stack(
+        clipBehavior: Clip.hardEdge,
+        children: [
+          TextField(
+            key: const Key('quick-contact-input'),
+            controller: quickContact,
+            focusNode: _quickContactFocusNode,
+            textCapitalization: TextCapitalization.characters,
+            inputFormatters: [UpperCaseFormatter()],
+            textInputAction: TextInputAction.done,
+            onChanged: _onQuickContactChanged,
+            onSubmitted: (_) => _register(),
+            decoration: const InputDecoration(
+              isDense: true,
+              contentPadding: EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+              labelText: 'Inserção rápida',
+              hintText: 'PY3SC SAMUEL GG30CH 5W PORT BAT ST',
+              prefixIcon: Icon(Icons.bolt),
+            ),
+          ),
+          if (completion != null)
+            Positioned(
+              left: 48 + cursorWidth,
+              top: 8,
+              child: IgnorePointer(
+                child: Text(
+                  completionText!,
+                  maxLines: 1,
+                  style: textStyle?.copyWith(
+                    color: Theme.of(context).colorScheme.outline,
+                  ),
+                ),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _onQuickContactChanged(String value) {
+    final revision = ++_quickAutofillRevision;
+    final draft = parseQuickContact(value);
+    setState(() {
+      _quickDraft = draft;
+      _quickCompletion = null;
+    });
+
+    final selection = quickContact.selection;
+    final hasMultipleTokens = value.trim().split(RegExp(r'\s+')).length > 1;
+    final endedWithSpace = RegExp(r'\s$').hasMatch(value);
+    if (draft.callsign.isEmpty ||
+        !selection.isValid ||
+        !selection.isCollapsed ||
+        selection.baseOffset != value.length ||
+        (!hasMultipleTokens && !endedWithSpace)) {
+      return;
+    }
+    _loadQuickCompletion(value, draft, revision);
+  }
+
+  Future<void> _loadQuickCompletion(
+    String value,
+    QuickContactDraft draft,
+    int revision,
+  ) async {
+    final selectedFrequency = frequency;
+    final latest = await widget.database.latestLogForCallsign(draft.callsign);
+    final latestOnFrequency = await widget.database.latestLogForCallsign(
+      draft.callsign,
+      frequency: selectedFrequency,
+    );
+    if (!mounted ||
+        revision != _quickAutofillRevision ||
+        quickContact.text != value ||
+        quickContact.selection.baseOffset != value.length ||
+        frequency != selectedFrequency) {
+      return;
+    }
+    final completion = QuickContactCompletion.from(
+      draft: draft,
+      latest: latest == null
+          ? null
+          : QuickContactAutofillRecord(
+              operatorName: latest.operatorName,
+              location: latest.location,
+              stationType: latest.stationType,
+              energy: latest.energy,
+            ),
+      latestOnFrequency: latestOnFrequency == null
+          ? null
+          : QuickContactAutofillRecord(
+              operatorName: latestOnFrequency.operatorName,
+              location: latestOnFrequency.location,
+              stationType: latestOnFrequency.stationType,
+              energy: latestOnFrequency.energy,
+              powerWatts: latestOnFrequency.powerWatts,
+            ),
+    );
+    setState(() => _quickCompletion = completion);
+  }
+
+  void _acceptQuickCompletion() {
+    final completion = _quickCompletion;
+    final selection = quickContact.selection;
+    if (completion == null || !selection.isValid || !selection.isCollapsed) {
+      return;
+    }
+    final start = selection.start;
+    final end = selection.end;
+    final text = quickContact.text;
+    final needsSeparator =
+        start > 0 && !RegExp(r'\s').hasMatch(text.substring(start - 1, start));
+    final inserted = '${needsSeparator ? ' ' : ''}${completion.text}';
+    final completed = text.replaceRange(start, end, inserted);
+    quickContact.value = TextEditingValue(
+      text: completed,
+      selection: TextSelection.collapsed(offset: start + inserted.length),
+    );
+    setState(() {
+      _quickDraft = parseQuickContact(completed);
+      _quickCompletion = null;
+    });
+  }
 
   Widget _buildQuickDraftPreview() {
     final draft = _quickDraft;
