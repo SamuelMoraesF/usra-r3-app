@@ -1405,89 +1405,112 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             color: Theme.of(context).dividerColor.withValues(alpha: 0.55),
           ),
         ),
-        child: ListTile(
+        child: InkWell(
           onTap: canModify ? () => _editLog(entry) : null,
-          contentPadding: const EdgeInsets.symmetric(
-            horizontal: 14,
-            vertical: 4,
-          ),
-          title: Row(
-            children: [
-              Expanded(
-                child: RichText(
-                  overflow: TextOverflow.ellipsis,
-                  text: TextSpan(
-                    style: DefaultTextStyle.of(context).style,
-                    children: [
-                      TextSpan(
-                        text: '${entry.callsign} · ${entry.operatorName}',
-                        style: Theme.of(context).textTheme.titleMedium
-                            ?.copyWith(fontWeight: FontWeight.w700),
-                      ),
-                      if (entry.via.trim().isNotEmpty) ...[
-                        const TextSpan(text: '  '),
-                        _viaTitleSpan(context, allEntries, entry.via),
-                      ],
-                    ],
-                  ),
-                ),
-              ),
-              const SizedBox(width: 8),
-              Icon(
-                Icons.schedule,
-                size: 15,
-                color: Theme.of(context).colorScheme.onSurfaceVariant,
-              ),
-              const SizedBox(width: 3),
-              Text(
-                _formatDate(entry.createdAt),
-                style: Theme.of(context).textTheme.labelSmall,
-              ),
-            ],
-          ),
-          subtitle: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Row(
-                children: [
-                  const Icon(Icons.power, size: 16),
-                  const SizedBox(width: 4),
-                  Text(_energyLabel(entry.energy)),
-                  const SizedBox(width: 8),
-                  const Text('·'),
-                  const SizedBox(width: 8),
-                  const Icon(Icons.bolt, size: 16),
-                  const SizedBox(width: 4),
-                  Text('${entry.powerWatts} W'),
-                  const SizedBox(width: 8),
-                  const Text('·'),
-                  const SizedBox(width: 8),
-                  const Icon(Icons.radio, size: 16),
-                  const SizedBox(width: 4),
-                  Text(_stationLabel(entry.stationType)),
-                ],
-              ),
-              const SizedBox(height: 4),
-              _contactMeta(entry),
-              if (entry.traffic == 'C' && entry.trafficMessage.isNotEmpty)
-                Container(
-                  margin: const EdgeInsets.only(top: 8),
-                  padding: const EdgeInsets.only(top: 8),
-                  decoration: BoxDecoration(
-                    border: Border(
-                      top: BorderSide(
-                        color: Theme.of(context).colorScheme.outlineVariant,
-                        width: 1,
+          borderRadius: BorderRadius.circular(14),
+          child: Padding(
+            padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Expanded(
+                      child: Row(
+                        crossAxisAlignment: CrossAxisAlignment.center,
+                        children: [
+                          Flexible(
+                            child: Text(
+                              '${entry.callsign} · ${entry.operatorName}',
+                              maxLines: 1,
+                              overflow: TextOverflow.ellipsis,
+                              style: Theme.of(context).textTheme.titleMedium
+                                  ?.copyWith(fontWeight: FontWeight.w700),
+                            ),
+                          ),
+                          if (entry.via.trim().isNotEmpty) ...[
+                            const SizedBox(width: 6),
+                            Flexible(
+                              child: Text(
+                                _viaTitle(allEntries, entry.via),
+                                maxLines: 1,
+                                overflow: TextOverflow.ellipsis,
+                                style: Theme.of(context).textTheme.bodySmall
+                                    ?.copyWith(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.onSurfaceVariant,
+                                      fontWeight: FontWeight.normal,
+                                    ),
+                              ),
+                            ),
+                          ],
+                        ],
                       ),
                     ),
-                  ),
-                  width: double.infinity,
-                  child: Text(
-                    entry.trafficMessage,
-                    style: const TextStyle(fontFamily: 'monospace'),
-                  ),
+                    const SizedBox(width: 8),
+                    Icon(
+                      Icons.schedule,
+                      size: 15,
+                      color: Theme.of(context).colorScheme.onSurfaceVariant,
+                    ),
+                    const SizedBox(width: 3),
+                    Text(
+                      _formatDate(entry.createdAt),
+                      style: Theme.of(context).textTheme.labelSmall,
+                    ),
+                  ],
                 ),
-            ],
+                const SizedBox(height: 6),
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        const Icon(Icons.power, size: 16),
+                        const SizedBox(width: 4),
+                        Text(_energyLabel(entry.energy)),
+                        const SizedBox(width: 8),
+                        const Text('·'),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.bolt, size: 16),
+                        const SizedBox(width: 4),
+                        Text('${entry.powerWatts} W'),
+                        const SizedBox(width: 8),
+                        const Text('·'),
+                        const SizedBox(width: 8),
+                        const Icon(Icons.radio, size: 16),
+                        const SizedBox(width: 4),
+                        Text(_stationLabel(entry.stationType)),
+                      ],
+                    ),
+                    const SizedBox(height: 4),
+                    _contactMeta(entry),
+                    if (entry.traffic == 'C' && entry.trafficMessage.isNotEmpty)
+                      Container(
+                        margin: const EdgeInsets.only(top: 8),
+                        padding: const EdgeInsets.only(top: 8),
+                        decoration: BoxDecoration(
+                          border: Border(
+                            top: BorderSide(
+                              color: Theme.of(
+                                context,
+                              ).colorScheme.outlineVariant,
+                              width: 1,
+                            ),
+                          ),
+                        ),
+                        width: double.infinity,
+                        child: Text(
+                          entry.trafficMessage,
+                          style: const TextStyle(fontFamily: 'monospace'),
+                        ),
+                      ),
+                  ],
+                ),
+              ],
+            ),
           ),
         ),
       ),
@@ -1501,28 +1524,41 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Expanded(
-            child: TextField(
-              key: const Key('quick-contact-input'),
-              controller: quickContact,
-              focusNode: _quickContactFocusNode,
-              textCapitalization: TextCapitalization.characters,
-              inputFormatters: [UpperCaseFormatter()],
-              textInputAction: TextInputAction.done,
-              onChanged: (value) => setState(() {
-                _quickDraft = parseQuickContact(value);
-              }),
-              onSubmitted: (_) => _register(),
-              decoration: const InputDecoration(
-                labelText: 'Inserção rápida',
-                hintText: 'PY3SC SAMUEL GG30CH 5W PORT BAT ST',
-                prefixIcon: Icon(Icons.bolt),
+            child: SizedBox(
+              height: 40,
+              child: TextField(
+                key: const Key('quick-contact-input'),
+                controller: quickContact,
+                focusNode: _quickContactFocusNode,
+                textCapitalization: TextCapitalization.characters,
+                inputFormatters: [UpperCaseFormatter()],
+                textInputAction: TextInputAction.done,
+                onChanged: (value) => setState(() {
+                  _quickDraft = parseQuickContact(value);
+                }),
+                onSubmitted: (_) => _register(),
+                decoration: const InputDecoration(
+                  isDense: true,
+                  contentPadding: EdgeInsets.symmetric(
+                    horizontal: 12,
+                    vertical: 8,
+                  ),
+                  labelText: 'Inserção rápida',
+                  hintText: 'PY3SC SAMUEL GG30CH 5W PORT BAT ST',
+                  prefixIcon: Icon(Icons.bolt),
+                ),
               ),
             ),
           ),
           const SizedBox(width: 8),
           SizedBox(
-            height: 56,
+            height: 40,
             child: FilledButton.icon(
+              style: FilledButton.styleFrom(
+                minimumSize: Size.zero,
+                tapTargetSize: MaterialTapTargetSize.shrinkWrap,
+                padding: const EdgeInsets.symmetric(horizontal: 14),
+              ),
               onPressed: _quickDraft.canRegister ? _register : null,
               icon: const Icon(Icons.add),
               label: const Text('Registrar'),
@@ -2248,21 +2284,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return match.isEmpty ? '' : match.first.operatorName;
   }
 
-  TextSpan _viaTitleSpan(
-    BuildContext context,
-    List<LogEntry> entries,
-    String callsign,
-  ) {
+  String _viaTitle(List<LogEntry> entries, String callsign) {
     final normalized = callsign.trim().toUpperCase();
     final name = _operatorNameFor(entries, normalized).trim();
-    return TextSpan(
-      text: name.isEmpty ? 'via $normalized' : 'via $normalized · $name',
-      style: Theme.of(context).textTheme.bodySmall?.copyWith(
-        color: Theme.of(context).colorScheme.onSurfaceVariant,
-        fontWeight: FontWeight.normal,
-        decoration: TextDecoration.none,
-      ),
-    );
+    return name.isEmpty ? 'via $normalized' : 'via $normalized · $name';
   }
 
   String _stationLabel(String code) => switch (code.trim().toUpperCase()) {
