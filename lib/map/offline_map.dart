@@ -658,7 +658,14 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     try {
       await MapLibreMap.ensureWebLibraryLoaded();
       if (mounted) {
-        setState(() => _webLoadStatus = 'Baixando o mapa offline...');
+        final cached = await isPmtilesArchiveCached();
+        if (mounted) {
+          setState(
+            () => _webLoadStatus = cached
+                ? 'Carregando o mapa offline...'
+                : 'Baixando o mapa offline...',
+          );
+        }
       }
       await registerPmtilesProtocol();
       if (mounted) setState(() => _webReady = true);

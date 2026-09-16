@@ -7,3 +7,10 @@ Future<void> registerPmtilesProtocol() async {
   );
   await promise.toDart;
 }
+
+Future<bool> isPmtilesArchiveCached() async {
+  final promise = globalContext.callMethod<JSPromise<JSBoolean?>>(
+    'isUsraPmtilesCached'.toJS,
+  );
+  return (await promise.toDart)?.toDart ?? false;
+}

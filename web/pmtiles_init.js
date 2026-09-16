@@ -1,5 +1,15 @@
 const USRA_PMTILES_URL = 'assets/assets/maps/santa-maria-rs.pmtiles';
 
+window.isUsraPmtilesCached = async function isUsraPmtilesCached() {
+  if (!window.caches) return false;
+  try {
+    const request = new Request(new URL(USRA_PMTILES_URL, window.location.href).href);
+    return Boolean(await window.caches.match(request));
+  } catch (_) {
+    return false;
+  }
+};
+
 window.registerUsraPmtiles = async function registerUsraPmtiles() {
   if (window.__usraPmtilesRegistered) return;
   if (!window.maplibregl || !window.pmtiles) {
