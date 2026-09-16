@@ -884,6 +884,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       bindings: {
         const SingleActivator(LogicalKeyboardKey.keyN, control: true):
             _newContact,
+        const SingleActivator(LogicalKeyboardKey.keyN, shift: true):
+            _newContact,
       },
       child: scaffold,
     );

@@ -21,8 +21,10 @@ BrowserNewContactShortcut installBrowserNewContactShortcut(
   final listener = ((JSAny event) {
     final keyboardEvent = event as JSObject;
     final ctrlKey = keyboardEvent.getProperty<JSBoolean>('ctrlKey'.toJS);
+    final shiftKey = keyboardEvent.getProperty<JSBoolean>('shiftKey'.toJS);
     final key = keyboardEvent.getProperty<JSString?>('key'.toJS);
-    if (ctrlKey.toDart && key?.toDart.toLowerCase() == 'n') {
+    if ((ctrlKey.toDart || shiftKey.toDart) &&
+        key?.toDart.toLowerCase() == 'n') {
       keyboardEvent.callMethod<JSAny?>('preventDefault'.toJS);
       onNewContact();
     }
