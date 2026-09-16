@@ -14,8 +14,8 @@
         },
         "StringLike": {
           "token.actions.githubusercontent.com:sub": [
-            "repo:SamuelMoraesF/usra-r3-app:ref:refs/tags/v*",
-            "repo:SamuelMoraesF/usra-r3-app:ref:refs/heads/main"
+            "repo:SamuelMoraesF@3705263/usra-r3-app@1363325948:ref:refs/tags/v*",
+            "repo:SamuelMoraesF@3705263/usra-r3-app@1363325948:ref:refs/heads/main"
           ]
         }
       }
