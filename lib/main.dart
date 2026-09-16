@@ -33,6 +33,8 @@ import 'app_update_service_stub.dart'
     if (dart.library.js_interop) 'app_update_service_web.dart';
 import 'browser_connectivity_stub.dart'
     if (dart.library.js_interop) 'browser_connectivity_web.dart';
+import 'browser_android_download_stub.dart'
+    if (dart.library.js_interop) 'browser_android_download_web.dart';
 
 final _appUpdates = createAppUpdateService();
 final _browserConnectivity = createBrowserConnectivity();
@@ -2969,6 +2971,21 @@ class _SettingsPageState extends State<SettingsPage> {
             style: Theme.of(
               context,
             ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
+          const SizedBox(height: 8),
+          FutureBuilder<PackageInfo>(
+            future: packageInfo,
+            builder: (context, snapshot) {
+              final info = snapshot.data;
+              final canDownload =
+                  info != null &&
+                  RegExp(r'^\d+\.\d+\.\d+$').hasMatch(info.version);
+              return OutlinedButton.icon(
+                onPressed: canDownload ? () => openAndroidApk(info) : null,
+                icon: const Icon(Icons.android),
+                label: const Text('Baixar versão Android (APK)'),
+              );
+            },
           ),
           const SizedBox(height: 8),
           OutlinedButton.icon(
