@@ -84,6 +84,7 @@ StationPresence stationPresence(
   int warningMinutes = defaultContactWarningMinutes,
   StationDisconnections? disconnections,
   bool includeAllFrequencies = false,
+  bool includeClosedSession = false,
 }) {
   if (sessionStartedAt == null) return const StationPresence([], [], null);
   final lifetime = Duration(hours: maxAgeHours);
@@ -93,7 +94,7 @@ StationPresence stationPresence(
       .where(
         (e) =>
             e.networkStartedAt == sessionStartedAt &&
-            e.networkEndedAt == null &&
+            (includeClosedSession || e.networkEndedAt == null) &&
             !e.createdAt.isAfter(now) &&
             (includeAllFrequencies ||
                 (e.frequency == mode &&

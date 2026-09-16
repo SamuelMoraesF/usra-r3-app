@@ -18,6 +18,7 @@ import 'package:sentry_flutter/sentry_flutter.dart';
 import 'data/database.dart';
 import 'time_display.dart';
 import 'data/csv_transfer.dart';
+import 'data/session_report_pdf.dart';
 import 'branding.dart';
 import 'grid_locator.dart';
 import 'widgets/grid_locator_field.dart';
@@ -616,6 +617,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   String? _autofilledCallsign;
   List<String>? _autofilledValues;
   bool _autofillEdited = false;
+  DateTime? _exportingReportStartedAt;
   BrowserNewContactShortcut? _browserNewContactShortcut;
 
   @override
@@ -1267,6 +1269,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final cards = entries
         .map((entry) => _buildSavedLogCard(entry, allEntries))
         .toList();
+    final isExporting = _exportingReportStartedAt == startedAt;
 
     if (!isClosed) {
       return Column(
@@ -1317,9 +1320,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               ),
             ),
             IconButton(
-              tooltip: 'Exportar relatório',
-              icon: const Icon(Icons.summarize_outlined),
-              onPressed: () {},
+              tooltip: isExporting ? 'Gerando relatório' : 'Exportar relatório',
+              icon: isExporting
+                  ? const SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    )
+                  : const Icon(Icons.summarize_outlined),
+              onPressed: _exportingReportStartedAt != null
+                  ? null
+                  : () => _exportSessionReport(startedAt),
             ),
           ],
         ),
@@ -1705,6 +1716,127 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         );
       }
     }
+  }
+
+  Future<void> _exportSessionReport(DateTime startedAt) async {
+    if (_exportingReportStartedAt != null) return;
+    setState(() => _exportingReportStartedAt = startedAt);
+    try {
+      final timeZone = TimeDisplay.of(context);
+      final entries = await widget.database.logsForNetwork(startedAt);
+      if (entries.isEmpty) {
+        throw StateError('A sessão não possui contatos para exportar.');
+      }
+      final endedAt = entries
+          .map((entry) => entry.networkEndedAt)
+          .whereType<DateTime>()
+          .fold<DateTime?>(null, (latest, value) {
+            return latest == null || value.isAfter(latest) ? value : latest;
+          });
+      if (endedAt == null) {
+        throw StateError('A sessão ainda não está encerrada.');
+      }
+      final mapImages = <String, Uint8List>{};
+      for (final mode in const [_simplexFrequency, _repeaterFrequency]) {
+        final modeEntries = entries
+            .where((entry) => entry.frequency == mode)
+            .toList();
+        if (modeEntries.isEmpty || !mounted) continue;
+        final image = await _captureReportMap(
+          startedAt: startedAt,
+          endedAt: endedAt,
+          entries: modeEntries,
+          mode: mode,
+        );
+        if (image != null) mapImages[mode] = image;
+      }
+      final bytes = await SessionReportPdf.build(
+        entries: entries,
+        logoBytes: (await rootBundle.load(
+          'assets/branding/report_logo.png',
+        )).buffer.asUint8List(),
+        control:
+            '${widget.profile.callsign} - ${widget.profile.name} - Grid ${widget.profile.grid}',
+        opening: timeZone.format(startedAt),
+        closing: timeZone.format(endedAt),
+        mapImages: mapImages,
+      );
+      await SharePlus.instance.share(
+        ShareParams(
+          files: [
+            XFile.fromData(
+              bytes,
+              mimeType: 'application/pdf',
+              name:
+                  'usra-r3-relatorio-${startedAt.toIso8601String().split('T').first}.pdf',
+            ),
+          ],
+          subject: 'Relatório técnico USRA R3',
+        ),
+      );
+    } catch (error) {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Falha ao exportar relatório: $error')),
+        );
+      }
+    } finally {
+      if (mounted) setState(() => _exportingReportStartedAt = null);
+    }
+  }
+
+  Future<Uint8List?> _captureReportMap({
+    required DateTime startedAt,
+    required DateTime endedAt,
+    required List<LogEntry> entries,
+    required String mode,
+  }) async {
+    return showGeneralDialog<Uint8List>(
+      context: context,
+      barrierDismissible: false,
+      barrierColor: Colors.transparent,
+      transitionDuration: Duration.zero,
+      pageBuilder: (dialogContext, animation, secondaryAnimation) => Align(
+        alignment: Alignment.topLeft,
+        child: Transform.translate(
+          offset: const Offset(-1000, -1000),
+          child: SizedBox(
+            // Keep the same logical viewport that produced the correct
+            // framing, while taking the final image at 2x resolution.
+            width: 1080,
+            height: 570,
+            child: _ReportMapCapture(
+              entries: entries,
+              startedAt: startedAt,
+              endedAt: endedAt,
+              mode: mode,
+              operatorGrid: widget.profile.grid,
+              operatorCallsign: widget.profile.callsign,
+              settings: MapSettings(
+                showLines: true,
+                showCallsigns: true,
+                showAll: widget.mapSettings.showAll,
+                showPrecision: widget.mapSettings.showPrecision,
+                showElevation: widget.mapSettings.showElevation,
+                showCompass: widget.mapSettings.showCompass,
+                repeaterGrid: widget.mapSettings.repeaterGrid,
+              ),
+              mergePrecision: widget.mergePrecision,
+              lastOnly: widget.lastOnly,
+              maxAgeHours: widget.mapMaxAgeHours,
+              warningMinutes: widget.mapWarningMinutes,
+              disconnections: _disconnections,
+              onCaptured: (bytes) async {
+                Navigator.of(dialogContext).pop(bytes);
+              },
+              onUnavailable: () async {
+                Navigator.of(dialogContext).pop();
+              },
+            ),
+          ),
+        ),
+      ),
+    );
   }
 
   void _prefillStation(LogEntry entry) {
@@ -2270,6 +2402,76 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
 String _choiceCode(String value) =>
     value.split(' - ').first.trim().toUpperCase();
+
+class _ReportMapCapture extends StatelessWidget {
+  const _ReportMapCapture({
+    required this.entries,
+    required this.startedAt,
+    required this.endedAt,
+    required this.mode,
+    required this.operatorGrid,
+    required this.operatorCallsign,
+    required this.settings,
+    required this.mergePrecision,
+    required this.lastOnly,
+    required this.maxAgeHours,
+    required this.warningMinutes,
+    required this.disconnections,
+    required this.onCaptured,
+    required this.onUnavailable,
+  });
+
+  final List<LogEntry> entries;
+  final DateTime startedAt;
+  final DateTime endedAt;
+  final String mode;
+  final String operatorGrid;
+  final String operatorCallsign;
+  final MapSettings settings;
+  final bool mergePrecision;
+  final bool lastOnly;
+  final int maxAgeHours;
+  final int warningMinutes;
+  final StationDisconnections disconnections;
+  final Future<void> Function(Uint8List bytes) onCaptured;
+  final Future<void> Function() onUnavailable;
+
+  @override
+  Widget build(BuildContext context) => Stack(
+    children: [
+      OfflineContactsMap(
+        entries: entries,
+        entriesLoaded: true,
+        operatorGrid: operatorGrid,
+        operatorCallsign: operatorCallsign,
+        mergePrecision: mergePrecision,
+        lastOnly: lastOnly,
+        maxAgeHours: maxAgeHours,
+        warningMinutes: warningMinutes,
+        sessionStartedAt: startedAt,
+        asOf: endedAt,
+        includeClosedSession: true,
+        disconnections: disconnections,
+        selectedMode: mode,
+        selectedFrequencyMhz: mode == 'simplex' ? 146.52 : 145.37,
+        settings: settings,
+        onInitialSnapshot: onCaptured,
+        onInitialSnapshotUnavailable: onUnavailable,
+        // The map is captured at 3x the logical size, so keep the logical
+        // fit padding small to avoid enlarging the visual margin in the PDF.
+        fitPadding: 10,
+      ),
+      const Positioned.fill(
+        child: IgnorePointer(
+          child: ColoredBox(
+            color: Colors.transparent,
+            child: Center(child: CircularProgressIndicator()),
+          ),
+        ),
+      ),
+    ],
+  );
+}
 
 class _LandscapeDateTime extends StatefulWidget {
   const _LandscapeDateTime();

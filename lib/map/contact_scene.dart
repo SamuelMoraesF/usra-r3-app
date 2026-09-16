@@ -102,10 +102,12 @@ ContactScene buildContactScene(
   bool showLines = false,
   bool mergePrecision = true,
   bool lastOnly = false,
+  DateTime? asOf,
+  bool includeClosedSession = false,
 }) {
   final presence = stationPresence(
     entries,
-    now: now,
+    now: asOf ?? now,
     sessionStartedAt: sessionStartedAt,
     mode: selectedMode,
     frequencyMhz: selectedFrequencyMhz,
@@ -113,12 +115,13 @@ ContactScene buildContactScene(
     warningMinutes: warningMinutes,
     disconnections: disconnections,
     includeAllFrequencies: true,
+    includeClosedSession: includeClosedSession,
   );
   if (sessionStartedAt == null) return const ContactScene([], [], []);
   final recent = presence.entries;
   final warningKeys = presence.warnings.map(stationPresenceKey).toSet();
   bool selected(LogEntry e) =>
-      e.frequency == selectedMode &&
+      e.frequency.trim().toLowerCase() == selectedMode.trim().toLowerCase() &&
       (contactFrequencyMhz(e) - selectedFrequencyMhz).abs() < 0.000001;
   final visible = recent;
   // Never merge contact history from different frequencies: the same station
@@ -159,6 +162,16 @@ ContactScene buildContactScene(
   for (var i = 0; i < contacts.length; i++) {
     final grid = normalized(contacts[i].latest.location);
     contactsByGrid.putIfAbsent(grid, () => []).add(i);
+  }
+  // At lower zoom levels only orbitIndex 0 is rendered. Keep the selected
+  // frequency at the center when contacts from different frequencies share
+  // the same grid, so a gray background contact cannot hide the active one.
+  for (final indices in contactsByGrid.values) {
+    indices.sort((a, b) {
+      final selectedA = selected(contacts[a].latest) ? 0 : 1;
+      final selectedB = selected(contacts[b].latest) ? 0 : 1;
+      return selectedA.compareTo(selectedB);
+    });
   }
   if (selectedMode == 'repeater' ||
       visible.any((e) => e.frequency == 'repeater')) {

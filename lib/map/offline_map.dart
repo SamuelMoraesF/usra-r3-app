@@ -45,6 +45,11 @@ class OfflineContactsMap extends StatefulWidget {
     this.settings = const MapSettings(),
     this.onSettingsChanged,
     this.onExportPng,
+    this.onInitialSnapshot,
+    this.onInitialSnapshotUnavailable,
+    this.asOf,
+    this.includeClosedSession = false,
+    this.fitPadding = 80,
   });
   final List<LogEntry> entries;
   final String operatorGrid;
@@ -64,6 +69,11 @@ class OfflineContactsMap extends StatefulWidget {
   final MapSettings settings;
   final ValueChanged<MapSettings>? onSettingsChanged;
   final Future<void> Function(Uint8List bytes)? onExportPng;
+  final Future<void> Function(Uint8List bytes)? onInitialSnapshot;
+  final Future<void> Function()? onInitialSnapshotUnavailable;
+  final DateTime? asOf;
+  final bool includeClosedSession;
+  final double fitPadding;
 
   @override
   State<OfflineContactsMap> createState() => _OfflineContactsMapState();
@@ -143,8 +153,27 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
 
     // This callback runs after MapLibre has initialized annotation managers.
     // Restore custom sources and images only once the new style is ready.
-    await _drawContacts();
-    await _fitInitialPoints();
+    // The web implementation can leave camera/layer operations pending even
+    // after the map is already rendered. Do not block snapshot capture on
+    // those futures; the short render delay below lets the map settle.
+    unawaited(_drawContacts());
+    unawaited(_fitInitialPoints());
+    final snapshotCallback = widget.onInitialSnapshot;
+    final map = controller;
+    if (snapshotCallback != null && map != null && _scene.markers.isNotEmpty) {
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      try {
+        final snapshot = await map
+            // Match the report's usable A4 area ratio. This lets the PDF
+            // render the map at full width without distorting its contents.
+            .takeSnapshot(width: 2160, height: 1140)
+            .timeout(const Duration(seconds: 10));
+        if (mounted) await snapshotCallback(snapshot);
+      } catch (_) {
+        final unavailable = widget.onInitialSnapshotUnavailable;
+        if (mounted && unavailable != null) await unavailable();
+      }
+    }
   }
 
   @override
@@ -173,6 +202,9 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
         oldWidget.selectedFrequencyMhz != widget.selectedFrequencyMhz ||
         oldWidget.settings != widget.settings ||
         oldWidget.sessionStartedAt != widget.sessionStartedAt ||
+        oldWidget.asOf != widget.asOf ||
+        oldWidget.includeClosedSession != widget.includeClosedSession ||
+        oldWidget.fitPadding != widget.fitPadding ||
         oldWidget.disconnections != widget.disconnections ||
         oldWidget.warningMinutes != widget.warningMinutes ||
         oldWidget.maxAgeHours != widget.maxAgeHours) {
@@ -218,10 +250,10 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
           southwest: LatLng(south, west),
           northeast: LatLng(north, east),
         ),
-        left: 80,
-        top: 80,
-        right: 80,
-        bottom: 80,
+        left: widget.fitPadding,
+        top: widget.fitPadding,
+        right: widget.fitPadding,
+        bottom: widget.fitPadding,
       ),
     );
   }
@@ -239,7 +271,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
   }
 
   void _refreshContacts() {
-    final now = DateTime.now().toUtc();
+    final now = widget.asOf ?? DateTime.now().toUtc();
     _scene = buildContactScene(
       widget.entries,
       now: now,
@@ -255,6 +287,8 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
       showLines: widget.settings.showLines,
       mergePrecision: widget.mergePrecision,
       lastOnly: widget.lastOnly,
+      asOf: widget.asOf,
+      includeClosedSession: widget.includeClosedSession,
     );
     contacts = _scene.contacts;
     _expiryTimer?.cancel();
@@ -269,8 +303,9 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
       warningMinutes: widget.warningMinutes,
       disconnections: widget.disconnections,
       includeAllFrequencies: true,
+      includeClosedSession: widget.includeClosedSession,
     ).nextChange;
-    if (next != null) {
+    if (next != null && widget.asOf == null) {
       _expiryTimer = Timer(next.difference(now), () {
         if (!mounted) return;
         _refreshContacts();
@@ -698,6 +733,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     final visibleMarkers = scene.markers
         .where(
           (marker) =>
+              marker.kind == MarkerKind.selectedContact ||
               _orbitingMarkersVisible ||
               marker.orbitCount == 1 ||
               marker.orbitIndex == 0,

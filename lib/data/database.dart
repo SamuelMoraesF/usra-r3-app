@@ -252,6 +252,12 @@ class UsraDatabase extends _$UsraDatabase {
     logEntries,
   )..orderBy([(entry) => OrderingTerm.asc(entry.createdAt)])).get();
 
+  Future<List<LogEntry>> logsForNetwork(DateTime startedAt) =>
+      (select(logEntries)
+            ..where((entry) => entry.networkStartedAt.equalsValue(startedAt))
+            ..orderBy([(entry) => OrderingTerm.asc(entry.createdAt)]))
+          .get();
+
   Future<void> closeNetwork(DateTime startedAt, DateTime endedAt) async {
     await (update(logEntries)
           ..where((e) => e.networkStartedAt.equalsValue(startedAt)))
