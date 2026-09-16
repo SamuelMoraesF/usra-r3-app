@@ -200,12 +200,12 @@ void main() {
       expect(result.contacts[selectedMarker.contactIndex!].latest, simplex);
       expect(
         result.markers.where((m) => m.kind == MarkerKind.otherContact),
-        hasLength(2),
+        isEmpty,
       );
       expect(
         result.markers
             .where((m) => m.contactIndex != null)
-            .every((m) => m.orbitCount == 3),
+            .every((m) => m.orbitCount == 1),
         isTrue,
       );
       expect(presence(entries, mode: 'repeater', mhz: 145.37).warnings, [

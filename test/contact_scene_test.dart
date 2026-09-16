@@ -179,6 +179,27 @@ void main() {
   });
 
   test(
+    'same station on repeater and simplex has one visual marker at one grid',
+    () {
+      final result = scene([
+        qso(mode: 'repeater', ageHours: 2),
+        qso(mode: 'simplex', ageHours: 1),
+      ]);
+
+      expect(result.contacts, hasLength(2));
+      final stationMarkers = result.markers
+          .where((marker) => marker.contactIndex != null)
+          .toList();
+      expect(stationMarkers, hasLength(1));
+      expect(stationMarkers.single.kind, MarkerKind.selectedContact);
+      expect(
+        result.contacts[stationMarkers.single.contactIndex!].latest.frequency,
+        'simplex',
+      );
+    },
+  );
+
+  test(
     'default grid contains supplied coordinates at maximum supported precision',
     () {
       final lat = -(29 + 42 / 60 + 58.7 / 3600);
@@ -364,7 +385,7 @@ void main() {
     );
   });
 
-  test('operator blue; contacts on other frequencies always remain gray', () {
+  test('operator blue; other stations remain gray across frequencies', () {
     final result = scene([
       qso(ageHours: 2),
       qso(mode: 'repeater'),
@@ -375,7 +396,7 @@ void main() {
     final stations = result.markers
         .where((m) => m.contactIndex != null)
         .toList();
-    expect(stations.map((m) => m.color), ['#9E9E9E', '#9E9E9E', '#F44336']);
+    expect(stations.map((m) => m.color), ['#F44336', '#9E9E9E']);
     expect(stations.every((m) => m.radius == 6), isTrue);
   });
 

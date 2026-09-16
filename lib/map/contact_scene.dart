@@ -159,7 +159,33 @@ ContactScene buildContactScene(
   final repeaters = <String>{};
   String normalized(String grid) => GridLocator.inspect(grid).normalized;
   final contactsByGrid = <String, List<int>>{};
+  final displayedContacts = <int>[];
+  final displayedStationKeys = <String, int>{};
+  bool preferredContact(int candidate, int current) {
+    final candidateSelected = selected(contacts[candidate].latest);
+    final currentSelected = selected(contacts[current].latest);
+    if (candidateSelected != currentSelected) return candidateSelected;
+    final candidateDate = contacts[candidate].latest.createdAt;
+    final currentDate = contacts[current].latest.createdAt;
+    return candidateDate.isAfter(currentDate) ||
+        (candidateDate == currentDate &&
+            contacts[candidate].latest.id > contacts[current].latest.id);
+  }
+
   for (var i = 0; i < contacts.length; i++) {
+    final latest = contacts[i].latest;
+    final stationKey =
+        '${latest.callsign.trim().toUpperCase()}|${normalized(latest.location)}';
+    final previous = displayedStationKeys[stationKey];
+    if (previous == null) {
+      displayedStationKeys[stationKey] = i;
+      displayedContacts.add(i);
+    } else if (preferredContact(i, previous)) {
+      displayedStationKeys[stationKey] = i;
+      displayedContacts[displayedContacts.indexOf(previous)] = i;
+    }
+  }
+  for (final i in displayedContacts) {
     final grid = normalized(contacts[i].latest.location);
     contactsByGrid.putIfAbsent(grid, () => []).add(i);
   }
@@ -188,7 +214,7 @@ ContactScene buildContactScene(
       }
     }
   }
-  for (var i = 0; i < contacts.length; i++) {
+  for (final i in displayedContacts) {
     final contact = contacts[i];
     markers.add(
       ContactMarker(
