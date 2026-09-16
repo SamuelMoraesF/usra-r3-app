@@ -33,12 +33,11 @@ class QuickContactDraft {
   final bool hasTraffic;
   final List<String> errors;
 
-  bool get hasValidGrid => grid.isNotEmpty && GridLocator.inspect(grid).isValid;
+  bool get hasValidGrid => grid.isEmpty || GridLocator.inspect(grid).isValid;
 
   bool get canRegister =>
       callsign.isNotEmpty &&
       name.isNotEmpty &&
-      hasVia &&
       hasValidGrid &&
       powerWatts != null &&
       powerWatts!.isFinite &&

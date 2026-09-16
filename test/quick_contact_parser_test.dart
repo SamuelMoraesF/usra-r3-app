@@ -69,6 +69,21 @@ void main() {
     expect(draft.hasTraffic, isFalse);
   });
 
+  test('allows via and grid to be omitted', () {
+    final draft = parseQuickContact('PY3SC SAMUEL 5W PORT BAT ST');
+
+    expect(draft.via, isEmpty);
+    expect(draft.grid, isEmpty);
+    expect(draft.canRegister, isTrue);
+  });
+
+  test('rejects VIA without an indicativo', () {
+    final draft = parseQuickContact('PY3SC SAMUEL 5W PORT BAT ST VIA');
+
+    expect(draft.errors, contains('Informe o indicativo após VIA.'));
+    expect(draft.canRegister, isFalse);
+  });
+
   test('rejects an invalid Maidenhead grid', () {
     final draft = parseQuickContact('PY3SC SAMUEL GG30ZZ 5W');
     expect(draft.errors, isNotEmpty);

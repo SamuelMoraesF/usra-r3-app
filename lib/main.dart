@@ -2074,7 +2074,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               content: Text(
                 draft.errors.isNotEmpty
                     ? draft.errors.join(' ')
-                    : 'Informe indicativo, nome, grid válido e potência.',
+                    : 'Informe indicativo, nome, potência, estação, energia e tráfego.',
               ),
             ),
           );

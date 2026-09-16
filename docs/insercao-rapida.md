@@ -18,8 +18,9 @@ PY3SC SAMUEL GG30CH 5W PORT BAT ST VIA PY3MM
 ```
 
 O registro só é habilitado quando todos os campos obrigatórios estiverem
-presentes: indicativo, nome, grid Maidenhead válido, potência positiva, estação,
-energia, tráfego e `VIA` com indicativo após ele.
+presentes: indicativo, nome, potência positiva, estação, energia e tráfego.
+`Grid` e `VIA` são opcionais. Quando informados, o grid com aparência de
+Maidenhead deve ser válido, e `VIA` deve ser acompanhado de um indicativo.
 
 ## Tokens reconhecidos
 
