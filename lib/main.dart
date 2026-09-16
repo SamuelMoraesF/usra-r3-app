@@ -1796,45 +1796,49 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       barrierDismissible: false,
       barrierColor: Colors.transparent,
       transitionDuration: Duration.zero,
-      pageBuilder: (dialogContext, animation, secondaryAnimation) => Align(
-        alignment: Alignment.topLeft,
-        child: Transform.translate(
-          offset: const Offset(-1000, -1000),
-          child: SizedBox(
-            // Keep the same logical viewport that produced the correct
-            // framing, while taking the final image at 2x resolution.
-            width: 1080,
-            height: 570,
-            child: _ReportMapCapture(
-              entries: entries,
-              startedAt: startedAt,
-              endedAt: endedAt,
-              mode: mode,
-              operatorGrid: widget.profile.grid,
-              operatorCallsign: widget.profile.callsign,
-              settings: MapSettings(
-                showLines: true,
-                showCallsigns: true,
-                showAll: widget.mapSettings.showAll,
-                showPrecision: widget.mapSettings.showPrecision,
-                showElevation: widget.mapSettings.showElevation,
-                showCompass: widget.mapSettings.showCompass,
-                repeaterGrid: widget.mapSettings.repeaterGrid,
+      pageBuilder: (dialogContext, animation, secondaryAnimation) => Stack(
+        children: [
+          Positioned(
+            // PlatformViews can escape a Transform's paint bounds on large
+            // web viewports. Use an explicit off-screen position instead.
+            left: -10000,
+            top: -10000,
+            child: SizedBox(
+              // Keep the same logical viewport that produced the correct
+              // framing, while taking the final image at 2x resolution.
+              width: 1080,
+              height: 570,
+              child: _ReportMapCapture(
+                entries: entries,
+                startedAt: startedAt,
+                endedAt: endedAt,
+                mode: mode,
+                operatorGrid: widget.profile.grid,
+                operatorCallsign: widget.profile.callsign,
+                settings: MapSettings(
+                  showLines: true,
+                  showCallsigns: true,
+                  showAll: widget.mapSettings.showAll,
+                  showPrecision: widget.mapSettings.showPrecision,
+                  showElevation: widget.mapSettings.showElevation,
+                  showCompass: widget.mapSettings.showCompass,
+                  repeaterGrid: widget.mapSettings.repeaterGrid,
+                ),
+                mergePrecision: widget.mergePrecision,
+                lastOnly: widget.lastOnly,
+                maxAgeHours: widget.mapMaxAgeHours,
+                warningMinutes: widget.mapWarningMinutes,
+                disconnections: _disconnections,
+                onCaptured: (bytes) async {
+                  Navigator.of(dialogContext).pop(bytes);
+                },
+                onUnavailable: () async {
+                  Navigator.of(dialogContext).pop();
+                },
               ),
-              mergePrecision: widget.mergePrecision,
-              lastOnly: widget.lastOnly,
-              maxAgeHours: widget.mapMaxAgeHours,
-              warningMinutes: widget.mapWarningMinutes,
-              disconnections: _disconnections,
-              onCaptured: (bytes) async {
-                Navigator.of(dialogContext).pop(bytes);
-              },
-              onUnavailable: () async {
-                Navigator.of(dialogContext).pop();
-              },
             ),
           ),
-        ),
+        ],
       ),
     );
   }
