@@ -12,6 +12,7 @@ class ContactWorkspace extends StatefulWidget {
     required this.logs,
     required this.formScrollController,
     this.keyboardInset = 0,
+    this.mapBottomOverlay,
     this.logsHeader,
     this.logsTitle,
   });
@@ -21,6 +22,7 @@ class ContactWorkspace extends StatefulWidget {
   final Widget logs;
   final ScrollController formScrollController;
   final double keyboardInset;
+  final Widget? mapBottomOverlay;
   final Widget? logsHeader;
   final Widget? logsTitle;
 
@@ -75,6 +77,16 @@ class _ContactWorkspaceState extends State<ContactWorkspace> {
                   height: formHeight,
                   child: _buildFormPanel(context),
                 ),
+                if (widget.mapBottomOverlay != null)
+                  Positioned(
+                    left: 24,
+                    right: 24,
+                    // Keep map controls at the map's lower edge while the
+                    // form overlays the viewport. As the form grows or moves
+                    // above the keyboard, the controls rise with its top.
+                    bottom: widget.keyboardInset + formHeight + 12,
+                    child: widget.mapBottomOverlay!,
+                  ),
               ],
             ),
           ),

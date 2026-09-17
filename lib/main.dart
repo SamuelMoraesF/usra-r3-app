@@ -31,6 +31,8 @@ import 'map/map_settings.dart';
 import 'map/station_presence.dart';
 import 'map/contact_color.dart';
 import 'map/contact_scene.dart';
+import 'map/elevation.dart';
+import 'map/map_compass.dart';
 import 'browser_new_contact_shortcut_stub.dart'
     if (dart.library.js_interop) 'browser_new_contact_shortcut_web.dart';
 import 'app_update_service_stub.dart'
@@ -636,6 +638,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   QuickContactCompletion? _quickCompletion;
   int _quickAutofillRevision = 0;
   final _panelScrollController = ScrollController();
+  final _mapBearing = ValueNotifier<double>(0);
+  final _mapElevationRange = ValueNotifier<ElevationRange?>(null);
+  Future<void> Function()? _resetMapNorth;
   double? _scrollOffsetBeforeKeyboard;
   bool _keyboardWasOpen = false;
   double _lastKeyboardInset = 0;
@@ -854,6 +859,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _browserNewContactShortcut?.dispose();
     _presenceTimer?.cancel();
     _panelScrollController.dispose();
+    _mapBearing.dispose();
+    _mapElevationRange.dispose();
     _callsignFocusNode.dispose();
     _quickContactFocusNode.dispose();
     _viaFocusNode.dispose();
@@ -1209,11 +1216,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         // can interrupt the TextField's composing connection/cursor.
         final panelForLayout = panel;
         if (!showMap) return panel;
-        final map = _buildMap();
+        final map = _buildMap(controlsInMap: !useBottomPanels);
         if (useBottomPanels) {
           return ContactWorkspace(
             map: map,
             keyboardInset: keyboardInset,
+            mapBottomOverlay: _buildMapBottomOverlay(),
             form: Column(
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [...formChildren, const SizedBox(height: 8)],
@@ -2056,37 +2064,84 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     ),
   );
 
-  Widget _buildMap() => StreamBuilder<List<LogEntry>>(
-    stream: widget.database.watchLogs(),
-    builder: (context, snapshot) => Padding(
-      padding: const EdgeInsets.all(12),
-      child: ClipRRect(
-        borderRadius: BorderRadius.circular(12),
-        child: OfflineContactsMap(
-          entries: snapshot.data ?? const [],
-          entriesLoaded: snapshot.hasData,
-          operatorGrid: widget.profile.grid,
-          operatorCallsign: widget.profile.callsign,
-          focusGrid: _lastMapFocusGrid,
-          focusRequest: _mapFocusRequest,
-          maxAgeHours: widget.mapMaxAgeHours,
-          warningMinutes: widget.mapWarningMinutes,
-          sessionStartedAt: _networkStartedAt,
-          disconnections: _disconnections,
-          onDisconnect: _disconnectStation,
-          mergePrecision: widget.mergePrecision,
-          lastOnly: widget.lastOnly,
-          selectedMode: frequency,
-          selectedFrequencyMhz: frequency == _simplexFrequency
-              ? 146.52
-              : 145.37,
-          settings: widget.mapSettings,
-          onSettingsChanged: widget.onMapSettingsChanged,
-          onExportPng: _exportMapPng,
+  Widget _buildMap({bool controlsInMap = true}) =>
+      StreamBuilder<List<LogEntry>>(
+        stream: widget.database.watchLogs(),
+        builder: (context, snapshot) => Padding(
+          padding: const EdgeInsets.all(12),
+          child: ClipRRect(
+            borderRadius: BorderRadius.circular(12),
+            child: OfflineContactsMap(
+              entries: snapshot.data ?? const [],
+              entriesLoaded: snapshot.hasData,
+              operatorGrid: widget.profile.grid,
+              operatorCallsign: widget.profile.callsign,
+              focusGrid: _lastMapFocusGrid,
+              focusRequest: _mapFocusRequest,
+              maxAgeHours: widget.mapMaxAgeHours,
+              warningMinutes: widget.mapWarningMinutes,
+              sessionStartedAt: _networkStartedAt,
+              disconnections: _disconnections,
+              onDisconnect: _disconnectStation,
+              mergePrecision: widget.mergePrecision,
+              lastOnly: widget.lastOnly,
+              selectedMode: frequency,
+              selectedFrequencyMhz: frequency == _simplexFrequency
+                  ? 146.52
+                  : 145.37,
+              settings: widget.mapSettings,
+              onSettingsChanged: widget.onMapSettingsChanged,
+              onBearingChanged: (bearing) => _mapBearing.value = bearing,
+              onElevationRangeChanged: (range) =>
+                  _mapElevationRange.value = range,
+              onResetNorthChanged: (reset) => _resetMapNorth = reset,
+              controlsInMap: controlsInMap,
+              onExportPng: _exportMapPng,
+            ),
+          ),
         ),
-      ),
-    ),
-  );
+      );
+
+  Widget _buildMapBottomOverlay() {
+    final showCompass = widget.mapSettings.showCompass;
+    final showElevation = widget.mapSettings.showElevation;
+    return Row(
+      crossAxisAlignment: CrossAxisAlignment.end,
+      children: [
+        Expanded(
+          child: showCompass
+              ? Align(
+                  alignment: Alignment.bottomLeft,
+                  child: MouseRegion(
+                    cursor: SystemMouseCursors.click,
+                    child: ValueListenableBuilder<double>(
+                      valueListenable: _mapBearing,
+                      builder: (context, bearing, child) => MapCompass(
+                        bearing: bearing,
+                        onTap: _resetMapNorth == null
+                            ? null
+                            : () => _resetMapNorth!(),
+                      ),
+                    ),
+                  ),
+                )
+              : const SizedBox.shrink(),
+        ),
+        Expanded(
+          child: showElevation
+              ? Align(
+                  alignment: Alignment.bottomRight,
+                  child: ValueListenableBuilder<ElevationRange?>(
+                    valueListenable: _mapElevationRange,
+                    builder: (context, range, child) =>
+                        ElevationLegend(range: range),
+                  ),
+                )
+              : const SizedBox.shrink(),
+        ),
+      ],
+    );
+  }
 
   String? _required(String? value) =>
       value == null || value.trim().isEmpty ? 'Campo obrigatório' : null;

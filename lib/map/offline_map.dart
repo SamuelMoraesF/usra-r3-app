@@ -44,6 +44,10 @@ class OfflineContactsMap extends StatefulWidget {
     this.selectedFrequencyMhz = 145.37,
     this.settings = const MapSettings(),
     this.onSettingsChanged,
+    this.onBearingChanged,
+    this.onElevationRangeChanged,
+    this.onResetNorthChanged,
+    this.controlsInMap = true,
     this.onExportPng,
     this.onInitialSnapshot,
     this.onInitialSnapshotUnavailable,
@@ -68,6 +72,10 @@ class OfflineContactsMap extends StatefulWidget {
   final double selectedFrequencyMhz;
   final MapSettings settings;
   final ValueChanged<MapSettings>? onSettingsChanged;
+  final ValueChanged<double>? onBearingChanged;
+  final ValueChanged<ElevationRange?>? onElevationRangeChanged;
+  final ValueChanged<Future<void> Function()>? onResetNorthChanged;
+  final bool controlsInMap;
   final Future<void> Function(Uint8List bytes)? onExportPng;
   final Future<void> Function(Uint8List bytes)? onInitialSnapshot;
   final Future<void> Function()? onInitialSnapshotUnavailable;
@@ -142,7 +150,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     _labelImages.clear();
     _warningImages.clear();
     _elevationLayerReady = false;
-    _elevationRange.value = null;
+    _updateElevationRange(null);
     _renderedMarkers = const [];
     _renderedShowLines = null;
     _renderedShowPrecision = null;
@@ -390,7 +398,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
             onStyleLoadedCallback: () => unawaited(_handleStyleLoaded()),
           ),
         ),
-        if (widget.settings.showCompass)
+        if (widget.controlsInMap && widget.settings.showCompass)
           Positioned(
             left: 12,
             bottom: 12,
@@ -537,7 +545,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
             ),
           ),
         ),
-        if (widget.settings.showElevation)
+        if (widget.controlsInMap && widget.settings.showElevation)
           Positioned(
             right: 12,
             bottom: 12,
@@ -552,6 +560,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
 
   void _onMapCreated(MapLibreMapController value) {
     if (mounted) setState(() => controller = value);
+    widget.onResetNorthChanged?.call(_resetMapNorth);
     value.onCircleTapped.add(_onCircleTapped);
     value.onSymbolTapped.add(_onSymbolTapped);
     value.addListener(_onMapControllerChanged);
@@ -612,7 +621,13 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     final bearing = normalizeBearing(rawBearing);
     if ((_mapBearing.value - bearing).abs() >= 0.1) {
       _mapBearing.value = bearing;
+      widget.onBearingChanged?.call(bearing);
     }
+  }
+
+  void _updateElevationRange(ElevationRange? range) {
+    _elevationRange.value = range;
+    widget.onElevationRangeChanged?.call(range);
   }
 
   Future<void> _resetMapNorth() async {
@@ -1007,7 +1022,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
       return;
     }
     if (!widget.settings.showElevation) {
-      _elevationRange.value = null;
+      _updateElevationRange(null);
       if (_elevationLayerReady) {
         await map.setGeoJsonSource('elevation-grid', _emptyFeatureCollection());
       }
@@ -1031,7 +1046,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
           maxLongitude: visible.northeast.longitude,
         );
         if (samples.isEmpty) {
-          _elevationRange.value = null;
+          _updateElevationRange(null);
           if (_elevationLayerReady) {
             await map.setGeoJsonSource(
               'elevation-grid',
@@ -1046,7 +1061,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
           if (sample.meters < minimum) minimum = sample.meters;
           if (sample.meters > maximum) maximum = sample.meters;
         }
-        _elevationRange.value = ElevationRange(minimum, maximum);
+        _updateElevationRange(ElevationRange(minimum, maximum));
         final camera = await map.queryCameraPosition();
         final zoom = camera?.zoom ?? 12;
         final latitude =
