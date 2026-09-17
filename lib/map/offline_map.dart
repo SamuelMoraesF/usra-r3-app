@@ -428,73 +428,76 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
                     onPressed: () =>
                         _animateToGrid(widget.operatorGrid, zoom: 16),
                   ),
-                  IconButton(
-                    tooltip: 'Exportar mapa como PNG',
-                    icon: const Icon(Icons.image_outlined),
-                    onPressed: controller == null || widget.onExportPng == null
-                        ? null
-                        : () async {
-                            final bytes = await controller!.takeSnapshot();
-                            await widget.onExportPng!(bytes);
-                          },
-                  ),
-                  IconButton(
-                    tooltip: 'Mostrar linhas de distância',
-                    isSelected: widget.settings.showLines,
-                    color: widget.settings.showLines
-                        ? Theme.of(context).colorScheme.primary
-                        : Colors.grey,
-                    icon: const Icon(Icons.straighten),
-                    onPressed: () => widget.onSettingsChanged?.call(
-                      MapSettings(
-                        showLines: !widget.settings.showLines,
-                        showCallsigns: widget.settings.showCallsigns,
-                        showAll: widget.settings.showAll,
-                        showPrecision: widget.settings.showPrecision,
-                        showElevation: widget.settings.showElevation,
-                        showCompass: widget.settings.showCompass,
-                        repeaterGrid: widget.settings.repeaterGrid,
+                  if (widget.sessionStartedAt != null) ...[
+                    IconButton(
+                      tooltip: 'Exportar mapa como PNG',
+                      icon: const Icon(Icons.image_outlined),
+                      onPressed:
+                          controller == null || widget.onExportPng == null
+                          ? null
+                          : () async {
+                              final bytes = await controller!.takeSnapshot();
+                              await widget.onExportPng!(bytes);
+                            },
+                    ),
+                    IconButton(
+                      tooltip: 'Mostrar linhas de distância',
+                      isSelected: widget.settings.showLines,
+                      color: widget.settings.showLines
+                          ? Theme.of(context).colorScheme.primary
+                          : Colors.grey,
+                      icon: const Icon(Icons.straighten),
+                      onPressed: () => widget.onSettingsChanged?.call(
+                        MapSettings(
+                          showLines: !widget.settings.showLines,
+                          showCallsigns: widget.settings.showCallsigns,
+                          showAll: widget.settings.showAll,
+                          showPrecision: widget.settings.showPrecision,
+                          showElevation: widget.settings.showElevation,
+                          showCompass: widget.settings.showCompass,
+                          repeaterGrid: widget.settings.repeaterGrid,
+                        ),
                       ),
                     ),
-                  ),
-                  IconButton(
-                    tooltip: 'Mostrar indicativos',
-                    isSelected: widget.settings.showCallsigns,
-                    color: widget.settings.showCallsigns
-                        ? Theme.of(context).colorScheme.primary
-                        : Colors.grey,
-                    icon: const Icon(Icons.abc),
-                    onPressed: () => widget.onSettingsChanged?.call(
-                      MapSettings(
-                        showLines: widget.settings.showLines,
-                        showAll: widget.settings.showAll,
-                        showPrecision: widget.settings.showPrecision,
-                        showElevation: widget.settings.showElevation,
-                        showCompass: widget.settings.showCompass,
-                        showCallsigns: !widget.settings.showCallsigns,
-                        repeaterGrid: widget.settings.repeaterGrid,
+                    IconButton(
+                      tooltip: 'Mostrar indicativos',
+                      isSelected: widget.settings.showCallsigns,
+                      color: widget.settings.showCallsigns
+                          ? Theme.of(context).colorScheme.primary
+                          : Colors.grey,
+                      icon: const Icon(Icons.abc),
+                      onPressed: () => widget.onSettingsChanged?.call(
+                        MapSettings(
+                          showLines: widget.settings.showLines,
+                          showAll: widget.settings.showAll,
+                          showPrecision: widget.settings.showPrecision,
+                          showElevation: widget.settings.showElevation,
+                          showCompass: widget.settings.showCompass,
+                          showCallsigns: !widget.settings.showCallsigns,
+                          repeaterGrid: widget.settings.repeaterGrid,
+                        ),
                       ),
                     ),
-                  ),
-                  IconButton(
-                    tooltip: 'Mostrar precisão dos pontos',
-                    isSelected: widget.settings.showPrecision,
-                    color: widget.settings.showPrecision
-                        ? Theme.of(context).colorScheme.primary
-                        : Colors.grey,
-                    icon: const Icon(Icons.circle),
-                    onPressed: () => widget.onSettingsChanged?.call(
-                      MapSettings(
-                        showLines: widget.settings.showLines,
-                        showAll: widget.settings.showAll,
-                        showPrecision: !widget.settings.showPrecision,
-                        showCallsigns: widget.settings.showCallsigns,
-                        showElevation: widget.settings.showElevation,
-                        showCompass: widget.settings.showCompass,
-                        repeaterGrid: widget.settings.repeaterGrid,
+                    IconButton(
+                      tooltip: 'Mostrar precisão dos pontos',
+                      isSelected: widget.settings.showPrecision,
+                      color: widget.settings.showPrecision
+                          ? Theme.of(context).colorScheme.primary
+                          : Colors.grey,
+                      icon: const Icon(Icons.circle),
+                      onPressed: () => widget.onSettingsChanged?.call(
+                        MapSettings(
+                          showLines: widget.settings.showLines,
+                          showAll: widget.settings.showAll,
+                          showPrecision: !widget.settings.showPrecision,
+                          showCallsigns: widget.settings.showCallsigns,
+                          showElevation: widget.settings.showElevation,
+                          showCompass: widget.settings.showCompass,
+                          repeaterGrid: widget.settings.repeaterGrid,
+                        ),
                       ),
                     ),
-                  ),
+                  ],
                   IconButton(
                     tooltip: 'Mostrar altitudes',
                     isSelected: widget.settings.showElevation,
@@ -514,26 +517,27 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
                       ),
                     ),
                   ),
-                  IconButton(
-                    tooltip: 'Ligar estações de todas as frequências',
-                    isSelected: widget.settings.showAll,
-                    color: widget.settings.showAll
-                        ? Theme.of(context).colorScheme.primary
-                        : Colors.grey,
-                    icon: const Icon(Icons.cell_tower),
-                    onPressed: () => widget.onSettingsChanged?.call(
-                      MapSettings(
-                        showLines: widget.settings.showLines,
-                        showAll: !widget.settings.showAll,
-                        showCallsigns: widget.settings.showCallsigns,
-                        showPrecision: widget.settings.showPrecision,
-                        showElevation: widget.settings.showElevation,
-                        showCompass: widget.settings.showCompass,
-                        focusNewRecord: widget.settings.focusNewRecord,
-                        repeaterGrid: widget.settings.repeaterGrid,
+                  if (widget.sessionStartedAt != null)
+                    IconButton(
+                      tooltip: 'Ligar estações de todas as frequências',
+                      isSelected: widget.settings.showAll,
+                      color: widget.settings.showAll
+                          ? Theme.of(context).colorScheme.primary
+                          : Colors.grey,
+                      icon: const Icon(Icons.cell_tower),
+                      onPressed: () => widget.onSettingsChanged?.call(
+                        MapSettings(
+                          showLines: widget.settings.showLines,
+                          showAll: !widget.settings.showAll,
+                          showCallsigns: widget.settings.showCallsigns,
+                          showPrecision: widget.settings.showPrecision,
+                          showElevation: widget.settings.showElevation,
+                          showCompass: widget.settings.showCompass,
+                          focusNewRecord: widget.settings.focusNewRecord,
+                          repeaterGrid: widget.settings.repeaterGrid,
+                        ),
                       ),
                     ),
-                  ),
                   if (kIsWeb)
                     IconButton(
                       tooltip: 'Alternar tela cheia',
