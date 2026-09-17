@@ -885,7 +885,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   @override
   Widget build(BuildContext context) {
-    final scaffold = Focus(autofocus: true, child: _buildScaffold(context));
+    // Do not autofocus a parent of the form. When the sidebar relayouts as
+    // the IME opens, that parent could compete with the quick-entry field and
+    // make it lose focus after the first character.
+    final scaffold = _buildScaffold(context);
     if (kIsWeb) return scaffold;
     return CallbackShortcuts(
       bindings: {
@@ -1198,15 +1201,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             if (keyboardInset > 0) const SizedBox(height: 40),
           ],
         );
-        final panelForLayout = constraints.maxWidth >= 700 && keyboardInset > 0
-            ? SizedBox(
-                height: (constraints.maxHeight - keyboardInset).clamp(
-                  0.0,
-                  constraints.maxHeight,
-                ),
-                child: panel,
-              )
-            : panel;
+        // Keep the sidebar viewport stable while the IME opens. Reducing the
+        // ListView height here rebuilds its layout on the first character and
+        // can interrupt the TextField's composing connection/cursor.
+        final panelForLayout = panel;
         if (!showMap) return panel;
         final map = _buildMap();
         if (useBottomPanels) {
@@ -1528,7 +1526,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       Row(
-        crossAxisAlignment: CrossAxisAlignment.start,
+        crossAxisAlignment: CrossAxisAlignment.center,
         children: [
           Expanded(
             child: SizedBox(height: 40, child: _buildQuickContactInput()),
@@ -1596,7 +1594,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         return KeyEventResult.ignored;
       },
       child: Stack(
-        clipBehavior: Clip.hardEdge,
+        // The floating label intentionally paints just above the compact
+        // field bounds. Hard-edge clipping cuts it in the sidebar layout.
+        clipBehavior: Clip.none,
         children: [
           TextField(
             key: const Key('quick-contact-input'),
@@ -1620,18 +1620,29 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           ),
           if (completion != null)
             Positioned(
-              // The Material prefix icon leaves a slightly wider text inset
-              // on Android than the browser renderer does. Match the real
-              // caret position instead of letting the ghost start too early.
-              left: 52 + cursorWidth,
-              top: 7,
-              child: IgnorePointer(
-                child: Text(
-                  completionText!,
-                  maxLines: 1,
-                  textScaler: textScaler,
-                  style: textStyle?.copyWith(
-                    color: Theme.of(context).colorScheme.outline,
+              // Keep the ghost completion inside the field. It must be
+              // allowed to overflow vertically for the floating label, but
+              // never escape horizontally into the adjacent button.
+              left: kIsWeb ? 48 : 52,
+              right: 12,
+              top: 0,
+              bottom: 0,
+              child: ClipRect(
+                child: IgnorePointer(
+                  child: Padding(
+                    padding: EdgeInsets.only(
+                      left: cursorWidth,
+                      top: kIsWeb ? 8 : 7,
+                    ),
+                    child: Text(
+                      completionText!,
+                      maxLines: 1,
+                      overflow: TextOverflow.clip,
+                      textScaler: textScaler,
+                      style: textStyle?.copyWith(
+                        color: Theme.of(context).colorScheme.outline,
+                      ),
+                    ),
                   ),
                 ),
               ),

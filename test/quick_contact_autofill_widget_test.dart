@@ -113,7 +113,7 @@ void main() {
         ),
       ),
     );
-    await tester.pumpAndSettle();
+    await tester.pump(const Duration(milliseconds: 100));
 
     final input = find.byKey(const Key('quick-contact-input'));
     final controller = tester.widget<TextField>(input).controller!;
@@ -125,6 +125,48 @@ void main() {
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
     await tester.pump();
     expect(controller.text, 'PY3AA 6W MARIA GG30CH FIXA AC ST');
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+    debugDefaultTargetPlatformOverride = null;
+  });
+
+  testWidgets('keeps focus after typing in sidebar layout', (tester) async {
+    final started = DateTime.now().toUtc();
+    SharedPreferences.setMockInitialValues({
+      'network.startedAt': started.toIso8601String(),
+    });
+    debugDefaultTargetPlatformOverride = TargetPlatform.android;
+    tester.view.physicalSize = const Size(1000, 1800);
+    tester.view.devicePixelRatio = 1;
+    final database = UsraDatabase.test(NativeDatabase.memory());
+    addTearDown(() async {
+      debugDefaultTargetPlatformOverride = null;
+      tester.view.resetPhysicalSize();
+      tester.view.resetDevicePixelRatio();
+      await tester.runAsync(database.close);
+    });
+
+    await tester.pumpWidget(
+      MaterialApp(
+        home: HomePage(
+          profile: const OperatorProfile(grid: 'GG30DH'),
+          database: database,
+          onOpenSettings: () {},
+          quickInsertMode: true,
+          homeLayout: HomeLayout.sidebar,
+          mergePrecision: true,
+          lastOnly: false,
+          mapMaxAgeHours: 3,
+        ),
+      ),
+    );
+    await tester.pump(const Duration(milliseconds: 100));
+
+    final input = find.byKey(const Key('quick-contact-input'));
+    await tester.tap(input);
+    await tester.enterText(input, 'P');
+    await tester.pump();
+    expect(tester.widget<TextField>(input).focusNode!.hasFocus, isTrue);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
     debugDefaultTargetPlatformOverride = null;
