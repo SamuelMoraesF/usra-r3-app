@@ -2579,6 +2579,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   Widget _contactMeta(LogEntry entry) {
     final distance = _distanceLabel(entry);
     final color = Theme.of(context).colorScheme.onSurfaceVariant;
+    final location = GridLocator.inspect(entry.location);
+    final displayLocation = location.isValid
+        ? location.normalized
+        : entry.location;
     final items = <Widget>[];
     if (distance.isNotEmpty) {
       items.addAll([
@@ -2593,7 +2597,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     items.addAll([
       Icon(Icons.public, size: 15, color: color),
       const SizedBox(width: 3),
-      Flexible(child: Text(entry.location, overflow: TextOverflow.ellipsis)),
+      Flexible(child: Text(displayLocation, overflow: TextOverflow.ellipsis)),
       const SizedBox(width: 8),
       Text('·', style: TextStyle(color: color)),
       const SizedBox(width: 8),
