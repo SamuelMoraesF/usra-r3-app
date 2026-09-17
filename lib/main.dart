@@ -646,6 +646,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   double _lastKeyboardInset = 0;
   int _mapFocusRequest = 0;
   String _lastMapFocusGrid = '';
+  String _hoveredCallsign = '';
   DateTime? _networkStartedAt;
   final _expandedClosedNetworks = <DateTime>{};
   StationDisconnections _disconnections = StationDisconnections();
@@ -1400,175 +1401,185 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   ) {
     final canModify = _canModifyLog(entry);
     final markerColor = markerColors[entry.callsign.trim().toUpperCase()];
-    return Dismissible(
-      key: ValueKey('saved-log-${entry.id}'),
-      direction: canModify
-          ? DismissDirection.endToStart
-          : DismissDirection.none,
-      background: Container(
-        margin: const EdgeInsets.only(bottom: 8),
-        alignment: Alignment.centerRight,
-        padding: const EdgeInsets.only(right: 20),
-        decoration: BoxDecoration(
-          color: Theme.of(context).colorScheme.errorContainer,
-          borderRadius: BorderRadius.zero,
-        ),
-        child: Icon(
-          Icons.delete_outline,
-          color: Theme.of(context).colorScheme.onErrorContainer,
-        ),
-      ),
-      confirmDismiss: (_) async {
-        if (!_canModifyLog(entry)) return false;
-        final confirmed = await _confirmDeleteLog(entry);
-        if (confirmed) await widget.database.deleteLog(entry.id);
-        return confirmed;
-      },
-      child: Card(
-        margin: const EdgeInsets.only(bottom: 8),
-        elevation: 0,
-        clipBehavior: Clip.antiAlias,
-        shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.zero,
-          side: BorderSide(
-            color: Theme.of(context).dividerColor.withValues(alpha: 0.55),
+    return MouseRegion(
+      onEnter: (_) => _setHoveredCallsign(entry.callsign),
+      onExit: (_) => _setHoveredCallsign(''),
+      child: Dismissible(
+        key: ValueKey('saved-log-${entry.id}'),
+        direction: canModify
+            ? DismissDirection.endToStart
+            : DismissDirection.none,
+        background: Container(
+          margin: const EdgeInsets.only(bottom: 8),
+          alignment: Alignment.centerRight,
+          padding: const EdgeInsets.only(right: 20),
+          decoration: BoxDecoration(
+            color: Theme.of(context).colorScheme.errorContainer,
+            borderRadius: BorderRadius.zero,
+          ),
+          child: Icon(
+            Icons.delete_outline,
+            color: Theme.of(context).colorScheme.onErrorContainer,
           ),
         ),
-        child: InkWell(
-          onTap: canModify ? () => _editLog(entry) : null,
-          borderRadius: BorderRadius.zero,
-          child: IntrinsicHeight(
-            child: Row(
-              crossAxisAlignment: CrossAxisAlignment.stretch,
-              children: [
-                if (markerColor != null)
-                  Container(
-                    width: 4,
-                    color: contactMarkerColorValue(markerColor),
-                  ),
-                Expanded(
-                  child: Padding(
-                    padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Row(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Expanded(
-                              child: Row(
-                                crossAxisAlignment: CrossAxisAlignment.center,
-                                children: [
-                                  Flexible(
-                                    child: Text(
-                                      '${entry.callsign} · ${entry.operatorName}',
-                                      maxLines: 1,
-                                      overflow: TextOverflow.ellipsis,
-                                      style: Theme.of(context)
-                                          .textTheme
-                                          .titleMedium
-                                          ?.copyWith(
-                                            fontWeight: FontWeight.w700,
-                                          ),
-                                    ),
-                                  ),
-                                  if (entry.via.trim().isNotEmpty) ...[
-                                    const SizedBox(width: 6),
+        confirmDismiss: (_) async {
+          if (!_canModifyLog(entry)) return false;
+          final confirmed = await _confirmDeleteLog(entry);
+          if (confirmed) await widget.database.deleteLog(entry.id);
+          return confirmed;
+        },
+        child: Card(
+          margin: const EdgeInsets.only(bottom: 8),
+          elevation: 0,
+          clipBehavior: Clip.antiAlias,
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.zero,
+            side: BorderSide(
+              color: Theme.of(context).dividerColor.withValues(alpha: 0.55),
+            ),
+          ),
+          child: InkWell(
+            onTap: canModify ? () => _editLog(entry) : null,
+            borderRadius: BorderRadius.zero,
+            child: IntrinsicHeight(
+              child: Row(
+                crossAxisAlignment: CrossAxisAlignment.stretch,
+                children: [
+                  if (markerColor != null)
+                    Container(
+                      width: 4,
+                      color: contactMarkerColorValue(markerColor),
+                    ),
+                  Expanded(
+                    child: Padding(
+                      padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Row(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Expanded(
+                                child: Row(
+                                  crossAxisAlignment: CrossAxisAlignment.center,
+                                  children: [
                                     Flexible(
                                       child: Text(
-                                        _viaTitle(allEntries, entry.via),
+                                        '${entry.callsign} · ${entry.operatorName}',
                                         maxLines: 1,
                                         overflow: TextOverflow.ellipsis,
                                         style: Theme.of(context)
                                             .textTheme
-                                            .bodySmall
+                                            .titleMedium
                                             ?.copyWith(
-                                              color: Theme.of(
-                                                context,
-                                              ).colorScheme.onSurfaceVariant,
-                                              fontWeight: FontWeight.normal,
+                                              fontWeight: FontWeight.w700,
                                             ),
                                       ),
                                     ),
+                                    if (entry.via.trim().isNotEmpty) ...[
+                                      const SizedBox(width: 6),
+                                      Flexible(
+                                        child: Text(
+                                          _viaTitle(allEntries, entry.via),
+                                          maxLines: 1,
+                                          overflow: TextOverflow.ellipsis,
+                                          style: Theme.of(context)
+                                              .textTheme
+                                              .bodySmall
+                                              ?.copyWith(
+                                                color: Theme.of(
+                                                  context,
+                                                ).colorScheme.onSurfaceVariant,
+                                                fontWeight: FontWeight.normal,
+                                              ),
+                                        ),
+                                      ),
+                                    ],
                                   ],
+                                ),
+                              ),
+                              const SizedBox(width: 8),
+                              Icon(
+                                Icons.schedule,
+                                size: 15,
+                                color: Theme.of(
+                                  context,
+                                ).colorScheme.onSurfaceVariant,
+                              ),
+                              const SizedBox(width: 3),
+                              Text(
+                                _formatDate(entry.createdAt),
+                                style: Theme.of(context).textTheme.labelSmall,
+                              ),
+                            ],
+                          ),
+                          const SizedBox(height: 6),
+                          Column(
+                            crossAxisAlignment: CrossAxisAlignment.start,
+                            children: [
+                              Row(
+                                children: [
+                                  const Icon(Icons.power, size: 16),
+                                  const SizedBox(width: 4),
+                                  Text(_energyLabel(entry.energy)),
+                                  const SizedBox(width: 8),
+                                  const Text('·'),
+                                  const SizedBox(width: 8),
+                                  const Icon(Icons.bolt, size: 16),
+                                  const SizedBox(width: 4),
+                                  Text('${entry.powerWatts} W'),
+                                  const SizedBox(width: 8),
+                                  const Text('·'),
+                                  const SizedBox(width: 8),
+                                  const Icon(Icons.radio, size: 16),
+                                  const SizedBox(width: 4),
+                                  Text(_stationLabel(entry.stationType)),
                                 ],
                               ),
-                            ),
-                            const SizedBox(width: 8),
-                            Icon(
-                              Icons.schedule,
-                              size: 15,
-                              color: Theme.of(
-                                context,
-                              ).colorScheme.onSurfaceVariant,
-                            ),
-                            const SizedBox(width: 3),
-                            Text(
-                              _formatDate(entry.createdAt),
-                              style: Theme.of(context).textTheme.labelSmall,
-                            ),
-                          ],
-                        ),
-                        const SizedBox(height: 6),
-                        Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Row(
-                              children: [
-                                const Icon(Icons.power, size: 16),
-                                const SizedBox(width: 4),
-                                Text(_energyLabel(entry.energy)),
-                                const SizedBox(width: 8),
-                                const Text('·'),
-                                const SizedBox(width: 8),
-                                const Icon(Icons.bolt, size: 16),
-                                const SizedBox(width: 4),
-                                Text('${entry.powerWatts} W'),
-                                const SizedBox(width: 8),
-                                const Text('·'),
-                                const SizedBox(width: 8),
-                                const Icon(Icons.radio, size: 16),
-                                const SizedBox(width: 4),
-                                Text(_stationLabel(entry.stationType)),
-                              ],
-                            ),
-                            const SizedBox(height: 4),
-                            _contactMeta(entry),
-                            if (entry.traffic == 'C' &&
-                                entry.trafficMessage.isNotEmpty)
-                              Container(
-                                margin: const EdgeInsets.only(top: 8),
-                                padding: const EdgeInsets.only(top: 8),
-                                decoration: BoxDecoration(
-                                  border: Border(
-                                    top: BorderSide(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.outlineVariant,
-                                      width: 1,
+                              const SizedBox(height: 4),
+                              _contactMeta(entry),
+                              if (entry.traffic == 'C' &&
+                                  entry.trafficMessage.isNotEmpty)
+                                Container(
+                                  margin: const EdgeInsets.only(top: 8),
+                                  padding: const EdgeInsets.only(top: 8),
+                                  decoration: BoxDecoration(
+                                    border: Border(
+                                      top: BorderSide(
+                                        color: Theme.of(
+                                          context,
+                                        ).colorScheme.outlineVariant,
+                                        width: 1,
+                                      ),
+                                    ),
+                                  ),
+                                  width: double.infinity,
+                                  child: Text(
+                                    entry.trafficMessage,
+                                    style: const TextStyle(
+                                      fontFamily: 'monospace',
                                     ),
                                   ),
                                 ),
-                                width: double.infinity,
-                                child: Text(
-                                  entry.trafficMessage,
-                                  style: const TextStyle(
-                                    fontFamily: 'monospace',
-                                  ),
-                                ),
-                              ),
-                          ],
-                        ),
-                      ],
+                            ],
+                          ),
+                        ],
+                      ),
                     ),
                   ),
-                ),
-              ],
+                ],
+              ),
             ),
           ),
         ),
       ),
     );
+  }
+
+  void _setHoveredCallsign(String callsign) {
+    final normalized = callsign.trim().toUpperCase();
+    if (_hoveredCallsign == normalized) return;
+    setState(() => _hoveredCallsign = normalized);
   }
 
   Map<String, String> _currentContactMarkerColors(List<LogEntry> entries) {
@@ -2078,6 +2089,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               operatorCallsign: widget.profile.callsign,
               focusGrid: _lastMapFocusGrid,
               focusRequest: _mapFocusRequest,
+              hoveredCallsign: _hoveredCallsign,
               maxAgeHours: widget.mapMaxAgeHours,
               warningMinutes: widget.mapWarningMinutes,
               sessionStartedAt: _networkStartedAt,
