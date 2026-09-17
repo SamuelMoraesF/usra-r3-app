@@ -29,6 +29,8 @@ import 'widgets/contact_form_layout.dart';
 import 'map/offline_map.dart';
 import 'map/map_settings.dart';
 import 'map/station_presence.dart';
+import 'map/contact_color.dart';
+import 'map/contact_scene.dart';
 import 'browser_new_contact_shortcut_stub.dart'
     if (dart.library.js_interop) 'browser_new_contact_shortcut_web.dart';
 import 'app_update_service_stub.dart'
@@ -1019,6 +1021,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           builder: (context, snapshot) {
             final allEntries = snapshot.data ?? const <LogEntry>[];
             final presence = _currentPresence(allEntries);
+            final markerColors = _currentContactMarkerColors(allEntries);
             _presenceTimer?.cancel();
             final next = presence.nextChange;
             if (next != null) {
@@ -1182,7 +1185,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     ),
                   ),
                 ],
-                ..._buildSavedLogSessions(entries, allEntries),
+                ..._buildSavedLogSessions(entries, allEntries, markerColors),
               ],
             );
           },
@@ -1275,6 +1278,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   List<Widget> _buildSavedLogSessions(
     List<LogEntry> entries,
     List<LogEntry> allEntries,
+    Map<String, String> markerColors,
   ) {
     final groups = <({DateTime? startedAt, List<LogEntry> entries})>[];
     for (final entry in entries) {
@@ -1287,7 +1291,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
     return [
       for (final group in groups)
-        _buildSavedLogSession(group.startedAt, group.entries, allEntries),
+        _buildSavedLogSession(
+          group.startedAt,
+          group.entries,
+          allEntries,
+          markerColors,
+        ),
     ];
   }
 
@@ -1295,6 +1304,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     DateTime? startedAt,
     List<LogEntry> entries,
     List<LogEntry> allEntries,
+    Map<String, String> markerColors,
   ) {
     final isActive = startedAt != null && startedAt == _networkStartedAt;
     final isClosed =
@@ -1303,7 +1313,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         entries.any((entry) => entry.networkEndedAt != null);
     final title = _networkTitle(startedAt, entries.first.networkEndedAt);
     final cards = entries
-        .map((entry) => _buildSavedLogCard(entry, allEntries))
+        .map((entry) => _buildSavedLogCard(entry, allEntries, markerColors))
         .toList();
     final isExporting = _exportingReportStartedAt == startedAt;
 
@@ -1375,8 +1385,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     );
   }
 
-  Widget _buildSavedLogCard(LogEntry entry, List<LogEntry> allEntries) {
+  Widget _buildSavedLogCard(
+    LogEntry entry,
+    List<LogEntry> allEntries,
+    Map<String, String> markerColors,
+  ) {
     final canModify = _canModifyLog(entry);
+    final markerColor = markerColors[entry.callsign.trim().toUpperCase()];
     return Dismissible(
       key: ValueKey('saved-log-${entry.id}'),
       direction: canModify
@@ -1388,7 +1403,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         padding: const EdgeInsets.only(right: 20),
         decoration: BoxDecoration(
           color: Theme.of(context).colorScheme.errorContainer,
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.zero,
         ),
         child: Icon(
           Icons.delete_outline,
@@ -1404,115 +1419,141 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       child: Card(
         margin: const EdgeInsets.only(bottom: 8),
         elevation: 0,
+        clipBehavior: Clip.antiAlias,
         shape: RoundedRectangleBorder(
-          borderRadius: BorderRadius.circular(14),
+          borderRadius: BorderRadius.zero,
           side: BorderSide(
             color: Theme.of(context).dividerColor.withValues(alpha: 0.55),
           ),
         ),
         child: InkWell(
           onTap: canModify ? () => _editLog(entry) : null,
-          borderRadius: BorderRadius.circular(14),
-          child: Padding(
-            padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
+          borderRadius: BorderRadius.zero,
+          child: IntrinsicHeight(
+            child: Row(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Row(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Expanded(
-                      child: Row(
-                        crossAxisAlignment: CrossAxisAlignment.center,
-                        children: [
-                          Flexible(
-                            child: Text(
-                              '${entry.callsign} · ${entry.operatorName}',
-                              maxLines: 1,
-                              overflow: TextOverflow.ellipsis,
-                              style: Theme.of(context).textTheme.titleMedium
-                                  ?.copyWith(fontWeight: FontWeight.w700),
-                            ),
-                          ),
-                          if (entry.via.trim().isNotEmpty) ...[
-                            const SizedBox(width: 6),
-                            Flexible(
-                              child: Text(
-                                _viaTitle(allEntries, entry.via),
-                                maxLines: 1,
-                                overflow: TextOverflow.ellipsis,
-                                style: Theme.of(context).textTheme.bodySmall
-                                    ?.copyWith(
-                                      color: Theme.of(
-                                        context,
-                                      ).colorScheme.onSurfaceVariant,
-                                      fontWeight: FontWeight.normal,
+                if (markerColor != null)
+                  Container(
+                    width: 4,
+                    color: contactMarkerColorValue(markerColor),
+                  ),
+                Expanded(
+                  child: Padding(
+                    padding: const EdgeInsets.fromLTRB(14, 10, 14, 10),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Expanded(
+                              child: Row(
+                                crossAxisAlignment: CrossAxisAlignment.center,
+                                children: [
+                                  Flexible(
+                                    child: Text(
+                                      '${entry.callsign} · ${entry.operatorName}',
+                                      maxLines: 1,
+                                      overflow: TextOverflow.ellipsis,
+                                      style: Theme.of(context)
+                                          .textTheme
+                                          .titleMedium
+                                          ?.copyWith(
+                                            fontWeight: FontWeight.w700,
+                                          ),
                                     ),
+                                  ),
+                                  if (entry.via.trim().isNotEmpty) ...[
+                                    const SizedBox(width: 6),
+                                    Flexible(
+                                      child: Text(
+                                        _viaTitle(allEntries, entry.via),
+                                        maxLines: 1,
+                                        overflow: TextOverflow.ellipsis,
+                                        style: Theme.of(context)
+                                            .textTheme
+                                            .bodySmall
+                                            ?.copyWith(
+                                              color: Theme.of(
+                                                context,
+                                              ).colorScheme.onSurfaceVariant,
+                                              fontWeight: FontWeight.normal,
+                                            ),
+                                      ),
+                                    ),
+                                  ],
+                                ],
                               ),
                             ),
-                          ],
-                        ],
-                      ),
-                    ),
-                    const SizedBox(width: 8),
-                    Icon(
-                      Icons.schedule,
-                      size: 15,
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                    const SizedBox(width: 3),
-                    Text(
-                      _formatDate(entry.createdAt),
-                      style: Theme.of(context).textTheme.labelSmall,
-                    ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Row(
-                      children: [
-                        const Icon(Icons.power, size: 16),
-                        const SizedBox(width: 4),
-                        Text(_energyLabel(entry.energy)),
-                        const SizedBox(width: 8),
-                        const Text('·'),
-                        const SizedBox(width: 8),
-                        const Icon(Icons.bolt, size: 16),
-                        const SizedBox(width: 4),
-                        Text('${entry.powerWatts} W'),
-                        const SizedBox(width: 8),
-                        const Text('·'),
-                        const SizedBox(width: 8),
-                        const Icon(Icons.radio, size: 16),
-                        const SizedBox(width: 4),
-                        Text(_stationLabel(entry.stationType)),
-                      ],
-                    ),
-                    const SizedBox(height: 4),
-                    _contactMeta(entry),
-                    if (entry.traffic == 'C' && entry.trafficMessage.isNotEmpty)
-                      Container(
-                        margin: const EdgeInsets.only(top: 8),
-                        padding: const EdgeInsets.only(top: 8),
-                        decoration: BoxDecoration(
-                          border: Border(
-                            top: BorderSide(
+                            const SizedBox(width: 8),
+                            Icon(
+                              Icons.schedule,
+                              size: 15,
                               color: Theme.of(
                                 context,
-                              ).colorScheme.outlineVariant,
-                              width: 1,
+                              ).colorScheme.onSurfaceVariant,
                             ),
-                          ),
+                            const SizedBox(width: 3),
+                            Text(
+                              _formatDate(entry.createdAt),
+                              style: Theme.of(context).textTheme.labelSmall,
+                            ),
+                          ],
                         ),
-                        width: double.infinity,
-                        child: Text(
-                          entry.trafficMessage,
-                          style: const TextStyle(fontFamily: 'monospace'),
+                        const SizedBox(height: 6),
+                        Column(
+                          crossAxisAlignment: CrossAxisAlignment.start,
+                          children: [
+                            Row(
+                              children: [
+                                const Icon(Icons.power, size: 16),
+                                const SizedBox(width: 4),
+                                Text(_energyLabel(entry.energy)),
+                                const SizedBox(width: 8),
+                                const Text('·'),
+                                const SizedBox(width: 8),
+                                const Icon(Icons.bolt, size: 16),
+                                const SizedBox(width: 4),
+                                Text('${entry.powerWatts} W'),
+                                const SizedBox(width: 8),
+                                const Text('·'),
+                                const SizedBox(width: 8),
+                                const Icon(Icons.radio, size: 16),
+                                const SizedBox(width: 4),
+                                Text(_stationLabel(entry.stationType)),
+                              ],
+                            ),
+                            const SizedBox(height: 4),
+                            _contactMeta(entry),
+                            if (entry.traffic == 'C' &&
+                                entry.trafficMessage.isNotEmpty)
+                              Container(
+                                margin: const EdgeInsets.only(top: 8),
+                                padding: const EdgeInsets.only(top: 8),
+                                decoration: BoxDecoration(
+                                  border: Border(
+                                    top: BorderSide(
+                                      color: Theme.of(
+                                        context,
+                                      ).colorScheme.outlineVariant,
+                                      width: 1,
+                                    ),
+                                  ),
+                                ),
+                                width: double.infinity,
+                                child: Text(
+                                  entry.trafficMessage,
+                                  style: const TextStyle(
+                                    fontFamily: 'monospace',
+                                  ),
+                                ),
+                              ),
+                          ],
                         ),
-                      ),
-                  ],
+                      ],
+                    ),
+                  ),
                 ),
               ],
             ),
@@ -1520,6 +1561,28 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         ),
       ),
     );
+  }
+
+  Map<String, String> _currentContactMarkerColors(List<LogEntry> entries) {
+    final sessionStartedAt = _networkStartedAt;
+    if (sessionStartedAt == null) return const {};
+    final scene = buildContactScene(
+      entries,
+      now: DateTime.now().toUtc(),
+      maxAgeHours: widget.mapMaxAgeHours,
+      warningMinutes: widget.mapWarningMinutes,
+      disconnections: _disconnections,
+      showAll: widget.mapSettings.showAll,
+      operatorGrid: widget.profile.grid,
+      repeaterGrid: widget.mapSettings.repeaterGrid,
+      selectedMode: frequency,
+      selectedFrequencyMhz: frequency == _simplexFrequency ? 146.52 : 145.37,
+      sessionStartedAt: sessionStartedAt,
+      showLines: widget.mapSettings.showLines,
+      mergePrecision: widget.mergePrecision,
+      lastOnly: widget.lastOnly,
+    );
+    return scene.markerColorsByCallsign;
   }
 
   Widget _buildQuickContactForm() => Column(

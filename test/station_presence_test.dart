@@ -185,6 +185,32 @@ void main() {
   );
 
   test(
+    'marker color is exposed per callsign so history follows the latest map marker',
+    () {
+      final old = contact(
+        callsign: 'PY3SC',
+        age: const Duration(hours: 2, minutes: 30),
+        location: 'GG30CH',
+      ).copyWith(stationType: 'P', energy: 'B');
+      final latest = contact(
+        id: 2,
+        callsign: ' py3sc ',
+        age: const Duration(minutes: 5),
+        location: 'GG30CH',
+      );
+      final result = scene([old, latest]);
+
+      expect(result.markerColorsByCallsign['PY3SC'], '#4CAF50');
+      expect(
+        result.markers
+            .singleWhere((marker) => marker.contactIndex != null)
+            .color,
+        '#4CAF50',
+      );
+    },
+  );
+
+  test(
     'switch filters warnings and selects marker colors by mode and actual MHz',
     () {
       final simplex = contact();

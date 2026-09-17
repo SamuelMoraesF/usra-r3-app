@@ -1,16 +1,10 @@
 import '../data/database.dart';
 import '../grid_locator.dart';
 import 'contact_aggregation.dart';
+import 'contact_color.dart';
 import 'station_presence.dart';
+export 'contact_color.dart' show MarkerKind;
 export 'station_presence.dart' show contactFrequencyMhz;
-
-enum MarkerKind {
-  operator,
-  selectedContact,
-  otherContact,
-  currentRepeater,
-  historicalRepeater,
-}
 
 class ContactMarker {
   const ContactMarker(
@@ -32,24 +26,8 @@ class ContactMarker {
   final int orbitIndex;
   final int orbitCount;
   double get radius => contactIndex == null ? 8 : 6;
-  String get color => switch (kind) {
-    MarkerKind.operator => '#2196F3',
-    MarkerKind.selectedContact => _contactColor(stationType, energy),
-    MarkerKind.otherContact => '#9E9E9E',
-    MarkerKind.currentRepeater => '#7E57C2',
-    MarkerKind.historicalRepeater => '#7E57C2',
-  };
-}
-
-String _contactColor(String stationType, String energy) {
-  return switch (stationType.trim().toUpperCase()) {
-    'F' when energy.trim().toUpperCase() == 'AC' => '#4CAF50',
-    // Yellow 600 keeps fixed stations distinct from orange mobile stations.
-    'F' => '#FDD835',
-    'P' => '#F44336',
-    'M' => '#FF9800',
-    _ => '#9E9E9E',
-  };
+  String get color =>
+      contactMarkerColorHex(kind, stationType: stationType, energy: energy);
 }
 
 class ContactRoute {
@@ -72,6 +50,26 @@ class ContactScene {
             contact.latest.callsign.trim().toUpperCase() !=
             operatorCallsign.trim().toUpperCase(),
       );
+
+  /// The color of the marker currently representing each station.
+  ///
+  /// A selected marker wins when a callsign has more than one marker. This
+  /// mirrors the map's visual priority and lets the contact history use the
+  /// same station-level result instead of re-evaluating individual logs.
+  Map<String, String> get markerColorsByCallsign {
+    final colors = <String, String>{};
+    for (final marker in markers) {
+      final index = marker.contactIndex;
+      if (index == null || index >= contacts.length) continue;
+      final callsign = contacts[index].latest.callsign.trim().toUpperCase();
+      if (callsign.isEmpty) continue;
+      if (marker.kind == MarkerKind.selectedContact ||
+          !colors.containsKey(callsign)) {
+        colors[callsign] = marker.color;
+      }
+    }
+    return colors;
+  }
 }
 
 String formatCallsigns(Iterable<String> values) {
@@ -232,6 +230,7 @@ ContactScene buildContactScene(
       ),
     );
   }
+
   if (showLines && GridLocator.bounds(operatorGrid) != null) {
     final routeKeys = <String>{};
     final routeEntries = lastOnly
