@@ -11,6 +11,7 @@ class ContactWorkspace extends StatefulWidget {
     required this.form,
     required this.logs,
     required this.formScrollController,
+    this.keyboardInset = 0,
     this.logsHeader,
     this.logsTitle,
   });
@@ -19,6 +20,7 @@ class ContactWorkspace extends StatefulWidget {
   final Widget form;
   final Widget logs;
   final ScrollController formScrollController;
+  final double keyboardInset;
   final Widget? logsHeader;
   final Widget? logsTitle;
 
@@ -54,43 +56,24 @@ class _ContactWorkspaceState extends State<ContactWorkspace> {
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
           Expanded(
-            child: Column(
+            child: Stack(
+              fit: StackFit.expand,
               children: [
-                Expanded(child: widget.map),
-                SizedBox(
-                  key: const ValueKey('contact-form-panel'),
+                // The map must keep its viewport while the IME is visible.
+                // Only the form panel moves above the keyboard inset.
+                MediaQuery.removeViewInsets(
+                  context: context,
+                  removeBottom: true,
+                  child: widget.map,
+                ),
+                AnimatedPositioned(
+                  duration: const Duration(milliseconds: 180),
+                  curve: Curves.easeOut,
+                  left: 0,
+                  right: 0,
+                  bottom: widget.keyboardInset,
                   height: formHeight,
-                  child: SingleChildScrollView(
-                    controller: widget.formScrollController,
-                    child: _MeasureHeight(
-                      onHeightChanged: (height) {
-                        if (mounted && _contentHeight != height) {
-                          setState(() => _contentHeight = height);
-                        }
-                      },
-                      child: Padding(
-                        padding: const EdgeInsets.fromLTRB(12, 4, 12, 12),
-                        child: Theme(
-                          data: Theme.of(context).copyWith(
-                            inputDecorationTheme: Theme.of(context)
-                                .inputDecorationTheme
-                                .copyWith(
-                                  isDense: true,
-                                  contentPadding: const EdgeInsets.symmetric(
-                                    horizontal: 12,
-                                    vertical: 8,
-                                  ),
-                                  suffixIconConstraints: const BoxConstraints(
-                                    minWidth: 40,
-                                    minHeight: 40,
-                                  ),
-                                ),
-                          ),
-                          child: widget.form,
-                        ),
-                      ),
-                    ),
-                  ),
+                  child: _buildFormPanel(context),
                 ),
               ],
             ),
@@ -110,6 +93,42 @@ class _ContactWorkspaceState extends State<ContactWorkspace> {
         ],
       );
     },
+  );
+
+  Widget _buildFormPanel(BuildContext context) => Material(
+    color: Theme.of(context).scaffoldBackgroundColor,
+    elevation: 0,
+    child: SingleChildScrollView(
+      key: const ValueKey('contact-form-panel'),
+      controller: widget.formScrollController,
+      child: _MeasureHeight(
+        onHeightChanged: (height) {
+          if (mounted && _contentHeight != height) {
+            setState(() => _contentHeight = height);
+          }
+        },
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(12, 20, 12, 12),
+          child: Theme(
+            data: Theme.of(context).copyWith(
+              inputDecorationTheme: Theme.of(context).inputDecorationTheme
+                  .copyWith(
+                    isDense: true,
+                    contentPadding: const EdgeInsets.symmetric(
+                      horizontal: 12,
+                      vertical: 8,
+                    ),
+                    suffixIconConstraints: const BoxConstraints(
+                      minWidth: 40,
+                      minHeight: 40,
+                    ),
+                  ),
+            ),
+            child: widget.form,
+          ),
+        ),
+      ),
+    ),
   );
 
   Widget _buildLogsPanel(BoxConstraints constraints) {

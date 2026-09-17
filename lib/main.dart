@@ -1210,37 +1210,35 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         if (!showMap) return panel;
         final map = _buildMap();
         if (useBottomPanels) {
-          return Padding(
-            padding: EdgeInsets.only(bottom: keyboardInset),
-            child: ContactWorkspace(
-              map: map,
-              form: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [...formChildren, const SizedBox(height: 8)],
-              ),
-              logsHeader: Column(
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  header,
-                  const SizedBox(height: 8),
-                  SizedBox(width: double.infinity, child: frequencySwitch),
-                  const SizedBox(height: 8),
-                  if (_networkStartedAt != null)
-                    SizedBox(
-                      width: double.infinity,
-                      child: _buildCloseNetworkButton(true),
-                    ),
-                ],
-              ),
-              logsTitle: Text(
-                'Registros salvos',
-                style: Theme.of(
-                  context,
-                ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
-              ),
-              logs: logs,
-              formScrollController: _panelScrollController,
+          return ContactWorkspace(
+            map: map,
+            keyboardInset: keyboardInset,
+            form: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [...formChildren, const SizedBox(height: 8)],
             ),
+            logsHeader: Column(
+              crossAxisAlignment: CrossAxisAlignment.stretch,
+              children: [
+                header,
+                const SizedBox(height: 8),
+                SizedBox(width: double.infinity, child: frequencySwitch),
+                const SizedBox(height: 8),
+                if (_networkStartedAt != null)
+                  SizedBox(
+                    width: double.infinity,
+                    child: _buildCloseNetworkButton(true),
+                  ),
+              ],
+            ),
+            logsTitle: Text(
+              'Registros salvos',
+              style: Theme.of(
+                context,
+              ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+            ),
+            logs: logs,
+            formScrollController: _panelScrollController,
           );
         }
         if (constraints.maxWidth >= 700) {
