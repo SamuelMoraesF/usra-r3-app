@@ -125,6 +125,18 @@ class _ProjectedMarker {
   final math.Point<num> screen;
 }
 
+class _CallsignLabelCandidate {
+  const _CallsignLabelCandidate({
+    required this.position,
+    required this.callsigns,
+    required this.screen,
+  });
+
+  final LatLng position;
+  final List<String> callsigns;
+  final math.Point<num> screen;
+}
+
 class _OfflineContactsMapState extends State<OfflineContactsMap>
     with WidgetsBindingObserver {
   MapLibreMapController? controller;
@@ -1252,6 +1264,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
   String _callsignsKey(ContactScene scene) => [
     widget.settings.showCallsigns,
     _orbitingMarkersVisible,
+    controller?.cameraPosition?.zoom.toStringAsFixed(2) ?? 'unknown-zoom',
     ..._renderedMarkers.map(
       (rendered) => rendered.group.contactIndices.join(','),
     ),
@@ -1543,6 +1556,20 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     return imageId;
   }
 
+  Future<math.Point<num>> _screenPosition(
+    MapLibreMapController map,
+    LatLng position,
+  ) async {
+    try {
+      return await map.toScreenLocation(position);
+    } catch (_) {
+      return math.Point(
+        position.longitude * 100000,
+        position.latitude * 100000,
+      );
+    }
+  }
+
   Future<void> _drawCallsigns(
     MapLibreMapController map,
     ContactScene scene,
@@ -1550,32 +1577,26 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     if (!widget.settings.showCallsigns && !_callsignLayerReady) return;
     final features = <Map<String, dynamic>>[];
     if (widget.settings.showCallsigns) {
+      final candidates = <_CallsignLabelCandidate>[];
+      final operatorCallsign = widget.operatorCallsign.trim().toUpperCase();
       if (!_orbitingMarkersVisible) {
         for (final rendered in _renderedMarkers) {
           final indices = rendered.group.contactIndices;
           if (indices.isEmpty) continue;
-          final imageId = await _labelImage(
-            map,
-            formatCallsignsLimited(
-              indices
-                  .map((index) => scene.contacts[index].latest.callsign)
-                  .where(
-                    (callsign) =>
-                        callsign.trim().toUpperCase() !=
-                        widget.operatorCallsign.trim().toUpperCase(),
-                  ),
+          final callsigns = indices
+              .map((index) => scene.contacts[index].latest.callsign)
+              .where(
+                (callsign) => callsign.trim().toUpperCase() != operatorCallsign,
+              )
+              .toList();
+          if (callsigns.isEmpty) continue;
+          candidates.add(
+            _CallsignLabelCandidate(
+              position: rendered.group.position,
+              callsigns: callsigns,
+              screen: await _screenPosition(map, rendered.group.position),
             ),
-            fontSize: 12,
           );
-          final position = rendered.group.position;
-          features.add({
-            'type': 'Feature',
-            'geometry': {
-              'type': 'Point',
-              'coordinates': [position.longitude, position.latitude],
-            },
-            'properties': {'image': imageId},
-          });
         }
       } else {
         final contactsByGrid = <String, List<MapContact>>{};
@@ -1586,22 +1607,57 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
         for (final contacts in contactsByGrid.values) {
           final bounds = contacts.first.bounds;
           if (bounds == null) continue;
-          final imageId = await _labelImage(
-            map,
-            formatCallsignsLimited(
-              contacts.map((contact) => contact.latest.callsign),
-            ),
-            fontSize: 12,
+          final position = LatLng(
+            bounds.centerLatitude,
+            bounds.centerLongitude,
           );
-          features.add({
-            'type': 'Feature',
-            'geometry': {
-              'type': 'Point',
-              'coordinates': [bounds.centerLongitude, bounds.centerLatitude],
-            },
-            'properties': {'image': imageId},
-          });
+          candidates.add(
+            _CallsignLabelCandidate(
+              position: position,
+              callsigns: contacts
+                  .map((contact) => contact.latest.callsign)
+                  .toList(),
+              screen: await _screenPosition(map, position),
+            ),
+          );
         }
+      }
+      final remaining = candidates.toList();
+      while (remaining.isNotEmpty) {
+        final seed = remaining.removeAt(0);
+        final members = <_CallsignLabelCandidate>[seed];
+        for (var i = remaining.length - 1; i >= 0; i--) {
+          final candidate = remaining[i];
+          final dx = candidate.screen.x - seed.screen.x;
+          final dy = candidate.screen.y - seed.screen.y;
+          if (math.sqrt(dx * dx + dy * dy) <= 72) {
+            members.add(candidate);
+            remaining.removeAt(i);
+          }
+        }
+        final latitude =
+            members
+                .map((member) => member.position.latitude)
+                .reduce((a, b) => a + b) /
+            members.length;
+        final longitude =
+            members
+                .map((member) => member.position.longitude)
+                .reduce((a, b) => a + b) /
+            members.length;
+        final imageId = await _labelImage(
+          map,
+          formatCallsignsLimited(members.expand((member) => member.callsigns)),
+          fontSize: 12,
+        );
+        features.add({
+          'type': 'Feature',
+          'geometry': {
+            'type': 'Point',
+            'coordinates': [longitude, latitude],
+          },
+          'properties': {'image': imageId},
+        });
       }
     }
     final data = <String, dynamic>{
