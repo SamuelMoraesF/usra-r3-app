@@ -16,6 +16,7 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'data/database.dart';
+import 'data/file_download.dart';
 import 'time_display.dart';
 import 'data/csv_transfer.dart';
 import 'data/session_report_pdf.dart';
@@ -2182,18 +2183,26 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Future<void> _exportMapPng(Uint8List bytes) async {
     try {
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [
-            XFile.fromData(
-              bytes,
-              mimeType: 'image/png',
-              name: 'usra-r3-mapa.png',
-            ),
-          ],
-          subject: 'Mapa USRA R3',
-        ),
-      );
+      if (kIsWeb) {
+        await downloadFile(
+          bytes: bytes,
+          filename: 'usra-r3-mapa.png',
+          mimeType: 'image/png',
+        );
+      } else {
+        await SharePlus.instance.share(
+          ShareParams(
+            files: [
+              XFile.fromData(
+                bytes,
+                mimeType: 'image/png',
+                name: 'usra-r3-mapa.png',
+              ),
+            ],
+            subject: 'Mapa USRA R3',
+          ),
+        );
+      }
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -2247,16 +2256,27 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         mapImages: mapImages,
       );
       final reportDate = startedAt.toIso8601String().split('T').first;
-      final files = <XFile>[
-        XFile.fromData(
-          bytes,
+      final filename = 'usra-r3-relatorio-$reportDate.pdf';
+      if (kIsWeb) {
+        await downloadFile(
+          bytes: bytes,
+          filename: filename,
           mimeType: 'application/pdf',
-          name: 'usra-r3-relatorio-$reportDate.pdf',
-        ),
-      ];
-      await SharePlus.instance.share(
-        ShareParams(files: files, subject: 'Relatório técnico USRA R3'),
-      );
+        );
+      } else {
+        await SharePlus.instance.share(
+          ShareParams(
+            files: [
+              XFile.fromData(
+                bytes,
+                mimeType: 'application/pdf',
+                name: filename,
+              ),
+            ],
+            subject: 'Relatório técnico USRA R3',
+          ),
+        );
+      }
     } catch (error) {
       if (mounted) {
         ScaffoldMessenger.of(context).showSnackBar(
@@ -3642,18 +3662,27 @@ class _SettingsPageState extends State<SettingsPage> {
   Future<void> _exportCsv() async {
     try {
       final csv = logsToCsv(await widget.database.allLogs());
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [
-            XFile.fromData(
-              Uint8List.fromList(utf8.encode(csv)),
-              mimeType: 'text/csv',
-              name: 'usra-r3-logbook.csv',
-            ),
-          ],
-          subject: AppBranding.csvSubject,
-        ),
-      );
+      final bytes = Uint8List.fromList(utf8.encode(csv));
+      if (kIsWeb) {
+        await downloadFile(
+          bytes: bytes,
+          filename: 'usra-r3-logbook.csv',
+          mimeType: 'text/csv',
+        );
+      } else {
+        await SharePlus.instance.share(
+          ShareParams(
+            files: [
+              XFile.fromData(
+                bytes,
+                mimeType: 'text/csv',
+                name: 'usra-r3-logbook.csv',
+              ),
+            ],
+            subject: AppBranding.csvSubject,
+          ),
+        );
+      }
     } catch (error) {
       if (mounted) _showTransferError(error);
     }
