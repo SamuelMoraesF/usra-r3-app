@@ -178,6 +178,28 @@ void main() {
     expect(result.routes, hasLength(1));
   });
 
+  test('limits callsign labels to three stations', () {
+    expect(formatCallsignsLimited(['PY3AAA']), 'PY3AAA');
+    expect(formatCallsignsLimited(['PY3BBB', 'PY3AAA']), 'PY3AAA e PY3BBB');
+    expect(
+      formatCallsignsLimited(['PY3DDD', 'PY3AAA', 'PY3CCC']),
+      'PY3AAA, PY3CCC e PY3DDD',
+    );
+    expect(
+      formatCallsignsLimited([
+        'PY3FFF',
+        'PY3BBB',
+        'PY3EEE',
+        'PY3AAA',
+        'PY3DDD',
+        'PY3CCC',
+        'PY3GGG',
+        'PY3HHH',
+      ]),
+      'PY3AAA, PY3BBB, PY3CCC e +5 outras',
+    );
+  });
+
   test(
     'same station on repeater and simplex has one visual marker at one grid',
     () {

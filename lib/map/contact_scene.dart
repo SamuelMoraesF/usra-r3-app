@@ -85,6 +85,20 @@ String formatCallsigns(Iterable<String> values) {
   return '${callsigns.sublist(0, callsigns.length - 1).join(', ')} e ${callsigns.last}';
 }
 
+String formatCallsignsLimited(Iterable<String> values, {int limit = 3}) {
+  final callsigns =
+      values
+          .map((value) => value.trim().toUpperCase())
+          .where((value) => value.isNotEmpty)
+          .toSet()
+          .toList()
+        ..sort();
+  if (callsigns.length <= limit) return formatCallsigns(callsigns);
+  final shown = callsigns.take(limit).toList();
+  final remaining = callsigns.length - shown.length;
+  return '${shown.join(', ')} e +$remaining outras';
+}
+
 ContactScene buildContactScene(
   Iterable<LogEntry> entries, {
   required DateTime now,

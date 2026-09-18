@@ -90,11 +90,39 @@ class OfflineContactsMap extends StatefulWidget {
 }
 
 class _RenderedContactMarker {
-  const _RenderedContactMarker(this.marker, {this.circle, this.symbol});
+  const _RenderedContactMarker(this.group, {this.circle, this.symbol});
 
-  final ContactMarker marker;
+  final _MarkerRenderGroup group;
   final Circle? circle;
   final Symbol? symbol;
+
+  ContactMarker get marker => group.marker;
+}
+
+class _MarkerRenderGroup {
+  const _MarkerRenderGroup({
+    required this.marker,
+    required this.position,
+    this.contactIndices = const [],
+  });
+
+  final ContactMarker marker;
+  final LatLng position;
+  final List<int> contactIndices;
+
+  bool get isCluster => contactIndices.length > 1;
+}
+
+class _ProjectedMarker {
+  const _ProjectedMarker({
+    required this.marker,
+    required this.position,
+    required this.screen,
+  });
+
+  final ContactMarker marker;
+  final LatLng position;
+  final math.Point<num> screen;
 }
 
 class _OfflineContactsMapState extends State<OfflineContactsMap>
@@ -119,6 +147,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
   bool _distanceLayerReady = false;
   bool _callsignLayerReady = false;
   final _labelImages = <String, String>{};
+  final _clusterImages = <int, String>{};
   final _warningImages = <String>{};
   List<_RenderedContactMarker> _renderedMarkers = const [];
   final _mapBearing = ValueNotifier<double>(0);
@@ -153,6 +182,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     _distanceLayerReady = false;
     _callsignLayerReady = false;
     _labelImages.clear();
+    _clusterImages.clear();
     _warningImages.clear();
     _elevationLayerReady = false;
     _updateElevationRange(null);
@@ -623,6 +653,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
       _updateMapBearing(cached.bearing);
       _scheduleElevationRedraw(immediate: true);
       _updateOrbitingMarkerVisibility(map, cached.zoom);
+      unawaited(_drawContacts());
       return;
     }
     // Keep the compass working on platform implementations that do not cache
@@ -632,6 +663,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
         _updateMapBearing(position.bearing);
         _scheduleElevationRedraw(immediate: true);
         _updateOrbitingMarkerVisibility(map, position.zoom);
+        unawaited(_drawContacts());
       }
     });
   }
@@ -676,6 +708,14 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
   }
 
   void _onSymbolTapped(Symbol symbol) {
+    final clusterIndices = symbol.data?['clusterIndices'];
+    if (clusterIndices is List && clusterIndices.isNotEmpty) {
+      final index = clusterIndices.first;
+      if (index is int && index >= 0 && index < contacts.length) {
+        unawaited(_animateToGrid(contacts[index].latest.location, zoom: 15));
+      }
+      return;
+    }
     final index = symbol.data?['contactIndex'];
     if (index is int && index >= 0 && index < contacts.length) {
       unawaited(_showContact(contacts[index]));
@@ -761,15 +801,17 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
       _hoverPulseTimer = null;
       return;
     }
-    final markers = _renderedMarkers.map((rendered) => rendered.marker).where((
-      marker,
-    ) {
-      final index = marker.contactIndex;
-      return index != null &&
-          index < _scene.contacts.length &&
-          _scene.contacts[index].latest.callsign.trim().toUpperCase() ==
-              callsign;
-    });
+    final markers = _renderedMarkers
+        .where((rendered) {
+          final marker = rendered.marker;
+          final index = marker.contactIndex;
+          return index != null &&
+              !rendered.group.isCluster &&
+              index < _scene.contacts.length &&
+              _scene.contacts[index].latest.callsign.trim().toUpperCase() ==
+                  callsign;
+        })
+        .map((rendered) => rendered.marker);
     for (final marker in markers) {
       final bounds = GridLocator.bounds(marker.grid);
       if (bounds == null) continue;
@@ -836,33 +878,22 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
         final orbitCenters = <String, math.Point<num>>{};
         for (final rendered in _renderedMarkers) {
           final marker = rendered.marker;
-          if (marker.orbitCount <= 1 || marker.orbitIndex == 0) continue;
+          if (rendered.group.isCluster ||
+              marker.orbitCount <= 1 ||
+              marker.orbitIndex == 0) {
+            continue;
+          }
           final bounds = GridLocator.bounds(marker.grid);
           if (bounds == null) continue;
-          var position = LatLng(bounds.centerLatitude, bounds.centerLongitude);
-          if (marker.orbitCount > 1 && marker.orbitIndex > 0) {
-            final grid = GridLocator.inspect(marker.grid).normalized;
-            final center = orbitCenters[grid] ??= await map.toScreenLocation(
-              position,
-            );
-            final orbitingCount = marker.orbitCount - 1;
-            final minimumSeparation = 18.0;
-            final radius = orbitingCount == 1
-                ? minimumSeparation
-                : math.max(
-                    minimumSeparation,
-                    minimumSeparation / (2 * math.sin(math.pi / orbitingCount)),
-                  );
-            final angle =
-                math.pi / 2 -
-                2 * math.pi * (marker.orbitIndex - 1) / orbitingCount;
-            position = await map.toLatLng(
-              math.Point(
-                center.x + radius * math.cos(angle),
-                center.y + radius * math.sin(angle),
-              ),
-            );
-          }
+          final center =
+              orbitCenters[GridLocator.inspect(marker.grid).normalized] ??=
+                  await map.toScreenLocation(rendered.group.position);
+          final position = await _orbitPosition(
+            map,
+            center,
+            marker.orbitIndex,
+            marker.orbitCount,
+          );
           if (rendered.circle != null) {
             await map.updateCircle(
               rendered.circle!,
@@ -879,6 +910,123 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     } finally {
       _repositioning = false;
     }
+  }
+
+  Future<LatLng> _orbitPosition(
+    MapLibreMapController map,
+    math.Point<num> center,
+    int orbitIndex,
+    int orbitCount,
+  ) async {
+    const minimumSeparation = 18.0;
+    final angle = switch (orbitIndex) {
+      1 => 0.0,
+      2 => math.pi,
+      3 => math.pi / 2,
+      4 => -math.pi / 2,
+      _ =>
+        -math.pi / 2 +
+            2 * math.pi * (orbitIndex - 5) / math.max(1, orbitCount - 4),
+    };
+    final radius = orbitIndex <= 4 ? minimumSeparation : 30.0;
+    return map.toLatLng(
+      math.Point(
+        center.x + radius * math.cos(angle),
+        center.y + radius * math.sin(angle),
+      ),
+    );
+  }
+
+  Future<List<_MarkerRenderGroup>> _markerGroups(
+    MapLibreMapController map,
+    ContactScene scene,
+    List<ContactMarker> visibleMarkers,
+  ) async {
+    final contactMarkers = _orbitingMarkersVisible
+        ? visibleMarkers.where((marker) => marker.contactIndex != null)
+        : scene.markers.where((marker) => marker.contactIndex != null);
+    final groups = <_MarkerRenderGroup>[];
+    final projected = <_ProjectedMarker>[];
+    for (final marker in contactMarkers) {
+      final bounds = GridLocator.bounds(marker.grid);
+      if (bounds == null) continue;
+      final position = LatLng(bounds.centerLatitude, bounds.centerLongitude);
+      math.Point<num> screen;
+      try {
+        screen = await map.toScreenLocation(position);
+      } catch (_) {
+        // Some platform fakes do not expose screen projection. The geographic
+        // fallback keeps scene rendering testable without changing clustering
+        // in a real map instance.
+        screen = math.Point(
+          position.longitude * 100000,
+          position.latitude * 100000,
+        );
+      }
+      projected.add(
+        _ProjectedMarker(marker: marker, position: position, screen: screen),
+      );
+    }
+
+    if (_orbitingMarkersVisible) {
+      for (final item in projected) {
+        groups.add(
+          _MarkerRenderGroup(
+            marker: item.marker,
+            position: item.position,
+            contactIndices: [item.marker.contactIndex!],
+          ),
+        );
+      }
+    } else {
+      final remaining = projected.toList();
+      while (remaining.isNotEmpty) {
+        final seed = remaining.removeAt(0);
+        final members = <_ProjectedMarker>[seed];
+        for (var i = remaining.length - 1; i >= 0; i--) {
+          final candidate = remaining[i];
+          final dx = candidate.screen.x - seed.screen.x;
+          final dy = candidate.screen.y - seed.screen.y;
+          if (math.sqrt(dx * dx + dy * dy) <= 48) {
+            members.add(candidate);
+            remaining.removeAt(i);
+          }
+        }
+        final latitude =
+            members
+                .map((member) => member.position.latitude)
+                .reduce((a, b) => a + b) /
+            members.length;
+        final longitude =
+            members
+                .map((member) => member.position.longitude)
+                .reduce((a, b) => a + b) /
+            members.length;
+        groups.add(
+          _MarkerRenderGroup(
+            marker: seed.marker,
+            position: LatLng(latitude, longitude),
+            contactIndices: members
+                .map((member) => member.marker.contactIndex!)
+                .toList(),
+          ),
+        );
+      }
+    }
+
+    for (final marker in visibleMarkers.where(
+      (marker) => marker.contactIndex == null,
+    )) {
+      final bounds = GridLocator.bounds(marker.grid);
+      if (bounds == null) continue;
+      groups.add(
+        _MarkerRenderGroup(
+          marker: marker,
+          position: LatLng(bounds.centerLatitude, bounds.centerLongitude),
+        ),
+      );
+    }
+    return groups;
   }
 
   Future<void> _renderScene(
@@ -906,8 +1054,9 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
               marker.orbitIndex == 0,
         )
         .toList();
+    final markerGroups = await _markerGroups(map, scene, visibleMarkers);
     final markersChanged =
-        mapColorsChanged || !_sameRenderedMarkers(visibleMarkers);
+        mapColorsChanged || !_sameRenderedMarkers(markerGroups);
     final linesChanged =
         _renderedShowLines != widget.settings.showLines ||
         !_sameRoutes(scene.routes);
@@ -947,34 +1096,39 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     if (markersChanged) {
       final orbitCenters = <String, math.Point<num>>{};
       final renderedMarkers = <_RenderedContactMarker>[];
-      for (final marker in visibleMarkers) {
+      for (final group in markerGroups) {
+        final marker = group.marker;
         final bounds = GridLocator.bounds(marker.grid);
         if (bounds == null) continue;
-        var position = LatLng(bounds.centerLatitude, bounds.centerLongitude);
-        if (marker.orbitCount > 1 && marker.orbitIndex > 0) {
+        var position = group.position;
+        if (!group.isCluster &&
+            marker.orbitCount > 1 &&
+            marker.orbitIndex > 0) {
           final grid = GridLocator.inspect(marker.grid).normalized;
           final center = orbitCenters[grid] ??= await map.toScreenLocation(
-            position,
+            group.position,
           );
-          final orbitingCount = marker.orbitCount - 1;
-          final minimumSeparation = 18.0;
-          final radius = orbitingCount == 1
-              ? minimumSeparation
-              : math.max(
-                  minimumSeparation,
-                  minimumSeparation / (2 * math.sin(math.pi / orbitingCount)),
-                );
-          // Keep the first station at the grid center. Place the second below
-          // it, then distribute the remaining stations counter-clockwise.
-          final angle =
-              math.pi / 2 -
-              2 * math.pi * (marker.orbitIndex - 1) / orbitingCount;
-          position = await map.toLatLng(
-            math.Point(
-              center.x + radius * math.cos(angle),
-              center.y + radius * math.sin(angle),
+          position = await _orbitPosition(
+            map,
+            center,
+            marker.orbitIndex,
+            marker.orbitCount,
+          );
+        }
+        if (group.isCluster) {
+          final imageId = await _clusterImage(map, group.contactIndices.length);
+          await map.setSymbolIconAllowOverlap(true);
+          await map.setSymbolIconIgnorePlacement(true);
+          final symbol = await map.addSymbol(
+            SymbolOptions(
+              geometry: position,
+              iconImage: imageId,
+              iconSize: 0.8,
             ),
+            {'clusterIndices': group.contactIndices},
           );
+          renderedMarkers.add(_RenderedContactMarker(group, symbol: symbol));
+          continue;
         }
         if (marker.warning) {
           final imageId =
@@ -1021,7 +1175,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
             ),
             {'contactIndex': marker.contactIndex},
           );
-          renderedMarkers.add(_RenderedContactMarker(marker, symbol: symbol));
+          renderedMarkers.add(_RenderedContactMarker(group, symbol: symbol));
           continue;
         }
         final circle = await map.addCircle(
@@ -1037,7 +1191,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
           ),
           {'contactIndex': marker.contactIndex},
         );
-        renderedMarkers.add(_RenderedContactMarker(marker, circle: circle));
+        renderedMarkers.add(_RenderedContactMarker(group, circle: circle));
         assert(circle.id.isNotEmpty);
       }
       _renderedMarkers = renderedMarkers;
@@ -1054,11 +1208,13 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     await _refreshHoverPulse();
   }
 
-  bool _sameRenderedMarkers(List<ContactMarker> markers) {
-    if (_renderedMarkers.length != markers.length) return false;
-    for (var i = 0; i < markers.length; i++) {
+  bool _sameRenderedMarkers(List<_MarkerRenderGroup> groups) {
+    if (_renderedMarkers.length != groups.length) return false;
+    for (var i = 0; i < groups.length; i++) {
       final previous = _renderedMarkers[i].marker;
-      final current = markers[i];
+      final current = groups[i].marker;
+      final previousIndices = _renderedMarkers[i].group.contactIndices;
+      final currentIndices = groups[i].contactIndices;
       if (previous.grid != current.grid ||
           previous.kind != current.kind ||
           previous.contactIndex != current.contactIndex ||
@@ -1066,8 +1222,12 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
           previous.energy != current.energy ||
           previous.warning != current.warning ||
           previous.orbitIndex != current.orbitIndex ||
-          previous.orbitCount != current.orbitCount) {
+          previous.orbitCount != current.orbitCount ||
+          previousIndices.length != currentIndices.length) {
         return false;
+      }
+      for (var j = 0; j < currentIndices.length; j++) {
+        if (previousIndices[j] != currentIndices[j]) return false;
       }
     }
     return true;
@@ -1091,6 +1251,10 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
 
   String _callsignsKey(ContactScene scene) => [
     widget.settings.showCallsigns,
+    _orbitingMarkersVisible,
+    ..._renderedMarkers.map(
+      (rendered) => rendered.group.contactIndices.join(','),
+    ),
     ...scene
         .callsignContacts(widget.operatorCallsign)
         .map(
@@ -1346,6 +1510,39 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     return imageId;
   }
 
+  Future<String> _clusterImage(MapLibreMapController map, int count) async {
+    var imageId = _clusterImages[count];
+    if (imageId != null) return imageId;
+    imageId = 'map-cluster-$count';
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    canvas.drawCircle(const Offset(16, 16), 14, Paint()..color = Colors.black);
+    final painter = TextPainter(
+      text: TextSpan(
+        text: '$count',
+        style: const TextStyle(
+          fontSize: 13,
+          fontWeight: FontWeight.w700,
+          color: Colors.white,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    painter.paint(
+      canvas,
+      Offset(16 - painter.width / 2, 16 - painter.height / 2),
+    );
+    final picture = recorder.endRecording();
+    final bitmap = await picture.toImage(32, 32);
+    final bytes = await bitmap.toByteData(format: ui.ImageByteFormat.png);
+    await map.addImage(imageId, bytes!.buffer.asUint8List());
+    bitmap.dispose();
+    picture.dispose();
+    painter.dispose();
+    _clusterImages[count] = imageId;
+    return imageId;
+  }
+
   Future<void> _drawCallsigns(
     MapLibreMapController map,
     ContactScene scene,
@@ -1353,28 +1550,58 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     if (!widget.settings.showCallsigns && !_callsignLayerReady) return;
     final features = <Map<String, dynamic>>[];
     if (widget.settings.showCallsigns) {
-      final contactsByGrid = <String, List<MapContact>>{};
-      for (final contact in scene.callsignContacts(widget.operatorCallsign)) {
-        final grid = GridLocator.inspect(contact.latest.location).normalized;
-        contactsByGrid.putIfAbsent(grid, () => []).add(contact);
-      }
-      for (final contacts in contactsByGrid.values) {
-        final contact = contacts.first;
-        final bounds = contact.bounds;
-        if (bounds == null) continue;
-        final imageId = await _labelImage(
-          map,
-          formatCallsigns(contacts.map((contact) => contact.latest.callsign)),
-          fontSize: 12,
-        );
-        features.add({
-          'type': 'Feature',
-          'geometry': {
-            'type': 'Point',
-            'coordinates': [bounds.centerLongitude, bounds.centerLatitude],
-          },
-          'properties': {'image': imageId},
-        });
+      if (!_orbitingMarkersVisible) {
+        for (final rendered in _renderedMarkers) {
+          final indices = rendered.group.contactIndices;
+          if (indices.isEmpty) continue;
+          final imageId = await _labelImage(
+            map,
+            formatCallsignsLimited(
+              indices
+                  .map((index) => scene.contacts[index].latest.callsign)
+                  .where(
+                    (callsign) =>
+                        callsign.trim().toUpperCase() !=
+                        widget.operatorCallsign.trim().toUpperCase(),
+                  ),
+            ),
+            fontSize: 12,
+          );
+          final position = rendered.group.position;
+          features.add({
+            'type': 'Feature',
+            'geometry': {
+              'type': 'Point',
+              'coordinates': [position.longitude, position.latitude],
+            },
+            'properties': {'image': imageId},
+          });
+        }
+      } else {
+        final contactsByGrid = <String, List<MapContact>>{};
+        for (final contact in scene.callsignContacts(widget.operatorCallsign)) {
+          final grid = GridLocator.inspect(contact.latest.location).normalized;
+          contactsByGrid.putIfAbsent(grid, () => []).add(contact);
+        }
+        for (final contacts in contactsByGrid.values) {
+          final bounds = contacts.first.bounds;
+          if (bounds == null) continue;
+          final imageId = await _labelImage(
+            map,
+            formatCallsignsLimited(
+              contacts.map((contact) => contact.latest.callsign),
+            ),
+            fontSize: 12,
+          );
+          features.add({
+            'type': 'Feature',
+            'geometry': {
+              'type': 'Point',
+              'coordinates': [bounds.centerLongitude, bounds.centerLatitude],
+            },
+            'properties': {'image': imageId},
+          });
+        }
       }
     }
     final data = <String, dynamic>{
