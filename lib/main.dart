@@ -96,6 +96,9 @@ enum AppTheme { system, light, dark }
 
 enum HomeLayout { bottomPanels, sidebar }
 
+double homeSidebarWidth(double availableWidth) =>
+    availableWidth < 900 ? availableWidth : math.min(480, availableWidth);
+
 class OperatorProfile {
   const OperatorProfile({this.callsign = '', this.name = '', this.grid = ''});
   final String callsign;
@@ -1275,7 +1278,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             children: [
               Expanded(child: map),
               SizedBox(
-                width: constraints.maxWidth.clamp(0, 480),
+                width: homeSidebarWidth(constraints.maxWidth),
                 child: panelForLayout,
               ),
             ],
