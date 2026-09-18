@@ -1,9 +1,7 @@
 import 'dart:convert';
 import 'dart:io';
-import 'dart:math';
 
 import 'package:flutter/foundation.dart';
-import 'package:flutter/gestures.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_test/flutter_test.dart';
@@ -12,103 +10,7 @@ import 'package:usra_r3/data/database.dart';
 import 'package:usra_r3/map/offline_map.dart';
 import 'package:usra_r3/map/map_settings.dart';
 
-// Exercise the real widget/controller/annotation managers, with a platform
-// that records the sources and paint which would be sent to the renderer.
-class _MapPlatform extends MapLibrePlatform {
-  final sources = <String, Map<String, dynamic>>{};
-  final paint = <String, Map<String, dynamic>>{};
-  int styleReplacements = 0;
-  int cameraMoves = 0;
-  int batchProjections = 0;
-  int singleProjections = 0;
-  final sourceWrites = <String, int>{};
-  @override
-  Future<List<Point>> toScreenLocationBatch(Iterable<LatLng> positions) async {
-    batchProjections++;
-    return positions
-        .map((p) => Point(p.longitude * 100000, p.latitude * 100000))
-        .toList();
-  }
-
-  @override
-  Future<Point> toScreenLocation(LatLng position) async {
-    singleProjections++;
-    return Point(position.longitude * 100000, position.latitude * 100000);
-  }
-
-  bool created = false;
-
-  @override
-  Widget buildView(
-    Map<String, dynamic> creationParams,
-    OnPlatformViewCreatedCallback onPlatformViewCreated,
-    Set<Factory<OneSequenceGestureRecognizer>>? gestureRecognizers,
-  ) {
-    if (!created) {
-      created = true;
-      WidgetsBinding.instance.addPostFrameCallback((_) {
-        onPlatformViewCreated(1);
-      });
-    }
-    return const SizedBox.expand();
-  }
-
-  @override
-  Future<void> initPlatform(int id) async {}
-
-  @override
-  Future<CameraPosition?> updateMapOptions(Map<String, dynamic> updates) async {
-    if (updates.containsKey('styleString')) {
-      styleReplacements++;
-      sources.clear();
-    }
-    return null;
-  }
-
-  @override
-  Future<void> setStyle(String style) async {
-    styleReplacements++;
-    sources.clear();
-  }
-
-  @override
-  Future<void> addGeoJsonSource(
-    String sourceId,
-    Map<String, dynamic> geojson, {
-    String? promoteId,
-  }) async {
-    sources[sourceId] = geojson;
-  }
-
-  @override
-  Future<void> setGeoJsonSource(
-    String sourceId,
-    Map<String, dynamic> geojson,
-  ) async {
-    if (!sources.containsKey(sourceId)) {
-      throw StateError('Missing map source: $sourceId');
-    }
-    sources[sourceId] = geojson;
-    sourceWrites.update(sourceId, (count) => count + 1, ifAbsent: () => 1);
-  }
-
-  @override
-  Future<void> setLayerProperties(
-    String layerId,
-    Map<String, dynamic> properties,
-  ) async {
-    paint[layerId] = properties;
-  }
-
-  @override
-  Future<bool?> moveCamera(CameraUpdate cameraUpdate) async {
-    cameraMoves++;
-    return true;
-  }
-
-  @override
-  dynamic noSuchMethod(Invocation invocation) => Future<void>.value();
-}
+import 'support/map_platform.dart';
 
 void main() {
   for (final count in [1, 100]) {
@@ -117,7 +19,7 @@ void main() {
       (tester) async {
         rootBundle.clear();
         final originalFactory = MapLibrePlatform.createInstance;
-        final platform = _MapPlatform();
+        final platform = TestMapPlatform();
         MapLibrePlatform.createInstance = () => platform;
         debugDefaultTargetPlatformOverride = TargetPlatform.android;
         final directory = Directory.systemTemp.createTempSync(
@@ -169,7 +71,7 @@ void main() {
               sessionStartedAt: now,
               selectedMode: 'simplex',
               selectedFrequencyMhz: 146.52,
-            settings: const MapSettings(showPrecision: true),
+              settings: const MapSettings(showPrecision: true),
             ),
           ),
         );
