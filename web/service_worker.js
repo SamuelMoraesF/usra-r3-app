@@ -18,6 +18,7 @@ const SHELL = [
   './pmtiles.js',
   './pmtiles_init.js',
   './drift_worker.js',
+  './report_pdf_worker.js',
   './sqlite3.wasm',
   './canvaskit/canvaskit.js',
   './canvaskit/canvaskit.wasm',

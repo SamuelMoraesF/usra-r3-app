@@ -17,6 +17,23 @@ Veja [tempos medidos, caches e estrutura dos builds](../.github/BUILD_PERFORMANC
 
 ## Distribuir uma versão
 
+### Worker de PDF no navegador
+
+A montagem e compressão do PDF rodam em um Web Worker local, sem enviar dados
+para servidores. Android e desktop continuam usando o renderer diretamente.
+O arquivo gerado `web/report_pdf_worker.js` é versionado para funcionar também
+com `flutter run` e incluído no cache offline. Ao alterar o renderer, o protocolo
+ou `tool/report_pdf_worker.dart`, regenere antes de executar/buildar a versão web:
+
+```bash
+python3 tool/build_report_worker.py
+```
+
+O script aceita `--dart /caminho/para/dart`. O CI recompila automaticamente antes
+do build web, inclusive em previews. Não edite o JavaScript gerado manualmente.
+
+### Publicação
+
 Envie uma tag estável `vMAJOR.MINOR.PATCH` para disparar a criação da release:
 
 ```bash

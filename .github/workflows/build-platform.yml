@@ -102,6 +102,7 @@ jobs:
             fi
           fi
           if [[ "$PLATFORM" == web ]]; then
+            python3 tool/build_report_worker.py
             # This app ships JavaScript; the Wasm compatibility probe is unused.
             options+=(--no-wasm-dry-run)
             if [[ -n "$RELEASE_TAG" ]]; then options+=(--source-maps); fi
