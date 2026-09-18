@@ -96,14 +96,12 @@ class _RenderedContactMarker {
   _RenderedContactMarker(
     this.group, {
     required this.position,
-    this.circle,
-    this.symbol,
   });
 
   final _MarkerRenderGroup group;
   LatLng position;
-  final Circle? circle;
-  final Symbol? symbol;
+  Circle? circle;
+  Symbol? symbol;
 
   ContactMarker get marker => group.marker;
 }
@@ -1119,8 +1117,8 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     }
     await _drawElevation();
     if (linesChanged) {
-      for (final route in scene.routes) {
-        await map.addLine(
+      await map.addLines([
+        for (final route in scene.routes)
           LineOptions(
             geometry: route.grids.map((grid) {
               final bounds = GridLocator.bounds(grid)!;
@@ -1130,13 +1128,18 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
             lineOpacity: route.opacity,
             lineWidth: 3.5,
           ),
-        );
-      }
+      ]);
       await _drawDistances(map, scene);
     }
     if (markersChanged) {
       final orbitCenters = <String, math.Point<num>>{};
       final renderedMarkers = <_RenderedContactMarker>[];
+      final symbols = <SymbolOptions>[];
+      final symbolData = <Map<String, dynamic>>[];
+      final symbolTargets = <_RenderedContactMarker>[];
+      final circles = <CircleOptions>[];
+      final circleData = <Map<String, dynamic>>[];
+      final circleTargets = <_RenderedContactMarker>[];
       for (final group in markerGroups) {
         final marker = group.marker;
         final bounds = GridLocator.bounds(marker.grid);
@@ -1156,21 +1159,19 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
             marker.orbitCount,
           );
         }
+        final target = _RenderedContactMarker(group, position: position);
+        renderedMarkers.add(target);
         if (group.isCluster) {
           final imageId = await _clusterImage(map, group.contactIndices.length);
-          await map.setSymbolIconAllowOverlap(true);
-          await map.setSymbolIconIgnorePlacement(true);
-          final symbol = await map.addSymbol(
+          symbols.add(
             SymbolOptions(
               geometry: position,
               iconImage: imageId,
               iconSize: 0.8,
             ),
-            {'clusterIndices': group.contactIndices},
           );
-          renderedMarkers.add(
-            _RenderedContactMarker(group, position: position, symbol: symbol),
-          );
+          symbolData.add({'clusterIndices': group.contactIndices});
+          symbolTargets.add(target);
           continue;
         }
         if (marker.warning) {
@@ -1208,22 +1209,18 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
             picture.dispose();
             _warningImages.add(imageId);
           }
-          await map.setSymbolIconAllowOverlap(true);
-          await map.setSymbolIconIgnorePlacement(true);
-          final symbol = await map.addSymbol(
+          symbols.add(
             SymbolOptions(
               geometry: position,
               iconImage: imageId,
               iconSize: 0.65,
             ),
-            {'contactIndex': marker.contactIndex},
           );
-          renderedMarkers.add(
-            _RenderedContactMarker(group, position: position, symbol: symbol),
-          );
+          symbolData.add({'contactIndex': marker.contactIndex});
+          symbolTargets.add(target);
           continue;
         }
-        final circle = await map.addCircle(
+        circles.add(
           CircleOptions(
             geometry: position,
             circleColor: marker.color,
@@ -1234,12 +1231,23 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
             circleStrokeWidth: 2,
             circleStrokeOpacity: 1,
           ),
-          {'contactIndex': marker.contactIndex},
         );
-        renderedMarkers.add(
-          _RenderedContactMarker(group, position: position, circle: circle),
-        );
-        assert(circle.id.isNotEmpty);
+        circleData.add({'contactIndex': marker.contactIndex});
+        circleTargets.add(target);
+      }
+      if (symbols.isNotEmpty) {
+        await map.setSymbolIconAllowOverlap(true);
+        await map.setSymbolIconIgnorePlacement(true);
+        final added = await map.addSymbols(symbols, symbolData);
+        for (var i = 0; i < added.length; i++) {
+          symbolTargets[i].symbol = added[i];
+        }
+      }
+      if (circles.isNotEmpty) {
+        final added = await map.addCircles(circles, circleData);
+        for (var i = 0; i < added.length; i++) {
+          circleTargets[i].circle = added[i];
+        }
       }
       _renderedMarkers = renderedMarkers;
     }
