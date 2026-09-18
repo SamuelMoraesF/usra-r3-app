@@ -96,9 +96,6 @@ enum AppTheme { system, light, dark }
 
 enum HomeLayout { bottomPanels, sidebar }
 
-double homeSidebarWidth(double availableWidth) =>
-    availableWidth < 900 ? availableWidth : math.min(480, availableWidth);
-
 class OperatorProfile {
   const OperatorProfile({this.callsign = '', this.name = '', this.grid = ''});
   final String callsign;
@@ -1278,7 +1275,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
             children: [
               Expanded(child: map),
               SizedBox(
-                width: homeSidebarWidth(constraints.maxWidth),
+                width: constraints.maxWidth.clamp(0, 480),
                 child: panelForLayout,
               ),
             ],
@@ -1321,14 +1318,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
         ),
       ),
-      SizedBox(
-        height: 400,
-        child: ListView.builder(
-          key: ValueKey('active-contacts-$_networkStartedAt-$frequency'),
-          itemCount: entries.length,
-          itemBuilder: (context, index) =>
-              _buildSavedLogCard(entries[index], allEntries, markerColors),
-        ),
+      Column(
+        key: ValueKey('active-contacts-$_networkStartedAt-$frequency'),
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        children: [
+          for (final entry in entries)
+            _buildSavedLogCard(entry, allEntries, markerColors),
+        ],
       ),
     ];
   }
