@@ -15,6 +15,7 @@ class ContactWorkspace extends StatefulWidget {
     this.mapBottomOverlay,
     this.logsHeader,
     this.logsTitle,
+    this.logsTitleInContent = false,
   });
 
   final Widget map;
@@ -25,6 +26,7 @@ class ContactWorkspace extends StatefulWidget {
   final Widget? mapBottomOverlay;
   final Widget? logsHeader;
   final Widget? logsTitle;
+  final bool logsTitleInContent;
 
   @override
   State<ContactWorkspace> createState() => _ContactWorkspaceState();
@@ -168,11 +170,13 @@ class _ContactWorkspaceState extends State<ContactWorkspace> {
             child: widget.logsHeader!,
           ),
           const SizedBox(height: 20),
-          Padding(
-            padding: const EdgeInsets.only(right: 20),
-            child: widget.logsTitle!,
-          ),
-          const SizedBox(height: 8),
+          if (!widget.logsTitleInContent) ...[
+            Padding(
+              padding: const EdgeInsets.only(right: 20),
+              child: widget.logsTitle!,
+            ),
+            const SizedBox(height: 8),
+          ],
           Expanded(
             child: Scrollbar(
               key: const ValueKey('contact-logs-content-scroll'),

@@ -1175,25 +1175,17 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   ),
                   const SizedBox(height: 16),
                 ],
-                if (!useBottomPanels) ...[
-                  Text(
-                    'Registros salvos',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
-                      fontWeight: FontWeight.w700,
-                    ),
-                  ),
-                  const SizedBox(height: 8),
-                ],
-                if (openNetworkIsEmpty) ...[
+                if (!useBottomPanels && _networkStartedAt != null)
                   Padding(
                     padding: const EdgeInsets.only(top: 12, bottom: 6),
                     child: Text(
                       _networkTitle(_networkStartedAt),
-                      style: Theme.of(context).textTheme.titleSmall?.copyWith(
+                      style: Theme.of(context).textTheme.titleMedium?.copyWith(
                         fontWeight: FontWeight.w700,
                       ),
                     ),
                   ),
+                if (openNetworkIsEmpty) ...[
                   Text(
                     'Ainda não houve nenhum contato.',
                     style: TextStyle(
@@ -1201,7 +1193,20 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                     ),
                   ),
                 ],
-                ..._buildSavedLogSessions(entries, allEntries, markerColors),
+                ..._buildSavedLogSessions(
+                  entries,
+                  allEntries,
+                  markerColors,
+                  showTitle: useBottomPanels,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Registros salvos',
+                  style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
+                const SizedBox(height: 8),
                 SessionHistory(
                   database: widget.database,
                   frequency: frequency,
@@ -1265,6 +1270,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 context,
               ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
             ),
+            logsTitleInContent: true,
             logs: logs,
             formScrollController: _panelScrollController,
           );
@@ -1305,19 +1311,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   List<Widget> _buildSavedLogSessions(
     List<LogEntry> entries,
     List<LogEntry> allEntries,
-    Map<String, String> markerColors,
-  ) {
+    Map<String, String> markerColors, {
+    bool showTitle = true,
+  }) {
     if (entries.isEmpty) return const [];
     return [
-      Padding(
-        padding: const EdgeInsets.only(top: 12, bottom: 6),
-        child: Text(
-          _networkTitle(_networkStartedAt),
-          style: Theme.of(
-            context,
-          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
+      if (showTitle)
+        Padding(
+          padding: const EdgeInsets.only(top: 12, bottom: 6),
+          child: Text(
+            _networkTitle(_networkStartedAt),
+            style: Theme.of(
+              context,
+            ).textTheme.titleMedium?.copyWith(fontWeight: FontWeight.w700),
+          ),
         ),
-      ),
       Column(
         key: ValueKey('active-contacts-$_networkStartedAt-$frequency'),
         crossAxisAlignment: CrossAxisAlignment.stretch,

@@ -84,15 +84,15 @@ void main() {
     );
     await tester.pumpAndSettle();
     expect(find.text('Registros salvos'), findsOneWidget);
-    expect(find.text('Não há registros recentes.'), findsNothing);
+    expect(find.text('Não há sessões no histórico.'), findsNothing);
     await tester.tap(find.text('Simplex'));
     await tester.pumpAndSettle();
     expect(find.text('Registros salvos'), findsOneWidget);
-    expect(find.text('Não há registros recentes.'), findsOneWidget);
+    expect(find.text('Não há sessões no histórico.'), findsOneWidget);
     expect(find.text('Ainda não houve nenhum contato.'), findsNothing);
     await tester.tap(find.text('Repetidora'));
     await tester.pumpAndSettle();
-    expect(find.text('Não há registros recentes.'), findsNothing);
+    expect(find.text('Não há sessões no histórico.'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
     debugDefaultTargetPlatformOverride = null;
@@ -130,7 +130,12 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Registros salvos'), findsOneWidget);
     expect(find.text('Ainda não houve nenhum contato.'), findsOneWidget);
-    expect(find.textContaining('Rede 14/09'), findsOneWidget);
+    final activeTitle = find.textContaining('Rede 14/09');
+    expect(activeTitle, findsOneWidget);
+    expect(
+      tester.getTopLeft(activeTitle).dy,
+      lessThan(tester.getTopLeft(find.text('Registros salvos')).dy),
+    );
     Future<void> save(DateTime session) => database.saveLog(
       callsign: 'PY3TEST',
       operatorName: 'Operador',

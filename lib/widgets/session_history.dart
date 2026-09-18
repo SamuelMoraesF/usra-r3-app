@@ -49,22 +49,27 @@ class _SessionHistoryState extends State<SessionHistory> {
   @override
   Widget build(BuildContext context) => StreamBuilder<List<LogSessionSummary>>(
     stream: _summaries,
-    builder: (context, snapshot) => Column(
-      children: [
-        if (snapshot.hasData &&
-            snapshot.data!.isEmpty &&
-            widget.activeSession == null)
-          const Text('Não há registros recentes.'),
-        for (final summary in snapshot.data ?? <LogSessionSummary>[])
-          if (summary.startedAt == null ||
-              summary.startedAt != widget.activeSession)
+    builder: (context, snapshot) {
+      final history = (snapshot.data ?? <LogSessionSummary>[])
+          .where(
+            (summary) =>
+                summary.startedAt == null ||
+                summary.startedAt != widget.activeSession,
+          )
+          .toList();
+      return Column(
+        children: [
+          if (snapshot.hasData && history.isEmpty)
+            const Text('Não há sessões no histórico.'),
+          for (final summary in history)
             _HistorySession(
               key: ValueKey('${widget.frequency}|${summary.startedAt}'),
               owner: widget,
               summary: summary,
             ),
-      ],
-    ),
+        ],
+      );
+    },
   );
 }
 
@@ -146,7 +151,7 @@ class _HistorySessionState extends State<_HistorySession> {
   @override
   Widget build(BuildContext context) => ExpansionTile(
     key: ValueKey('saved-session-${widget.summary.startedAt}'),
-    tilePadding: EdgeInsets.zero,
+    tilePadding: const EdgeInsets.only(left: 10),
     onExpansionChanged: (value) {
       setState(() => _expanded = value);
       if (value) _load();
