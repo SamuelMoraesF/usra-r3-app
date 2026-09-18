@@ -3,6 +3,9 @@
 // Replaced by the release pipeline in build/web.
 const VERSION = new URL(self.location.href).searchParams.get('v') || '__USRA_WEB_VERSION__';
 const CACHE_NAME = `usra-r3-${VERSION}`;
+const IS_LOCAL_DEVELOPMENT =
+  self.location.hostname === 'localhost' ||
+  self.location.hostname === '127.0.0.1';
 const OFFLINE_MAP = './assets/assets/maps/santa-maria-rs.pmtiles';
 const SHELL = [
   './',
@@ -103,6 +106,8 @@ async function refreshInBackground(request) {
 
 self.addEventListener('install', (event) => {
   event.waitUntil((async () => {
+    if (IS_LOCAL_DEVELOPMENT) return;
+
     const cache = await caches.open(CACHE_NAME);
     // The map must be cached as a complete 200 response. PMTiles will issue
     // Range requests at runtime; handlePmtiles() serves those ranges from
@@ -124,7 +129,10 @@ self.addEventListener('activate', (event) => {
   event.waitUntil((async () => {
     const names = await caches.keys();
     await Promise.all(names
-      .filter((name) => name.startsWith('usra-r3-') && name !== CACHE_NAME)
+      .filter((name) =>
+        name.startsWith('usra-r3-') &&
+        (IS_LOCAL_DEVELOPMENT || name !== CACHE_NAME),
+      )
       .map((name) => caches.delete(name)));
     await self.clients.claim();
   })());
@@ -148,6 +156,11 @@ self.addEventListener('message', (event) => {
 self.addEventListener('fetch', (event) => {
   const request = event.request;
   if (request.method !== 'GET' || new URL(request.url).origin !== self.location.origin) {
+    return;
+  }
+
+  if (IS_LOCAL_DEVELOPMENT) {
+    event.respondWith(fetch(request, {cache: 'no-store'}));
     return;
   }
 

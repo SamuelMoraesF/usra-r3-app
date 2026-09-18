@@ -176,11 +176,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     if (snapshotCallback != null && map != null && _scene.markers.isNotEmpty) {
       await Future<void>.delayed(const Duration(milliseconds: 500));
       try {
-        final snapshot = await map
-            // Match the report's usable A4 area ratio. This lets the PDF
-            // render the map at full width without distorting its contents.
-            .takeSnapshot(width: 2160, height: 1140)
-            .timeout(const Duration(seconds: 10));
+        final snapshot = await _takeReportSnapshot(map);
         if (mounted) await snapshotCallback(snapshot);
       } catch (_) {
         final unavailable = widget.onInitialSnapshotUnavailable;
@@ -329,6 +325,25 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
         _refreshContacts();
         _drawContacts();
       });
+    }
+  }
+
+  Future<Uint8List> _takeReportSnapshot(MapLibreMapController map) async {
+    if (!kIsWeb) {
+      return map
+          .takeSnapshot(width: 1124, height: 594)
+          .timeout(const Duration(seconds: 10));
+    }
+
+    final originalSize = await map.setWebMapToCustomSize(
+      const ui.Size(1124, 594),
+    );
+    try {
+      map.forceResizeWebMap();
+      await Future<void>.delayed(const Duration(milliseconds: 500));
+      return await map.takeSnapshot().timeout(const Duration(seconds: 10));
+    } finally {
+      await map.setWebMapToCustomSize(originalSize);
     }
   }
 

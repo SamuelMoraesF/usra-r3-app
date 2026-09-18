@@ -6,6 +6,7 @@ import 'package:pdf/widgets.dart' as pw;
 import 'database.dart';
 
 class SessionReportPdf {
+  static const _pageMargin = 28.0;
   static const _repeaterCallsign = 'PY3SMA';
   static const _repeaterName = 'Repetidora USRA';
 
@@ -26,7 +27,7 @@ class SessionReportPdf {
     document.addPage(
       pw.MultiPage(
         pageFormat: PdfPageFormat.a4,
-        margin: const pw.EdgeInsets.all(28),
+        margin: const pw.EdgeInsets.all(_pageMargin),
         header: (context) => context.pageNumber == 1
             ? pw.SizedBox()
             : pw.Padding(
@@ -161,9 +162,22 @@ class SessionReportPdf {
     return [
       if (repeated) ...[pw.SizedBox(height: 8), pw.Divider()],
       pw.SizedBox(height: 14),
-      pw.Text(
-        '$sectionName — $qrg',
-        style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
+      pw.Row(
+        crossAxisAlignment: pw.CrossAxisAlignment.center,
+        children: [
+          pw.Text(
+            sectionName,
+            style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
+          ),
+          pw.Padding(
+            padding: const pw.EdgeInsets.symmetric(horizontal: 5),
+            child: pw.Container(width: 12, height: 1.4, color: PdfColors.black),
+          ),
+          pw.Text(
+            qrg,
+            style: pw.TextStyle(fontSize: 16, fontWeight: pw.FontWeight.bold),
+          ),
+        ],
       ),
       if (entries.isEmpty)
         pw.Padding(
@@ -178,22 +192,31 @@ class SessionReportPdf {
         ),
       if (entries.isNotEmpty && mapImage != null) ...[
         pw.SizedBox(height: 6),
-        pw.Image(
-          pw.MemoryImage(mapImage),
-          width: double.infinity,
-          height: 285,
-          fit: pw.BoxFit.contain,
-        ),
+        _mapImage(mapImage),
       ],
-      pw.SizedBox(height: 8),
-      pw.Header(level: 3, text: 'Estações visíveis na $sectionName'),
-      _stationsTable(entries),
+      if (entries.isNotEmpty) ...[
+        pw.SizedBox(height: 8),
+        pw.Header(level: 3, text: 'Estações visíveis na $sectionName'),
+        _stationsTable(entries),
+      ],
       _hiddenStationsTable(
         otherFrequencyEntries,
         sectionName,
         entries.map((entry) => entry.callsign).toSet(),
       ),
     ];
+  }
+
+  static pw.Widget _mapImage(Uint8List bytes) {
+    final image = pw.MemoryImage(bytes);
+    final width = PdfPageFormat.a4.width - 2 * _pageMargin;
+    // PDF points define the printed size; preserve the source pixels for detail.
+    return pw.Image(
+      image,
+      width: width,
+      height: width * image.height! / image.width!,
+      fit: pw.BoxFit.contain,
+    );
   }
 
   static const _stationHeaders = [

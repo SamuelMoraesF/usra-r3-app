@@ -26,6 +26,7 @@ import 'quick_contact_parser.dart';
 import 'widgets/grid_locator_field.dart';
 import 'widgets/contact_workspace.dart';
 import 'widgets/contact_form_layout.dart';
+import 'widgets/report_capture_surface.dart';
 import 'map/offline_map.dart';
 import 'map/map_settings.dart';
 import 'map/station_presence.dart';
@@ -2245,18 +2246,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         closing: timeZone.format(endedAt),
         mapImages: mapImages,
       );
-      await SharePlus.instance.share(
-        ShareParams(
-          files: [
-            XFile.fromData(
-              bytes,
-              mimeType: 'application/pdf',
-              name:
-                  'usra-r3-relatorio-${startedAt.toIso8601String().split('T').first}.pdf',
-            ),
-          ],
-          subject: 'Relatório técnico USRA R3',
+      final reportDate = startedAt.toIso8601String().split('T').first;
+      final files = <XFile>[
+        XFile.fromData(
+          bytes,
+          mimeType: 'application/pdf',
+          name: 'usra-r3-relatorio-$reportDate.pdf',
         ),
+      ];
+      await SharePlus.instance.share(
+        ShareParams(files: files, subject: 'Relatório técnico USRA R3'),
       );
     } catch (error) {
       if (mounted) {
@@ -2280,50 +2279,34 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       barrierDismissible: false,
       barrierColor: Colors.transparent,
       transitionDuration: Duration.zero,
-      pageBuilder: (dialogContext, animation, secondaryAnimation) => Stack(
-        children: [
-          Positioned(
-            // PlatformViews can escape a Transform's paint bounds on large
-            // web viewports. Use an explicit off-screen position instead.
-            left: -10000,
-            top: -10000,
-            child: SizedBox(
-              // Keep the same logical viewport that produced the correct
-              // framing, while taking the final image at 2x resolution.
-              width: 1080,
-              height: 570,
-              child: _ReportMapCapture(
-                entries: entries,
-                startedAt: startedAt,
-                endedAt: endedAt,
-                mode: mode,
-                operatorGrid: widget.profile.grid,
-                operatorCallsign: widget.profile.callsign,
-                settings: MapSettings(
-                  showLines: true,
-                  showCallsigns: true,
-                  showAll: widget.mapSettings.showAll,
-                  showPrecision: widget.mapSettings.showPrecision,
-                  showElevation: widget.mapSettings.showElevation,
-                  showCompass: widget.mapSettings.showCompass,
-                  repeaterGrid: widget.mapSettings.repeaterGrid,
-                ),
-                mergePrecision: widget.mergePrecision,
-                lastOnly: widget.lastOnly,
-                maxAgeHours: widget.mapMaxAgeHours,
-                warningMinutes: widget.mapWarningMinutes,
-                disconnections: _disconnections,
-                onCaptured: (bytes) async {
-                  Navigator.of(dialogContext).pop(bytes);
-                },
-                onUnavailable: () async {
-                  Navigator.of(dialogContext).pop();
-                },
+      pageBuilder: (dialogContext, animation, secondaryAnimation) =>
+          ReportCaptureSurface(
+            child: _ReportMapCapture(
+              entries: entries,
+              startedAt: startedAt,
+              endedAt: endedAt,
+              mode: mode,
+              operatorGrid: widget.profile.grid,
+              operatorCallsign: widget.profile.callsign,
+              settings: MapSettings(
+                showLines: true,
+                showCallsigns: true,
+                showAll: widget.mapSettings.showAll,
+                showPrecision: widget.mapSettings.showPrecision,
+                showElevation: widget.mapSettings.showElevation,
+                showCompass: widget.mapSettings.showCompass,
+                repeaterGrid: widget.mapSettings.repeaterGrid,
               ),
+              mergePrecision: widget.mergePrecision,
+              lastOnly: widget.lastOnly,
+              maxAgeHours: widget.mapMaxAgeHours,
+              warningMinutes: widget.mapWarningMinutes,
+              disconnections: _disconnections,
+              onCaptured: (bytes) async =>
+                  Navigator.of(dialogContext).pop(bytes),
+              onUnavailable: () async => Navigator.of(dialogContext).pop(),
             ),
           ),
-        ],
-      ),
     );
   }
 
@@ -2994,6 +2977,7 @@ class _ReportMapCapture extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Stack(
+    fit: StackFit.expand,
     children: [
       OfflineContactsMap(
         entries: entries,
@@ -3013,17 +2997,8 @@ class _ReportMapCapture extends StatelessWidget {
         settings: settings,
         onInitialSnapshot: onCaptured,
         onInitialSnapshotUnavailable: onUnavailable,
-        // The map is captured at 3x the logical size, so keep the logical
-        // fit padding small to avoid enlarging the visual margin in the PDF.
-        fitPadding: 10,
-      ),
-      const Positioned.fill(
-        child: IgnorePointer(
-          child: ColoredBox(
-            color: Colors.transparent,
-            child: Center(child: CircularProgressIndicator()),
-          ),
-        ),
+        // Leave room around the outermost markers in the report image.
+        fitPadding: 64,
       ),
     ],
   );
