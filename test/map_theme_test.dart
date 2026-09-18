@@ -1,5 +1,6 @@
 import 'dart:convert';
 import 'dart:io';
+import 'dart:math';
 
 import 'package:flutter/foundation.dart';
 import 'package:flutter/gestures.dart';
@@ -17,6 +18,22 @@ class _MapPlatform extends MapLibrePlatform {
   final paint = <String, Map<String, dynamic>>{};
   int styleReplacements = 0;
   int cameraMoves = 0;
+  int batchProjections = 0;
+  int singleProjections = 0;
+  @override
+  Future<List<Point>> toScreenLocationBatch(Iterable<LatLng> positions) async {
+    batchProjections++;
+    return positions
+        .map((p) => Point(p.longitude * 100000, p.latitude * 100000))
+        .toList();
+  }
+
+  @override
+  Future<Point> toScreenLocation(LatLng position) async {
+    singleProjections++;
+    return Point(position.longitude * 100000, position.latitude * 100000);
+  }
+
   bool created = false;
 
   @override
@@ -164,6 +181,8 @@ void main() {
           .expand((source) => source['features'] as List)
           .where((feature) => feature['geometry']['type'] == 'Point');
       expect(points.length, greaterThanOrEqualTo(2));
+      expect(platform.batchProjections, greaterThan(0));
+      expect(platform.singleProjections, 0);
 
       for (final brightness in [
         Brightness.dark,

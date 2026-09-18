@@ -11,6 +11,7 @@ import '../time_display.dart';
 import '../grid_locator.dart';
 import 'contact_aggregation.dart';
 import 'contact_scene.dart';
+import 'screen_groups.dart';
 import 'station_presence.dart';
 import 'map_settings.dart';
 import 'route_distance.dart';
@@ -129,28 +130,14 @@ class _MarkerRenderGroup {
   bool get isCluster => contactIndices.length > 1;
 }
 
-class _ProjectedMarker {
-  const _ProjectedMarker({
-    required this.marker,
-    required this.position,
-    required this.screen,
-  });
-
-  final ContactMarker marker;
-  final LatLng position;
-  final math.Point<num> screen;
-}
-
 class _CallsignLabelCandidate {
   const _CallsignLabelCandidate({
     required this.position,
     required this.callsigns,
-    required this.screen,
   });
 
   final LatLng position;
   final List<String> callsigns;
-  final math.Point<num> screen;
 }
 
 class _OfflineContactsMapState extends State<OfflineContactsMap>
@@ -1032,76 +1019,35 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     ContactScene scene,
     List<ContactMarker> visibleMarkers,
   ) async {
-    final contactMarkers = _orbitingMarkersVisible
-        ? visibleMarkers.where((marker) => marker.contactIndex != null)
-        : scene.markers.where((marker) => marker.contactIndex != null);
+    final contactMarkers = scene.markers
+        .where((m) => m.contactIndex != null)
+        .toList();
+    final positions = contactMarkers.map((m) {
+      final bounds = GridLocator.bounds(m.grid)!;
+      return LatLng(bounds.centerLatitude, bounds.centerLongitude);
+    }).toList();
     final groups = <_MarkerRenderGroup>[];
-    final projected = <_ProjectedMarker>[];
-    for (final marker in contactMarkers) {
-      final bounds = GridLocator.bounds(marker.grid);
-      if (bounds == null) continue;
-      final position = LatLng(bounds.centerLatitude, bounds.centerLongitude);
-      math.Point<num> screen;
-      try {
-        screen = await map.toScreenLocation(position);
-      } catch (_) {
-        // Some platform fakes do not expose screen projection. The geographic
-        // fallback keeps scene rendering testable without changing clustering
-        // in a real map instance.
-        screen = math.Point(
-          position.longitude * 100000,
-          position.latitude * 100000,
-        );
-      }
-      projected.add(
-        _ProjectedMarker(marker: marker, position: position, screen: screen),
+    final indices = _orbitingMarkersVisible
+        ? [
+            for (var i = 0; i < positions.length; i++) [i],
+          ]
+        : screenGroups(await _projectPositions(map, positions), 48);
+    for (final members in indices) {
+      final seed = contactMarkers[members.first];
+      groups.add(
+        _MarkerRenderGroup(
+          marker: seed,
+          position: LatLng(
+            members.fold<double>(0, (sum, i) => sum + positions[i].latitude) /
+                members.length,
+            members.fold<double>(0, (sum, i) => sum + positions[i].longitude) /
+                members.length,
+          ),
+          contactIndices: members
+              .map((i) => contactMarkers[i].contactIndex!)
+              .toList(),
+        ),
       );
-    }
-
-    if (_orbitingMarkersVisible) {
-      for (final item in projected) {
-        groups.add(
-          _MarkerRenderGroup(
-            marker: item.marker,
-            position: item.position,
-            contactIndices: [item.marker.contactIndex!],
-          ),
-        );
-      }
-    } else {
-      final remaining = projected.toList();
-      while (remaining.isNotEmpty) {
-        final seed = remaining.removeAt(0);
-        final members = <_ProjectedMarker>[seed];
-        for (var i = remaining.length - 1; i >= 0; i--) {
-          final candidate = remaining[i];
-          final dx = candidate.screen.x - seed.screen.x;
-          final dy = candidate.screen.y - seed.screen.y;
-          if (math.sqrt(dx * dx + dy * dy) <= 48) {
-            members.add(candidate);
-            remaining.removeAt(i);
-          }
-        }
-        final latitude =
-            members
-                .map((member) => member.position.latitude)
-                .reduce((a, b) => a + b) /
-            members.length;
-        final longitude =
-            members
-                .map((member) => member.position.longitude)
-                .reduce((a, b) => a + b) /
-            members.length;
-        groups.add(
-          _MarkerRenderGroup(
-            marker: seed.marker,
-            position: LatLng(latitude, longitude),
-            contactIndices: members
-                .map((member) => member.marker.contactIndex!)
-                .toList(),
-          ),
-        );
-      }
     }
 
     for (final marker in visibleMarkers.where(
@@ -1123,6 +1069,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     MapLibreMapController map,
     ContactScene scene,
   ) async {
+    _projectedPositions.clear();
     final colors = _mapColors!;
     final mapColorsChanged = _appliedMapColors != colors;
     if (mapColorsChanged) {
@@ -1668,18 +1615,23 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     return imageId;
   }
 
-  Future<math.Point<num>> _screenPosition(
+  final _projectedPositions = <LatLng, math.Point<num>>{};
+
+  Future<List<math.Point<num>>> _projectPositions(
     MapLibreMapController map,
-    LatLng position,
+    List<LatLng> positions,
   ) async {
-    try {
-      return await map.toScreenLocation(position);
-    } catch (_) {
-      return math.Point(
-        position.longitude * 100000,
-        position.latitude * 100000,
-      );
+    final missing = positions
+        .where((p) => !_projectedPositions.containsKey(p))
+        .toSet()
+        .toList();
+    if (missing.isNotEmpty) {
+      final projected = await map.toScreenLocationBatch(missing);
+      for (var i = 0; i < missing.length; i++) {
+        _projectedPositions[missing[i]] = projected[i];
+      }
     }
+    return positions.map((p) => _projectedPositions[p]!).toList();
   }
 
   Future<void> _drawCallsigns(
@@ -1706,7 +1658,6 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
             _CallsignLabelCandidate(
               position: rendered.group.position,
               callsigns: callsigns,
-              screen: await _screenPosition(map, rendered.group.position),
             ),
           );
         }
@@ -1729,24 +1680,16 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
               callsigns: contacts
                   .map((contact) => contact.latest.callsign)
                   .toList(),
-              screen: await _screenPosition(map, position),
             ),
           );
         }
       }
-      final remaining = candidates.toList();
-      while (remaining.isNotEmpty) {
-        final seed = remaining.removeAt(0);
-        final members = <_CallsignLabelCandidate>[seed];
-        for (var i = remaining.length - 1; i >= 0; i--) {
-          final candidate = remaining[i];
-          final dx = candidate.screen.x - seed.screen.x;
-          final dy = candidate.screen.y - seed.screen.y;
-          if (math.sqrt(dx * dx + dy * dy) <= 72) {
-            members.add(candidate);
-            remaining.removeAt(i);
-          }
-        }
+      final screens = await _projectPositions(
+        map,
+        candidates.map((c) => c.position).toList(),
+      );
+      for (final indices in screenGroups(screens, 72)) {
+        final members = indices.map((i) => candidates[i]).toList();
         final latitude =
             members
                 .map((member) => member.position.latitude)
