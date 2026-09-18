@@ -146,6 +146,7 @@ class _HistorySessionState extends State<_HistorySession> {
   @override
   Widget build(BuildContext context) => ExpansionTile(
     key: ValueKey('saved-session-${widget.summary.startedAt}'),
+    tilePadding: EdgeInsets.zero,
     onExpansionChanged: (value) {
       setState(() => _expanded = value);
       if (value) _load();
