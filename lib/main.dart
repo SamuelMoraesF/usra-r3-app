@@ -16,6 +16,7 @@ import 'package:maplibre_gl/maplibre_gl.dart';
 import 'package:sentry_flutter/sentry_flutter.dart';
 
 import 'data/database.dart';
+import 'widgets/session_history.dart';
 import 'data/file_download.dart';
 import 'time_display.dart';
 import 'data/csv_transfer.dart';
@@ -639,7 +640,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   QuickContactDraft _quickDraft = const QuickContactDraft();
   QuickContactCompletion? _quickCompletion;
   final _quickFormRevision = ValueNotifier<int>(0);
-  late final Stream<List<LogEntry>> _logsStream = widget.database.watchLogs();
+  Stream<List<LogEntry>>? _activeLogsStream;
+  DateTime? _streamSession;
+  Stream<List<LogEntry>> get _logsStream {
+    if (_activeLogsStream == null || _streamSession != _networkStartedAt) {
+      _streamSession = _networkStartedAt;
+      _activeLogsStream = widget.database.watchActiveNetwork(_streamSession);
+    }
+    return _activeLogsStream!;
+  }
+
   int _quickAutofillRevision = 0;
   final _panelScrollController = ScrollController();
   final _mapBearing = ValueNotifier<double>(0);
@@ -652,7 +662,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   String _lastMapFocusGrid = '';
   final _hoveredCallsign = ValueNotifier<String>('');
   DateTime? _networkStartedAt;
-  final _expandedClosedNetworks = <DateTime>{};
   StationDisconnections _disconnections = StationDisconnections();
   Timer? _presenceTimer;
   String? _prefilledPresenceKey;
@@ -1175,13 +1184,6 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   ),
                   const SizedBox(height: 8),
                 ],
-                if (entries.isEmpty && !openNetworkIsEmpty)
-                  Text(
-                    'Não há registros recentes.',
-                    style: TextStyle(
-                      color: Theme.of(context).colorScheme.onSurfaceVariant,
-                    ),
-                  ),
                 if (openNetworkIsEmpty) ...[
                   Padding(
                     padding: const EdgeInsets.only(top: 12, bottom: 6),
@@ -1200,6 +1202,16 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   ),
                 ],
                 ..._buildSavedLogSessions(entries, allEntries, markerColors),
+                SessionHistory(
+                  database: widget.database,
+                  frequency: frequency,
+                  activeSession: _networkStartedAt,
+                  title: (start, end) => _networkTitle(start, end),
+                  card: (entry, page) =>
+                      _buildSavedLogCard(entry, page, const {}),
+                  export: _exportSessionReport,
+                  exporting: _exportingReportStartedAt,
+                ),
               ],
             );
           },
@@ -1295,109 +1307,27 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     List<LogEntry> allEntries,
     Map<String, String> markerColors,
   ) {
-    final groups = <({DateTime? startedAt, List<LogEntry> entries})>[];
-    for (final entry in entries) {
-      if (groups.isEmpty || groups.last.startedAt != entry.networkStartedAt) {
-        groups.add((startedAt: entry.networkStartedAt, entries: [entry]));
-      } else {
-        groups.last.entries.add(entry);
-      }
-    }
-
+    if (entries.isEmpty) return const [];
     return [
-      for (final group in groups)
-        _buildSavedLogSession(
-          group.startedAt,
-          group.entries,
-          allEntries,
-          markerColors,
+      Padding(
+        padding: const EdgeInsets.only(top: 12, bottom: 6),
+        child: Text(
+          _networkTitle(_networkStartedAt),
+          style: Theme.of(
+            context,
+          ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
         ),
-    ];
-  }
-
-  Widget _buildSavedLogSession(
-    DateTime? startedAt,
-    List<LogEntry> entries,
-    List<LogEntry> allEntries,
-    Map<String, String> markerColors,
-  ) {
-    final isActive = startedAt != null && startedAt == _networkStartedAt;
-    final isClosed =
-        startedAt != null &&
-        !isActive &&
-        entries.any((entry) => entry.networkEndedAt != null);
-    final title = _networkTitle(startedAt, entries.first.networkEndedAt);
-    final cards = entries
-        .map((entry) => _buildSavedLogCard(entry, allEntries, markerColors))
-        .toList();
-    final isExporting = _exportingReportStartedAt == startedAt;
-
-    if (!isClosed) {
-      return Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        children: [
-          Padding(
-            padding: const EdgeInsets.only(
-              top: 12,
-              right: 8,
-              bottom: 6,
-              left: 8,
-            ),
-            child: Text(
-              title,
-              style: Theme.of(
-                context,
-              ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-            ),
-          ),
-          ...cards,
-        ],
-      );
-    }
-
-    return Padding(
-      padding: const EdgeInsets.only(top: 8),
-      child: ExpansionTile(
-        key: ValueKey('saved-session-$startedAt'),
-        initiallyExpanded: _expandedClosedNetworks.contains(startedAt),
-        onExpansionChanged: (expanded) {
-          setState(() {
-            if (expanded) {
-              _expandedClosedNetworks.add(startedAt);
-            } else {
-              _expandedClosedNetworks.remove(startedAt);
-            }
-          });
-        },
-        tilePadding: const EdgeInsets.only(left: 8),
-        title: Row(
-          children: [
-            Expanded(
-              child: Text(
-                title,
-                style: Theme.of(
-                  context,
-                ).textTheme.titleSmall?.copyWith(fontWeight: FontWeight.w700),
-              ),
-            ),
-            IconButton(
-              tooltip: isExporting ? 'Gerando relatório' : 'Exportar relatório',
-              icon: isExporting
-                  ? const SizedBox(
-                      width: 20,
-                      height: 20,
-                      child: CircularProgressIndicator(strokeWidth: 2),
-                    )
-                  : const Icon(Icons.summarize_outlined),
-              onPressed: _exportingReportStartedAt != null
-                  ? null
-                  : () => _exportSessionReport(startedAt),
-            ),
-          ],
-        ),
-        children: cards,
       ),
-    );
+      SizedBox(
+        height: 400,
+        child: ListView.builder(
+          key: ValueKey('active-contacts-$_networkStartedAt-$frequency'),
+          itemCount: entries.length,
+          itemBuilder: (context, index) =>
+              _buildSavedLogCard(entries[index], allEntries, markerColors),
+        ),
+      ),
+    ];
   }
 
   Widget _buildSavedLogCard(

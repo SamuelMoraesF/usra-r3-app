@@ -42,6 +42,19 @@ class LogEntries extends Table {
       .map(const UtcDateTimeConverter())();
 }
 
+class LogSessionSummary {
+  const LogSessionSummary(
+    this.startedAt,
+    this.endedAt,
+    this.count,
+    this.lastId,
+  );
+  final DateTime? startedAt;
+  final DateTime? endedAt;
+  final int count;
+  final int lastId;
+}
+
 @DriftDatabase(tables: [LogEntries])
 class UsraDatabase extends _$UsraDatabase {
   UsraDatabase()
@@ -231,6 +244,75 @@ class UsraDatabase extends _$UsraDatabase {
   Stream<List<LogEntry>> watchLogs() => (select(
     logEntries,
   )..orderBy([(entry) => OrderingTerm.desc(entry.createdAt)])).watch();
+
+  Stream<List<LogEntry>> watchActiveNetwork(DateTime? startedAt) =>
+      (select(logEntries)
+            ..where(
+              (e) => startedAt == null
+                  ? const Constant(false)
+                  : e.networkStartedAt.equalsValue(startedAt),
+            )
+            ..orderBy([
+              (e) => OrderingTerm.desc(e.createdAt),
+              (e) => OrderingTerm.desc(e.id),
+            ]))
+          .watch();
+
+  Stream<List<LogSessionSummary>> watchSessionSummaries(String frequency) =>
+      customSelect(
+        'SELECT network_started_at_utc AS started, '
+        'MAX(network_ended_at_utc) AS ended, COUNT(*) AS total, MAX(id) AS last_id '
+        'FROM log_entries WHERE frequency = ? '
+        'GROUP BY network_started_at_utc ORDER BY MAX(created_at_utc) DESC',
+        variables: [Variable.withString(frequency)],
+        readsFrom: {logEntries},
+      ).watch().map(
+        (rows) => rows.map((row) {
+          DateTime? date(String key) {
+            final value = row.readNullable<int>(key);
+            return value == null
+                ? null
+                : const UtcDateTimeConverter().fromSql(value);
+          }
+
+          return LogSessionSummary(
+            date('started'),
+            date('ended'),
+            row.read<int>('total'),
+            row.read<int>('last_id'),
+          );
+        }).toList(),
+      );
+
+  Future<List<LogEntry>> sessionPage({
+    required DateTime? startedAt,
+    required String frequency,
+    LogEntry? before,
+    int limit = 50,
+  }) =>
+      (select(logEntries)
+            ..where(
+              (e) =>
+                  (startedAt == null
+                      ? e.networkStartedAt.isNull()
+                      : e.networkStartedAt.equalsValue(startedAt)) &
+                  e.frequency.equals(frequency),
+            )
+            ..where(
+              (e) => before == null
+                  ? const Constant(true)
+                  : e.createdAt.isSmallerThanValue(
+                          before.createdAt.toUtc().microsecondsSinceEpoch,
+                        ) |
+                        (e.createdAt.equalsValue(before.createdAt) &
+                            e.id.isSmallerThanValue(before.id)),
+            )
+            ..orderBy([
+              (e) => OrderingTerm.desc(e.createdAt),
+              (e) => OrderingTerm.desc(e.id),
+            ])
+            ..limit(limit))
+          .get();
 
   Future<LogEntry?> latestLogForCallsign(String value, {String? frequency}) {
     return (select(logEntries)

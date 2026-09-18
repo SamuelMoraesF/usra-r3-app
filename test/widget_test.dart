@@ -328,10 +328,15 @@ void main() {
       (widget) =>
           widget is RichText && widget.text.toPlainText().contains(callsign),
     );
+    // Legacy records are also loaded only when their history is expanded.
+    await tester.tap(find.byType(ExpansionTile));
+    await tester.pumpAndSettle();
     expect(contactTitle('PY3SIM'), findsOneWidget);
     expect(contactTitle('PY3REP'), findsNothing);
 
     await tester.tap(find.text('Repetidora'));
+    await tester.pumpAndSettle();
+    await tester.tap(find.byType(ExpansionTile));
     await tester.pumpAndSettle();
     expect(contactTitle('PY3SIM'), findsNothing);
     expect(contactTitle('PY3REP'), findsOneWidget);
