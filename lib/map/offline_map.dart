@@ -33,6 +33,7 @@ class OfflineContactsMap extends StatefulWidget {
     this.focusGrid = '',
     this.focusRequest = 0,
     this.hoveredCallsign = '',
+    this.hoveredCallsignListenable,
     this.mergePrecision = true,
     this.lastOnly = false,
     this.maxAgeHours = defaultContactMaxAgeHours,
@@ -62,6 +63,7 @@ class OfflineContactsMap extends StatefulWidget {
   final String focusGrid;
   final int focusRequest;
   final String hoveredCallsign;
+  final ValueListenable<String>? hoveredCallsignListenable;
   final bool mergePrecision;
   final bool lastOnly;
   final int maxAgeHours;
@@ -90,13 +92,27 @@ class OfflineContactsMap extends StatefulWidget {
 }
 
 class _RenderedContactMarker {
-  const _RenderedContactMarker(this.group, {this.circle, this.symbol});
+  _RenderedContactMarker(
+    this.group, {
+    required this.position,
+    this.circle,
+    this.symbol,
+  });
 
   final _MarkerRenderGroup group;
+  LatLng position;
   final Circle? circle;
   final Symbol? symbol;
 
   ContactMarker get marker => group.marker;
+}
+
+class _HoverPulseSymbol {
+  const _HoverPulseSymbol(this.symbol, this.target, this.phase);
+
+  final Symbol symbol;
+  final _RenderedContactMarker target;
+  final double phase;
 }
 
 class _MarkerRenderGroup {
@@ -160,13 +176,16 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
   bool _callsignLayerReady = false;
   final _labelImages = <String, String>{};
   final _clusterImages = <int, String>{};
+  final _waveImages = <String, String>{};
   final _warningImages = <String>{};
   List<_RenderedContactMarker> _renderedMarkers = const [];
   final _mapBearing = ValueNotifier<double>(0);
   final _elevationRange = ValueNotifier<ElevationRange?>(null);
   Timer? _hoverPulseTimer;
-  final _hoverPulseCircles = <Circle>[];
+  final _hoverPulseSymbols = <_HoverPulseSymbol>[];
   double _hoverPulseProgress = 0;
+  int _hoverPulseGeneration = 0;
+  bool _hoverPulseAnimating = false;
   ElevationGrid? _elevationGrid;
   Future<ElevationGrid?>? _elevationFuture;
   Timer? _elevationDebounce;
@@ -195,6 +214,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     _callsignLayerReady = false;
     _labelImages.clear();
     _clusterImages.clear();
+    _waveImages.clear();
     _warningImages.clear();
     _elevationLayerReady = false;
     _updateElevationRange(null);
@@ -231,6 +251,7 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
   void initState() {
     super.initState();
     WidgetsBinding.instance.addObserver(this);
+    widget.hoveredCallsignListenable?.addListener(_onHoverChanged);
     _refreshContacts();
     _loadStyle();
     _elevationFuture = _loadElevation();
@@ -240,6 +261,12 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
   @override
   void didUpdateWidget(covariant OfflineContactsMap oldWidget) {
     super.didUpdateWidget(oldWidget);
+    if (oldWidget.hoveredCallsignListenable !=
+        widget.hoveredCallsignListenable) {
+      oldWidget.hoveredCallsignListenable?.removeListener(_onHoverChanged);
+      widget.hoveredCallsignListenable?.addListener(_onHoverChanged);
+      _onHoverChanged();
+    }
     if (oldWidget.focusRequest != widget.focusRequest) {
       _initialCameraSet = true;
       _animateToGrid(widget.focusGrid);
@@ -391,8 +418,11 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
 
   @override
   void dispose() {
+    widget.hoveredCallsignListenable?.removeListener(_onHoverChanged);
     WidgetsBinding.instance.removeObserver(this);
     _expiryTimer?.cancel();
+    _hoverPulseTimer?.cancel();
+    _hoverPulseGeneration++;
     final map = controller;
     map?.onCircleTapped.remove(_onCircleTapped);
     map?.onSymbolTapped.remove(_onSymbolTapped);
@@ -796,84 +826,119 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     }
   }
 
+  void _onHoverChanged() {
+    _hoverPulseProgress = 0;
+    unawaited(_refreshHoverPulse());
+  }
+
   Future<void> _refreshHoverPulse() async {
     final map = controller;
     if (map == null || !mounted || !_styleReady) return;
-    if (_hoverPulseCircles.isNotEmpty) {
-      try {
-        await map.removeCircles(_hoverPulseCircles);
-      } catch (_) {
-        // A scene redraw may already have cleared these annotations.
-      }
-      _hoverPulseCircles.clear();
+    final generation = ++_hoverPulseGeneration;
+    _hoverPulseTimer?.cancel();
+    _hoverPulseTimer = null;
+    final previous = _hoverPulseSymbols.map((pulse) => pulse.symbol).toList();
+    _hoverPulseSymbols.clear();
+    if (previous.isNotEmpty) {
+      // Removing annotations can involve a platform round trip. Do not make
+      // the next hover wait for the old wave to disappear.
+      unawaited(_removeHoverPulseSymbols(map, previous));
     }
-    final callsign = widget.hoveredCallsign.trim().toUpperCase();
-    if (callsign.isEmpty) {
-      _hoverPulseTimer?.cancel();
-      _hoverPulseTimer = null;
-      return;
-    }
-    final markers = _renderedMarkers
-        .where((rendered) {
-          final marker = rendered.marker;
-          final index = marker.contactIndex;
-          return index != null &&
-              !rendered.group.isCluster &&
-              index < _scene.contacts.length &&
-              _scene.contacts[index].latest.callsign.trim().toUpperCase() ==
-                  callsign;
-        })
-        .map((rendered) => rendered.marker);
-    for (final marker in markers) {
-      final bounds = GridLocator.bounds(marker.grid);
-      if (bounds == null) continue;
+    if (!mounted || generation != _hoverPulseGeneration) return;
+    final callsign =
+        (widget.hoveredCallsignListenable?.value ?? widget.hoveredCallsign)
+            .trim()
+            .toUpperCase();
+    if (callsign.isEmpty) return;
+    final targets = _renderedMarkers.where((rendered) {
+      final indices = rendered.group.contactIndices;
+      return indices.any(
+        (index) =>
+            index < _scene.contacts.length &&
+            _scene.contacts[index].latest.callsign.trim().toUpperCase() ==
+                callsign,
+      );
+    });
+    await map.setSymbolIconAllowOverlap(true);
+    await map.setSymbolIconIgnorePlacement(true);
+    for (final target in targets) {
+      if (generation != _hoverPulseGeneration) return;
+      final color = target.group.isCluster ? '#000000' : target.marker.color;
+      final imageId = await _waveImage(map, color);
       for (var wave = 0; wave < 2; wave++) {
-        _hoverPulseCircles.add(
-          await map.addCircle(
-            CircleOptions(
-              geometry: LatLng(bounds.centerLatitude, bounds.centerLongitude),
-              circleColor: marker.color,
-              circleRadius: 7,
-              circleOpacity: 0,
-              circleStrokeColor: marker.color,
-              circleStrokeWidth: 2.5,
-              circleStrokeOpacity: wave == 0 ? 0.75 : 0,
-            ),
+        final symbol = await map.addSymbol(
+          SymbolOptions(
+            geometry: target.position,
+            iconImage: imageId,
+            iconSize: 0.25,
+            iconOpacity: wave == 0 ? 0.75 : 0,
           ),
+        );
+        if (generation != _hoverPulseGeneration || !mounted) {
+          try {
+            await map.removeSymbol(symbol);
+          } catch (_) {
+            // A scene redraw may already have cleared this symbol.
+          }
+          return;
+        }
+        _hoverPulseSymbols.add(
+          _HoverPulseSymbol(symbol, target, wave == 0 ? 0 : 0.5),
         );
       }
     }
-    if (_hoverPulseCircles.isEmpty) {
-      _hoverPulseTimer?.cancel();
-      _hoverPulseTimer = null;
-      return;
-    }
-    if (_hoverPulseCircles.isNotEmpty && _hoverPulseTimer == null) {
+    if (_hoverPulseSymbols.isNotEmpty && generation == _hoverPulseGeneration) {
       _hoverPulseTimer = Timer.periodic(
-        const Duration(milliseconds: 45),
+        const Duration(milliseconds: 60),
         (_) => unawaited(_animateHoverPulse()),
       );
     }
   }
 
+  Future<void> _removeHoverPulseSymbols(
+    MapLibreMapController map,
+    List<Symbol> symbols,
+  ) async {
+    try {
+      await map.removeSymbols(symbols);
+    } catch (_) {
+      // A scene redraw may already have cleared these annotations.
+    }
+  }
+
   Future<void> _animateHoverPulse() async {
     final map = controller;
-    if (map == null || !mounted || _hoverPulseCircles.isEmpty) return;
-    _hoverPulseProgress = (_hoverPulseProgress + 0.035) % 1;
-    for (var index = 0; index < _hoverPulseCircles.length; index++) {
-      final circle = _hoverPulseCircles[index];
-      final phase = index.isEven ? 0.0 : 0.5;
-      final progress = (_hoverPulseProgress + phase) % 1;
-      final radius = 7 + 18 * progress;
-      final opacity = 0.75 * (1 - progress);
-      try {
-        await map.updateCircle(
-          circle,
-          CircleOptions(circleRadius: radius, circleStrokeOpacity: opacity),
-        );
-      } catch (_) {
-        // The map can clear annotations while a redraw is in flight.
-      }
+    if (map == null ||
+        !mounted ||
+        _hoverPulseSymbols.isEmpty ||
+        _hoverPulseAnimating) {
+      return;
+    }
+    _hoverPulseAnimating = true;
+    try {
+      _hoverPulseProgress = (_hoverPulseProgress + 0.035) % 1;
+      final pulses = List<_HoverPulseSymbol>.of(_hoverPulseSymbols);
+      await Future.wait(
+        pulses.map((pulse) async {
+          final progress = (_hoverPulseProgress + pulse.phase) % 1;
+          final size = 0.25 + 0.55 * progress;
+          final opacity = 0.75 * (1 - progress);
+          try {
+            await map.updateSymbol(
+              pulse.symbol,
+              SymbolOptions(
+                geometry: pulse.target.position,
+                iconSize: size,
+                iconOpacity: opacity,
+              ),
+            );
+          } catch (_) {
+            // The map can clear annotations while a redraw is in flight.
+          }
+        }),
+      );
+    } finally {
+      _hoverPulseAnimating = false;
     }
   }
 
@@ -916,6 +981,19 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
               rendered.symbol!,
               SymbolOptions(geometry: position),
             );
+          }
+          rendered.position = position;
+          for (final pulse in _hoverPulseSymbols) {
+            if (identical(pulse.target, rendered)) {
+              try {
+                await map.updateSymbol(
+                  pulse.symbol,
+                  SymbolOptions(geometry: position),
+                );
+              } catch (_) {
+                // The pulse can be cleared while the camera is moving.
+              }
+            }
           }
         }
       } while (_repositionRequested && mounted);
@@ -1076,6 +1154,10 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
         markersChanged ||
         _renderedShowPrecision != widget.settings.showPrecision;
     if (markersChanged) {
+      _hoverPulseGeneration++;
+      _hoverPulseTimer?.cancel();
+      _hoverPulseTimer = null;
+      _hoverPulseSymbols.clear();
       await map.clearCircles();
       await map.clearSymbols();
     }
@@ -1139,7 +1221,9 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
             ),
             {'clusterIndices': group.contactIndices},
           );
-          renderedMarkers.add(_RenderedContactMarker(group, symbol: symbol));
+          renderedMarkers.add(
+            _RenderedContactMarker(group, position: position, symbol: symbol),
+          );
           continue;
         }
         if (marker.warning) {
@@ -1187,7 +1271,9 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
             ),
             {'contactIndex': marker.contactIndex},
           );
-          renderedMarkers.add(_RenderedContactMarker(group, symbol: symbol));
+          renderedMarkers.add(
+            _RenderedContactMarker(group, position: position, symbol: symbol),
+          );
           continue;
         }
         final circle = await map.addCircle(
@@ -1203,7 +1289,9 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
           ),
           {'contactIndex': marker.contactIndex},
         );
-        renderedMarkers.add(_RenderedContactMarker(group, circle: circle));
+        renderedMarkers.add(
+          _RenderedContactMarker(group, position: position, circle: circle),
+        );
         assert(circle.id.isNotEmpty);
       }
       _renderedMarkers = renderedMarkers;
@@ -1553,6 +1641,30 @@ class _OfflineContactsMapState extends State<OfflineContactsMap>
     picture.dispose();
     painter.dispose();
     _clusterImages[count] = imageId;
+    return imageId;
+  }
+
+  Future<String> _waveImage(MapLibreMapController map, String color) async {
+    var imageId = _waveImages[color];
+    if (imageId != null) return imageId;
+    imageId = 'map-wave-${color.replaceFirst('#', '')}';
+    final recorder = ui.PictureRecorder();
+    final canvas = Canvas(recorder);
+    canvas.drawCircle(
+      const Offset(32, 32),
+      27,
+      Paint()
+        ..color = Color(int.parse(color.replaceFirst('#', 'FF'), radix: 16))
+        ..style = PaintingStyle.stroke
+        ..strokeWidth = 4,
+    );
+    final picture = recorder.endRecording();
+    final bitmap = await picture.toImage(64, 64);
+    final bytes = await bitmap.toByteData(format: ui.ImageByteFormat.png);
+    await map.addImage(imageId, bytes!.buffer.asUint8List());
+    bitmap.dispose();
+    picture.dispose();
+    _waveImages[color] = imageId;
     return imageId;
   }
 

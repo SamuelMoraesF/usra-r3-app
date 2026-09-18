@@ -148,6 +148,20 @@ void main() {
     await tester.pumpAndSettle();
     expect(find.text('Ainda não houve nenhum contato.'), findsNothing);
     expect(find.textContaining('Rede 14/09'), findsOneWidget);
+    // Hover must not rebuild HomePage or recreate its database streams.
+    final card = find.byType(Dismissible).last;
+    final region = tester.widget<MouseRegion>(
+      find.ancestor(of: card, matching: find.byType(MouseRegion)).first,
+    );
+    final originalCard = tester.widget(card);
+    for (var i = 0; i < 3; i++) {
+      region.onEnter!(const PointerEnterEvent());
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(identical(tester.widget(card), originalCard), isTrue);
+      region.onExit!(const PointerExitEvent());
+      await tester.pump(const Duration(milliseconds: 16));
+      expect(identical(tester.widget(card), originalCard), isTrue);
+    }
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();
     debugDefaultTargetPlatformOverride = null;

@@ -648,7 +648,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   double _lastKeyboardInset = 0;
   int _mapFocusRequest = 0;
   String _lastMapFocusGrid = '';
-  String _hoveredCallsign = '';
+  final _hoveredCallsign = ValueNotifier<String>('');
   DateTime? _networkStartedAt;
   final _expandedClosedNetworks = <DateTime>{};
   StationDisconnections _disconnections = StationDisconnections();
@@ -863,6 +863,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _presenceTimer?.cancel();
     _panelScrollController.dispose();
     _mapBearing.dispose();
+    _hoveredCallsign.dispose();
     _mapElevationRange.dispose();
     _callsignFocusNode.dispose();
     _quickContactFocusNode.dispose();
@@ -1580,8 +1581,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   void _setHoveredCallsign(String callsign) {
     final normalized = callsign.trim().toUpperCase();
-    if (_hoveredCallsign == normalized) return;
-    setState(() => _hoveredCallsign = normalized);
+    _hoveredCallsign.value = normalized;
   }
 
   Map<String, String> _currentContactMarkerColors(List<LogEntry> entries) {
@@ -2091,7 +2091,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               operatorCallsign: widget.profile.callsign,
               focusGrid: _lastMapFocusGrid,
               focusRequest: _mapFocusRequest,
-              hoveredCallsign: _hoveredCallsign,
+              hoveredCallsignListenable: _hoveredCallsign,
               maxAgeHours: widget.mapMaxAgeHours,
               warningMinutes: widget.mapWarningMinutes,
               sessionStartedAt: _networkStartedAt,
