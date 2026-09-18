@@ -57,14 +57,31 @@ void main() {
     expect(quickField.autocorrect, isFalse);
     expect(quickField.enableSuggestions, isFalse);
     final controller = tester.widget<TextField>(input).controller!;
+    final originalLogs = tester.widget(
+      find.byType(StreamBuilder<List<LogEntry>>).first,
+    );
     await tester.enterText(input, 'PY3AA ');
     await tester.pump();
     await tester.pump(const Duration(milliseconds: 100));
     expect(find.text('MARIA GG30CH 25W FIXA AC ST'), findsOneWidget);
+    expect(
+      identical(
+        tester.widget(find.byType(StreamBuilder<List<LogEntry>>).first),
+        originalLogs,
+      ),
+      isTrue,
+    );
 
     await tester.sendKeyEvent(LogicalKeyboardKey.tab);
     await tester.pump();
     expect(controller.text, 'PY3AA MARIA GG30CH 25W FIXA AC ST');
+    expect(
+      identical(
+        tester.widget(find.byType(StreamBuilder<List<LogEntry>>).first),
+        originalLogs,
+      ),
+      isTrue,
+    );
     expect(find.text('MARIA GG30CH 25W FIXA AC ST'), findsNothing);
     await tester.pumpWidget(const SizedBox.shrink());
     await tester.pumpAndSettle();

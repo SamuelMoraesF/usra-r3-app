@@ -638,6 +638,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   final quickContact = TextEditingController();
   QuickContactDraft _quickDraft = const QuickContactDraft();
   QuickContactCompletion? _quickCompletion;
+  final _quickFormRevision = ValueNotifier<int>(0);
+  late final Stream<List<LogEntry>> _logsStream = widget.database.watchLogs();
   int _quickAutofillRevision = 0;
   final _panelScrollController = ScrollController();
   final _mapBearing = ValueNotifier<double>(0);
@@ -864,6 +866,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     _panelScrollController.dispose();
     _mapBearing.dispose();
     _hoveredCallsign.dispose();
+    _quickFormRevision.dispose();
     _mapElevationRange.dispose();
     _callsignFocusNode.dispose();
     _quickContactFocusNode.dispose();
@@ -1028,7 +1031,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                 : _buildContactForm(useBottomPanels),
         ];
         final logs = StreamBuilder<List<LogEntry>>(
-          stream: widget.database.watchLogs(),
+          stream: _logsStream,
           builder: (context, snapshot) {
             final allEntries = snapshot.data ?? const <LogEntry>[];
             final presence = _currentPresence(allEntries);
@@ -1606,7 +1609,12 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     return scene.markerColorsByCallsign;
   }
 
-  Widget _buildQuickContactForm() => Column(
+  Widget _buildQuickContactForm() => ValueListenableBuilder<int>(
+    valueListenable: _quickFormRevision,
+    builder: (context, revision, child) => _quickContactForm(),
+  );
+
+  Widget _quickContactForm() => Column(
     crossAxisAlignment: CrossAxisAlignment.stretch,
     children: [
       Row(
@@ -1739,10 +1747,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   void _onQuickContactChanged(String value) {
     final revision = ++_quickAutofillRevision;
     final draft = parseQuickContact(value);
-    setState(() {
-      _quickDraft = draft;
-      _quickCompletion = null;
-    });
+    _quickDraft = draft;
+    _quickCompletion = null;
+    _quickFormRevision.value++;
 
     final selection = quickContact.selection;
     final hasMultipleTokens = value.trim().split(RegExp(r'\s+')).length > 1;
@@ -1795,7 +1802,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               powerWatts: latestOnFrequency.powerWatts,
             ),
     );
-    setState(() => _quickCompletion = completion);
+    _quickCompletion = completion;
+    _quickFormRevision.value++;
   }
 
   void _acceptQuickCompletion() {
@@ -1815,10 +1823,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
       text: completed,
       selection: TextSelection.collapsed(offset: start + inserted.length),
     );
-    setState(() {
-      _quickDraft = parseQuickContact(completed);
-      _quickCompletion = null;
-    });
+    _quickDraft = parseQuickContact(completed);
+    _quickCompletion = null;
+    _quickFormRevision.value++;
   }
 
   Widget _buildQuickDraftPreview() {
@@ -2079,7 +2086,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
 
   Widget _buildMap({bool controlsInMap = true}) =>
       StreamBuilder<List<LogEntry>>(
-        stream: widget.database.watchLogs(),
+        stream: _logsStream,
         builder: (context, snapshot) => Padding(
           padding: const EdgeInsets.all(12),
           child: ClipRRect(
