@@ -52,6 +52,10 @@ void main() {
           ),
         );
         await tester.pumpAndSettle();
+        if (zone == DisplayTimeZone.values.first) {
+          await tester.tap(find.byType(ExpansionTile));
+          await tester.pumpAndSettle();
+        }
         expect(
           find.text(
             zone == DisplayTimeZone.utc
