@@ -12,6 +12,8 @@ class SessionHistory extends StatefulWidget {
     required this.title,
     required this.card,
     required this.export,
+    this.map,
+    this.mapSession,
     this.exporting,
   });
   final UsraDatabase database;
@@ -20,6 +22,8 @@ class SessionHistory extends StatefulWidget {
   final String Function(DateTime?, DateTime?) title;
   final Widget Function(LogEntry, List<LogEntry>) card;
   final void Function(DateTime) export;
+  final void Function(DateTime, DateTime)? map;
+  final DateTime? mapSession;
   final DateTime? exporting;
   @override
   State<SessionHistory> createState() => _SessionHistoryState();
@@ -161,12 +165,36 @@ class _HistorySessionState extends State<_HistorySession> {
     ),
     subtitle: Text('${widget.summary.count} contatos'),
     trailing: widget.summary.startedAt != null && widget.summary.endedAt != null
-        ? IconButton(
-            tooltip: 'Exportar relatório',
-            icon: const Icon(Icons.summarize_outlined),
-            onPressed: widget.owner.exporting != null
-                ? null
-                : () => widget.owner.export(widget.summary.startedAt!),
+        ? Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              if (widget.owner.activeSession == null)
+                IconButton(
+                  key: ValueKey(
+                    'session-map-button-${widget.summary.startedAt}',
+                  ),
+                  tooltip: widget.owner.mapSession == widget.summary.startedAt
+                      ? 'Ocultar mapa da sessão'
+                      : 'Mostrar sessão no mapa',
+                  isSelected:
+                      widget.owner.mapSession == widget.summary.startedAt,
+                  selectedIcon: const Icon(Icons.map),
+                  icon: const Icon(Icons.map_outlined),
+                  onPressed: widget.owner.map == null
+                      ? null
+                      : () => widget.owner.map!(
+                          widget.summary.startedAt!,
+                          widget.summary.endedAt!,
+                        ),
+                ),
+              IconButton(
+                tooltip: 'Exportar relatório',
+                icon: const Icon(Icons.summarize_outlined),
+                onPressed: widget.owner.exporting != null
+                    ? null
+                    : () => widget.owner.export(widget.summary.startedAt!),
+              ),
+            ],
           )
         : null,
     children: [

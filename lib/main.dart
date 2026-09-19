@@ -662,6 +662,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
   String _lastMapFocusGrid = '';
   final _hoveredCallsign = ValueNotifier<String>('');
   DateTime? _networkStartedAt;
+  DateTime? _historicalMapSession;
+  DateTime? _historicalMapEndedAt;
   StationDisconnections _disconnections = StationDisconnections();
   Timer? _presenceTimer;
   String? _prefilledPresenceKey;
@@ -706,7 +708,13 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString('network.startedAt', started.toIso8601String());
     await preferences.remove('network.closedAt');
-    if (mounted) setState(() => _networkStartedAt = started);
+    if (mounted) {
+      setState(() {
+        _historicalMapSession = null;
+        _historicalMapEndedAt = null;
+        _networkStartedAt = started;
+      });
+    }
   }
 
   Future<void> _closeNetwork() async {
@@ -719,6 +727,19 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     final preferences = await SharedPreferences.getInstance();
     await preferences.setString('network.closedAt', ended.toIso8601String());
     if (mounted) setState(() => _networkStartedAt = null);
+  }
+
+  void _toggleHistoricalMap(DateTime startedAt, DateTime endedAt) {
+    if (_networkStartedAt != null) return;
+    setState(() {
+      if (_historicalMapSession == startedAt) {
+        _historicalMapSession = null;
+        _historicalMapEndedAt = null;
+      } else {
+        _historicalMapSession = startedAt;
+        _historicalMapEndedAt = endedAt;
+      }
+    });
   }
 
   Future<bool> _confirmCloseNetwork() async {
@@ -952,7 +973,9 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         final mobile =
             defaultTargetPlatform == TargetPlatform.android ||
             defaultTargetPlatform == TargetPlatform.iOS;
-        final showMap = kIsWeb || mobile;
+        final showMap =
+            (kIsWeb || mobile) &&
+            (_networkStartedAt != null || _historicalMapSession != null);
         final screen = MediaQuery.sizeOf(context);
         final useBottomPanels =
             showMap &&
@@ -1215,6 +1238,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   card: (entry, page) =>
                       _buildSavedLogCard(entry, page, const {}),
                   export: _exportSessionReport,
+                  map: _toggleHistoricalMap,
+                  mapSession: _historicalMapSession,
                   exporting: _exportingReportStartedAt,
                 ),
               ],
@@ -2021,44 +2046,54 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
     ),
   );
 
-  Widget _buildMap({bool controlsInMap = true}) =>
-      StreamBuilder<List<LogEntry>>(
-        stream: _logsStream,
-        builder: (context, snapshot) => Padding(
-          padding: const EdgeInsets.all(12),
-          child: ClipRRect(
-            borderRadius: BorderRadius.circular(12),
-            child: OfflineContactsMap(
-              entries: snapshot.data ?? const [],
-              entriesLoaded: snapshot.hasData,
-              operatorGrid: widget.profile.grid,
-              operatorCallsign: widget.profile.callsign,
-              focusGrid: _lastMapFocusGrid,
-              focusRequest: _mapFocusRequest,
-              hoveredCallsignListenable: _hoveredCallsign,
-              maxAgeHours: widget.mapMaxAgeHours,
-              warningMinutes: widget.mapWarningMinutes,
-              sessionStartedAt: _networkStartedAt,
-              disconnections: _disconnections,
-              onDisconnect: _disconnectStation,
-              mergePrecision: widget.mergePrecision,
-              lastOnly: widget.lastOnly,
-              selectedMode: frequency,
-              selectedFrequencyMhz: frequency == _simplexFrequency
-                  ? 146.52
-                  : 145.37,
-              settings: widget.mapSettings,
-              onSettingsChanged: widget.onMapSettingsChanged,
-              onBearingChanged: (bearing) => _mapBearing.value = bearing,
-              onElevationRangeChanged: (range) =>
-                  _mapElevationRange.value = range,
-              onResetNorthChanged: (reset) => _resetMapNorth = reset,
-              controlsInMap: controlsInMap,
-              onExportPng: _exportMapPng,
-            ),
+  Widget _buildMap({bool controlsInMap = true}) {
+    final historical = _historicalMapSession != null;
+    final sessionStartedAt = historical
+        ? _historicalMapSession
+        : _networkStartedAt;
+    final stream = historical
+        ? widget.database.watchSessionEntries(startedAt: _historicalMapSession!)
+        : _logsStream;
+    return StreamBuilder<List<LogEntry>>(
+      stream: stream,
+      builder: (context, snapshot) => Padding(
+        padding: const EdgeInsets.all(12),
+        child: ClipRRect(
+          borderRadius: BorderRadius.circular(12),
+          child: OfflineContactsMap(
+            entries: snapshot.data ?? const [],
+            entriesLoaded: snapshot.hasData,
+            operatorGrid: widget.profile.grid,
+            operatorCallsign: widget.profile.callsign,
+            focusGrid: _lastMapFocusGrid,
+            focusRequest: _mapFocusRequest,
+            hoveredCallsignListenable: _hoveredCallsign,
+            maxAgeHours: widget.mapMaxAgeHours,
+            warningMinutes: widget.mapWarningMinutes,
+            sessionStartedAt: sessionStartedAt,
+            asOf: historical ? _historicalMapEndedAt : null,
+            includeClosedSession: historical,
+            disconnections: _disconnections,
+            onDisconnect: _disconnectStation,
+            mergePrecision: widget.mergePrecision,
+            lastOnly: widget.lastOnly,
+            selectedMode: frequency,
+            selectedFrequencyMhz: frequency == _simplexFrequency
+                ? 146.52
+                : 145.37,
+            settings: widget.mapSettings,
+            onSettingsChanged: widget.onMapSettingsChanged,
+            onBearingChanged: (bearing) => _mapBearing.value = bearing,
+            onElevationRangeChanged: (range) =>
+                _mapElevationRange.value = range,
+            onResetNorthChanged: (reset) => _resetMapNorth = reset,
+            controlsInMap: controlsInMap,
+            onExportPng: _exportMapPng,
           ),
         ),
-      );
+      ),
+    );
+  }
 
   Widget _buildMapBottomOverlay() {
     final showCompass = widget.mapSettings.showCompass;

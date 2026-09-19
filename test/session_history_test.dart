@@ -86,6 +86,71 @@ void main() {
     },
   );
 
+  testWidgets('closed sessions expose a togglable map button before export', (
+    tester,
+  ) async {
+    final db = CountingDatabase();
+    final session = DateTime.utc(2026, 9, 10);
+    final ended = session.add(const Duration(hours: 2));
+    addTearDown(db.close);
+    await db.saveLog(
+      callsign: 'PY3MAP',
+      operatorName: 'Mapa',
+      location: 'GG30CH',
+      operatorGrid: 'GG30DH',
+      powerWatts: 5,
+      stationType: 'P',
+      traffic: 'S',
+      networkStartedAt: session,
+    );
+    await db.closeNetwork(session, ended);
+    final selected = <(DateTime, DateTime)>[];
+
+    Future<void> pumpHistory({DateTime? active, DateTime? mapSession}) async {
+      await tester.pumpWidget(
+        MaterialApp(
+          home: Scaffold(
+            body: SessionHistory(
+              database: db,
+              frequency: 'repeater',
+              activeSession: active,
+              mapSession: mapSession,
+              title: (_, _) => 'Histórico',
+              export: (_) {},
+              map: (start, end) => selected.add((start, end)),
+              card: (entry, entries) => Text(entry.callsign),
+            ),
+          ),
+        ),
+      );
+      await tester.pumpAndSettle();
+    }
+
+    await pumpHistory();
+    final button = find.byKey(
+      ValueKey('session-map-button-$session'),
+    );
+    expect(button, findsOneWidget);
+    expect(
+      tester.widget<IconButton>(button).tooltip,
+      'Mostrar sessão no mapa',
+    );
+    await tester.tap(button);
+    expect(selected, [(session, ended)]);
+
+    await pumpHistory(mapSession: session);
+    expect(tester.widget<IconButton>(button).isSelected, isTrue);
+    expect(
+      tester.widget<IconButton>(button).tooltip,
+      'Ocultar mapa da sessão',
+    );
+
+    await pumpHistory(active: session);
+    expect(button, findsNothing);
+    await tester.pumpWidget(const SizedBox.shrink());
+    await tester.pumpAndSettle();
+  });
+
   test(
     'session pages preserve ties, frequency, UTC and legacy null sessions',
     () async {

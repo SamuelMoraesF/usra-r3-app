@@ -314,6 +314,15 @@ class UsraDatabase extends _$UsraDatabase {
             ..limit(limit))
           .get();
 
+  Stream<List<LogEntry>> watchSessionEntries({required DateTime startedAt}) =>
+      (select(logEntries)
+            ..where((e) => e.networkStartedAt.equalsValue(startedAt))
+            ..orderBy([
+              (e) => OrderingTerm.asc(e.createdAt),
+              (e) => OrderingTerm.asc(e.id),
+            ]))
+          .watch();
+
   Future<LogEntry?> latestLogForCallsign(String value, {String? frequency}) {
     return (select(logEntries)
           ..where((entry) => entry.callsign.equals(value.trim().toUpperCase()))
