@@ -127,23 +127,15 @@ void main() {
     }
 
     await pumpHistory();
-    final button = find.byKey(
-      ValueKey('session-map-button-$session'),
-    );
+    final button = find.byKey(ValueKey('session-map-button-$session'));
     expect(button, findsOneWidget);
-    expect(
-      tester.widget<IconButton>(button).tooltip,
-      'Mostrar sessão no mapa',
-    );
+    expect(tester.widget<IconButton>(button).tooltip, 'Mostrar sessão no mapa');
     await tester.tap(button);
     expect(selected, [(session, ended)]);
 
     await pumpHistory(mapSession: session);
     expect(tester.widget<IconButton>(button).isSelected, isTrue);
-    expect(
-      tester.widget<IconButton>(button).tooltip,
-      'Ocultar mapa da sessão',
-    );
+    expect(tester.widget<IconButton>(button).tooltip, 'Ocultar mapa da sessão');
 
     await pumpHistory(active: session);
     expect(button, findsNothing);
