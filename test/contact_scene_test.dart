@@ -63,6 +63,36 @@ ContactScene scene(
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
 
+  test('inactive map shows only the operator and selected repeater', () {
+    final repeater = buildContactScene(
+      const [],
+      now: now,
+      sessionStartedAt: null,
+      maxAgeHours: 3,
+      operatorGrid: userGrid,
+      repeaterGrid: defaultRepeaterGrid,
+      selectedMode: 'repeater',
+      selectedFrequencyMhz: 145.37,
+    );
+    expect(repeater.contacts, isEmpty);
+    expect(repeater.markers.map((marker) => marker.kind), [
+      MarkerKind.operator,
+      MarkerKind.currentRepeater,
+    ]);
+
+    final simplex = buildContactScene(
+      const [],
+      now: now,
+      sessionStartedAt: null,
+      maxAgeHours: 3,
+      operatorGrid: userGrid,
+      repeaterGrid: defaultRepeaterGrid,
+      selectedMode: 'simplex',
+      selectedFrequencyMhz: 146.52,
+    );
+    expect(simplex.markers.map((marker) => marker.kind), [MarkerKind.operator]);
+  });
+
   test('callsign labels include hidden stations and exclude the operator', () {
     final result = scene([
       qso(callsign: 'PY3SELF'),

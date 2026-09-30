@@ -92,6 +92,8 @@ void main() {
     final db = CountingDatabase();
     final session = DateTime.utc(2026, 9, 10);
     final ended = session.add(const Duration(hours: 2));
+    final otherSession = DateTime.utc(2026, 9, 11);
+    final otherEnded = otherSession.add(const Duration(hours: 3));
     addTearDown(db.close);
     await db.saveLog(
       callsign: 'PY3MAP',
@@ -104,6 +106,17 @@ void main() {
       networkStartedAt: session,
     );
     await db.closeNetwork(session, ended);
+    await db.saveLog(
+      callsign: 'PY3OTHER',
+      operatorName: 'Outra rede',
+      location: 'GG30CH',
+      operatorGrid: 'GG30DH',
+      powerWatts: 5,
+      stationType: 'P',
+      traffic: 'S',
+      networkStartedAt: otherSession,
+    );
+    await db.closeNetwork(otherSession, otherEnded);
     final selected = <(DateTime, DateTime)>[];
 
     Future<void> pumpHistory({DateTime? active, DateTime? mapSession}) async {
@@ -128,14 +141,32 @@ void main() {
 
     await pumpHistory();
     final button = find.byKey(ValueKey('session-map-button-$session'));
+    final otherButton = find.byKey(
+      ValueKey('session-map-button-$otherSession'),
+    );
     expect(button, findsOneWidget);
+    expect(otherButton, findsOneWidget);
     expect(tester.widget<IconButton>(button).tooltip, 'Mostrar sessão no mapa');
     await tester.tap(button);
     expect(selected, [(session, ended)]);
 
-    await pumpHistory(mapSession: session);
-    expect(tester.widget<IconButton>(button).isSelected, isTrue);
-    expect(tester.widget<IconButton>(button).tooltip, 'Ocultar mapa da sessão');
+    await tester.tap(otherButton);
+    expect(selected, [(session, ended), (otherSession, otherEnded)]);
+
+    await pumpHistory(mapSession: otherSession);
+    expect(tester.widget<IconButton>(button).isSelected, isFalse);
+    expect(tester.widget<IconButton>(otherButton).isSelected, isTrue);
+    expect(
+      tester.widget<IconButton>(otherButton).tooltip,
+      'Ocultar mapa da sessão',
+    );
+
+    await tester.tap(otherButton);
+    expect(selected, [
+      (session, ended),
+      (otherSession, otherEnded),
+      (otherSession, otherEnded),
+    ]);
 
     await pumpHistory(active: session);
     expect(button, findsNothing);

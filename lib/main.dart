@@ -973,9 +973,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         final mobile =
             defaultTargetPlatform == TargetPlatform.android ||
             defaultTargetPlatform == TargetPlatform.iOS;
-        final showMap =
-            (kIsWeb || mobile) &&
-            (_networkStartedAt != null || _historicalMapSession != null);
+        final showMap = kIsWeb || mobile;
         final screen = MediaQuery.sizeOf(context);
         final useBottomPanels =
             showMap &&

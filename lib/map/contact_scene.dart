@@ -129,7 +129,17 @@ ContactScene buildContactScene(
     includeAllFrequencies: true,
     includeClosedSession: includeClosedSession,
   );
-  if (sessionStartedAt == null) return const ContactScene([], [], []);
+  if (sessionStartedAt == null) {
+    final markers = <ContactMarker>[];
+    if (GridLocator.bounds(operatorGrid) != null) {
+      markers.add(ContactMarker(operatorGrid, MarkerKind.operator));
+    }
+    if (selectedMode == 'repeater' &&
+        GridLocator.bounds(repeaterGrid) != null) {
+      markers.add(ContactMarker(repeaterGrid, MarkerKind.currentRepeater));
+    }
+    return ContactScene([], markers, []);
+  }
   final recent = presence.entries;
   final warningKeys = presence.warnings.map(stationPresenceKey).toSet();
   bool selected(LogEntry e) =>

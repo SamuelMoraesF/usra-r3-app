@@ -84,25 +84,23 @@ void main() {
     expect(presence([contact(age: const Duration(hours: 4))]).entries, isEmpty);
   });
 
-  test(
-    'closed session is completely empty including operator, towers and routes',
-    () {
-      final result = scene([contact()], closed: true);
-      expect(result.contacts, isEmpty);
-      expect(result.markers, isEmpty);
-      expect(result.routes, isEmpty);
-      expect(
-        stationPresence(
-          [contact()],
-          now: now,
-          sessionStartedAt: null,
-          mode: 'simplex',
-          frequencyMhz: 146.52,
-        ).warnings,
-        isEmpty,
-      );
-    },
-  );
+  test('inactive session has only the current operator marker', () {
+    final result = scene([contact()], closed: true);
+    expect(result.contacts, isEmpty);
+    expect(result.markers, hasLength(1));
+    expect(result.markers.single.kind, MarkerKind.operator);
+    expect(result.routes, isEmpty);
+    expect(
+      stationPresence(
+        [contact()],
+        now: now,
+        sessionStartedAt: null,
+        mode: 'simplex',
+        frequencyMhz: 146.52,
+      ).warnings,
+      isEmpty,
+    );
+  });
 
   test(
     'another session, closed records, unassigned records and future contacts are excluded',
