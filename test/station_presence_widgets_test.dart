@@ -194,7 +194,10 @@ void main() {
                 saved = await Navigator.of(context).push(
                   MaterialPageRoute(
                     builder: (_) => SettingsPage(
-                      profile: const OperatorProfile(),
+                      profile: const OperatorProfile(
+                        callsign: 'PY3TEST',
+                        name: 'Teste',
+                      ),
                       theme: AppTheme.system,
                       mergePrecision: true,
                       lastOnly: false,

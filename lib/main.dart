@@ -105,7 +105,7 @@ class OperatorProfile {
 
 String? validateCallsign(String? value, {bool required = true}) {
   final normalized = value?.trim() ?? '';
-  if (normalized.isEmpty) return required ? 'Informe o indicativo' : null;
+  if (normalized.isEmpty) return required ? 'Campo obrigatório' : null;
   return RegExp(r'\d').hasMatch(normalized)
       ? null
       : 'O indicativo deve conter pelo menos um número';
@@ -1240,8 +1240,11 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   frequency: frequency,
                   activeSession: _networkStartedAt,
                   title: (start, end) => _networkTitle(start, end),
-                  card: (entry, page) =>
-                      _buildSavedLogCard(entry, page, const {}),
+                  card: (entry, page) => _buildSavedLogCard(
+                    entry,
+                    page,
+                    _historicalContactMarkerColors(page),
+                  ),
                   export: _exportSessionReport,
                   map: _toggleHistoricalMap,
                   mapSession: _historicalMapSession,
@@ -1547,6 +1550,21 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
         ),
       ),
     );
+  }
+
+  Map<String, String> _historicalContactMarkerColors(List<LogEntry> entries) {
+    final colors = <String, String>{};
+    for (final entry in entries) {
+      colors.putIfAbsent(
+        entry.callsign.trim().toUpperCase(),
+        () => contactMarkerColorHex(
+          MarkerKind.selectedContact,
+          stationType: entry.stationType,
+          energy: entry.energy,
+        ),
+      );
+    }
+    return colors;
   }
 
   void _setHoveredCallsign(String callsign) {

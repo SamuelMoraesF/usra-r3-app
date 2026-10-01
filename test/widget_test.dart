@@ -257,7 +257,11 @@ void main() {
       expect(input(label).decoration!.errorText, 'Campo obrigatório');
       await tester.enterText(
         field(label),
-        label == 'Potência (W)' ? '5' : 'TESTE',
+        label == 'Potência (W)'
+            ? '5'
+            : label == 'Indicativo'
+            ? 'TESTE1'
+            : 'TESTE',
       );
       await tester.pump();
       expect(input(label).decoration!.errorText, isNull);
