@@ -61,7 +61,7 @@ class _GridLocatorFieldState extends State<GridLocatorField> {
         _info.isValid &&
         _controller.text != _info.normalized) {
       _controller.value = _controller.value.copyWith(
-        text: _info.normalized.toLowerCase(),
+        text: _info.normalized,
         selection: TextSelection.collapsed(offset: _info.normalized.length),
       );
     }
@@ -78,8 +78,8 @@ class _GridLocatorFieldState extends State<GridLocatorField> {
       focusNode: _focusNode,
       autocorrect: false,
       enableSuggestions: false,
-      textCapitalization: TextCapitalization.none,
-      inputFormatters: [LowerCaseFormatter()],
+      textCapitalization: TextCapitalization.characters,
+      inputFormatters: [UpperCaseGridFormatter()],
       textInputAction: TextInputAction.next,
       onSubmitted: widget.onSubmitted,
       decoration: InputDecoration(
@@ -100,13 +100,13 @@ class _GridLocatorFieldState extends State<GridLocatorField> {
   }
 }
 
-class LowerCaseFormatter extends TextInputFormatter {
+class UpperCaseGridFormatter extends TextInputFormatter {
   @override
   TextEditingValue formatEditUpdate(
     TextEditingValue oldValue,
     TextEditingValue newValue,
   ) => newValue.copyWith(
-    text: newValue.text.toLowerCase(),
+    text: newValue.text.toUpperCase(),
     selection: newValue.selection,
   );
 }

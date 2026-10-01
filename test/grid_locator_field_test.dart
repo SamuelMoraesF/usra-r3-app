@@ -15,12 +15,12 @@ void main() {
 
     await tester.enterText(find.byType(TextField), 'GG30CH90NH');
     await tester.pump();
-    expect(controller.text, 'gg30ch90nh');
+    expect(controller.text, 'GG30CH90NH');
     expect(find.text('precisão de 40 m'), findsOneWidget);
 
     tester.binding.focusManager.primaryFocus?.unfocus();
     await tester.pump();
-    expect(controller.text, 'gg30ch90nh');
+    expect(controller.text, 'GG30CH90NH');
     controller.dispose();
   });
 
