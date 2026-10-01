@@ -284,7 +284,7 @@ class SessionReportPdfRenderer {
     entry.operatorName,
     entry.via.toUpperCase(),
     _date(entry.createdAt),
-    '${entry.operatorGrid}\n${entry.location}',
+    entry.location.toUpperCase(),
     _station(entry.stationType),
     '${entry.powerWatts} W',
     _energy(entry.energy),
