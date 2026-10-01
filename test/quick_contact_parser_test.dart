@@ -2,6 +2,16 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:usra_r3/quick_contact_parser.dart';
 
 void main() {
+  test('requires a number in the callsign', () {
+    final draft = parseQuickContact('PYSC Nome 5W PORT BAT ST');
+    expect(draft.canRegister, isFalse);
+    expect(
+      draft.errors,
+      contains('O indicativo deve conter pelo menos um número.'),
+    );
+    expect(parseQuickContact('PY3SC Nome 5W PORT BAT ST').canRegister, isTrue);
+  });
+
   test('interprets callsign, name, via and grid', () {
     final draft = parseQuickContact(
       'PY3SC SAMUEL GG30CH 5W PORT BAT ST VIA PY3MM',

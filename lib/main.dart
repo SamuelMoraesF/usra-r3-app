@@ -103,6 +103,14 @@ class OperatorProfile {
   final String grid;
 }
 
+String? validateCallsign(String? value, {bool required = true}) {
+  final normalized = value?.trim() ?? '';
+  if (normalized.isEmpty) return required ? 'Informe o indicativo' : null;
+  return RegExp(r'\d').hasMatch(normalized)
+      ? null
+      : 'O indicativo deve conter pelo menos um número';
+}
+
 class UsraR3App extends StatefulWidget {
   const UsraR3App({super.key});
 
@@ -495,8 +503,7 @@ class _SetupWizardState extends State<SetupWizard> {
                     textCapitalization: TextCapitalization.characters,
                     inputFormatters: [UpperCaseFormatter()],
                     decoration: const InputDecoration(labelText: 'Indicativo'),
-                    validator: (v) =>
-                        v!.trim().isEmpty ? 'Informe o indicativo' : null,
+                    validator: validateCallsign,
                   ),
                   const SizedBox(height: 14),
                   TextFormField(
@@ -1881,7 +1888,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               textInputAction: TextInputAction.next,
               decoration: const InputDecoration(labelText: 'Indicativo'),
               onFieldSubmitted: (_) => _viaFocusNode.requestFocus(),
-              validator: _required,
+              validator: validateCallsign,
               autovalidateMode: AutovalidateMode.onUserInteraction,
             ),
           ),
@@ -1896,6 +1903,8 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
               inputFormatters: [UpperCaseFormatter()],
               textInputAction: TextInputAction.next,
               decoration: const InputDecoration(labelText: 'Via'),
+              validator: (value) => validateCallsign(value, required: false),
+              autovalidateMode: AutovalidateMode.onUserInteraction,
               onFieldSubmitted: (_) => _operatorFocusNode.requestFocus(),
             ),
           ),
@@ -2754,7 +2763,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                             decoration: const InputDecoration(
                               labelText: 'Indicativo',
                             ),
-                            validator: _required,
+                            validator: validateCallsign,
                             autovalidateMode:
                                 AutovalidateMode.onUserInteraction,
                           ),
@@ -2769,6 +2778,10 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                             inputFormatters: [UpperCaseFormatter()],
                             textInputAction: TextInputAction.next,
                             decoration: const InputDecoration(labelText: 'Via'),
+                            validator: (value) =>
+                                validateCallsign(value, required: false),
+                            autovalidateMode:
+                                AutovalidateMode.onUserInteraction,
                           ),
                         ),
                       ],
@@ -2804,7 +2817,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                             decoration: const InputDecoration(
                               labelText: 'Potência (W)',
                             ),
-                            validator: _required,
+                            validator: validateCallsign,
                             autovalidateMode:
                                 AutovalidateMode.onUserInteraction,
                           ),
@@ -3714,6 +3727,13 @@ class _SettingsPageState extends State<SettingsPage> {
           ),
         ),
       );
+      return;
+    }
+    final callsignError = validateCallsign(callsign.text);
+    if (callsignError != null) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(SnackBar(content: Text(callsignError)));
       return;
     }
     if (!GridLocator.inspect(repeaterGrid.text).isValid) {

@@ -57,6 +57,9 @@ QuickContactDraft parseQuickContact(String source) {
   final name = <String>[];
   final message = <String>[];
   final errors = <String>[];
+  if (!RegExp(r'\d').hasMatch(callsign)) {
+    errors.add('O indicativo deve conter pelo menos um número.');
+  }
   var via = '';
   var grid = '';
   double? power;
