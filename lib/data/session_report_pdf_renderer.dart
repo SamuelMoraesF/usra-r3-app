@@ -112,7 +112,7 @@ class SessionReportPdfRenderer {
           ),
           pw.SizedBox(height: 16),
           pw.Divider(),
-          for (final frequency in const ['simplex', 'repeater'])
+          for (final frequency in const ['repeater', 'simplex'])
             ..._frequencySection(
               frequency,
               grouped[frequency] ?? const [],
