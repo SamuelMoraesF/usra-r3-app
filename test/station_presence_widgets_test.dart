@@ -146,7 +146,7 @@ void main() {
       expect(value('Nome do operador'), 'Maria');
       expect(value('Potência (W)'), '25.0');
       expect(await db.allLogs(), original);
-      await tester.tap(find.text('Registrar log'));
+      await tester.tap(find.text('Registrar'));
       await tester.pumpAndSettle();
       expect(warnings, findsNothing);
       final saved = (await db.allLogs()).last;

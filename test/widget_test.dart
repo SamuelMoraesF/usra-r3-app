@@ -251,7 +251,7 @@ void main() {
       {'simplex'},
     );
     expect(await database.allLogs(), isEmpty);
-    await tester.tap(find.text('Registrar log'));
+    await tester.tap(find.text('Registrar'));
     await tester.pumpAndSettle();
     for (final label in ['Indicativo', 'Nome do operador', 'Potência (W)']) {
       expect(input(label).decoration!.errorText, 'Campo obrigatório');

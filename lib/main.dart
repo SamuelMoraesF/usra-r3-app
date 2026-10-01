@@ -2012,7 +2012,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
           FilledButton.icon(
             onPressed: _register,
             icon: const Icon(Icons.add),
-            label: Text(fourColumns ? 'Adicionar log' : 'Registrar log'),
+            label: const Text('Registrar'),
             style: fourColumns
                 ? FilledButton.styleFrom(
                     minimumSize: const Size.fromHeight(40),

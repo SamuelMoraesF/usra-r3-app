@@ -22,7 +22,7 @@ void main() {
             ),
             submitButton: FilledButton(
               onPressed: () {},
-              child: const Text('Adicionar log'),
+              child: const Text('Registrar'),
             ),
           ),
         ),
