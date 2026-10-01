@@ -1249,6 +1249,7 @@ class _HomePageState extends State<HomePage> with WidgetsBindingObserver {
                   map: _toggleHistoricalMap,
                   mapSession: _historicalMapSession,
                   exporting: _exportingReportStartedAt,
+                  maxSessionHeight: null,
                 ),
               ],
             );

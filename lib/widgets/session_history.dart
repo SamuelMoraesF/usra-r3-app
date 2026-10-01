@@ -15,6 +15,7 @@ class SessionHistory extends StatefulWidget {
     this.map,
     this.mapSession,
     this.exporting,
+    this.maxSessionHeight = 400,
   });
   final UsraDatabase database;
   final String frequency;
@@ -25,6 +26,7 @@ class SessionHistory extends StatefulWidget {
   final void Function(DateTime, DateTime)? map;
   final DateTime? mapSession;
   final DateTime? exporting;
+  final double? maxSessionHeight;
   @override
   State<SessionHistory> createState() => _SessionHistoryState();
 }
@@ -197,29 +199,31 @@ class _HistorySessionState extends State<_HistorySession> {
             ],
           )
         : null,
-    children: [
-      if (_expanded)
-        SizedBox(
-          height: 400,
-          child: ListView.builder(
-            controller: _scroll,
-            itemCount: _entries.length + (_done ? 0 : 1),
-            itemBuilder: (context, index) {
-              if (index < _entries.length) {
-                return widget.owner.card(_entries[index], _entries);
-              }
-              if (_loading) {
-                return const Center(child: CircularProgressIndicator());
-              }
-              return TextButton(
-                onPressed: _load,
-                child: Text(
-                  _error == null ? 'Carregar mais' : 'Tentar novamente',
-                ),
-              );
-            },
-          ),
-        ),
-    ],
+    children: [if (_expanded) _buildEntries()],
   );
+
+  Widget _buildEntries() {
+    final list = ListView.builder(
+      controller: _scroll,
+      shrinkWrap: true,
+      physics: const NeverScrollableScrollPhysics(),
+      itemCount: _entries.length + (_done ? 0 : 1),
+      itemBuilder: (context, index) {
+        if (index < _entries.length) {
+          return widget.owner.card(_entries[index], _entries);
+        }
+        if (_loading) return const Center(child: CircularProgressIndicator());
+        return TextButton(
+          onPressed: _load,
+          child: Text(_error == null ? 'Carregar mais' : 'Tentar novamente'),
+        );
+      },
+    );
+    final maxHeight = widget.owner.maxSessionHeight;
+    if (maxHeight == null) return list;
+    return ConstrainedBox(
+      constraints: BoxConstraints(maxHeight: maxHeight),
+      child: list,
+    );
+  }
 }
