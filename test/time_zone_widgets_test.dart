@@ -84,17 +84,19 @@ void main() {
     );
     final database = UsraDatabase.test(NativeDatabase.memory());
     addTearDown(() async => tester.runAsync(database.close));
-    DisplayTimeZone? savedZone;
+    Future<dynamic>? navigation;
     await tester.pumpWidget(
       MaterialApp(
         home: Builder(
           builder: (context) => TextButton(
-            onPressed: () async {
-              final dynamic result = await Navigator.of(context).push(
+            onPressed: () {
+              navigation = Navigator.of(context).push(
                 MaterialPageRoute(
                   builder: (_) => SettingsPage(
-                    profile: const OperatorProfile(),
+                    profile: const OperatorProfile(callsign: 'PY3AA'),
                     theme: AppTheme.system,
+                    displayTimeZone: DisplayTimeZone.utc,
+                    repeaterGrid: 'GG30',
                     mergePrecision: true,
                     lastOnly: false,
                     mapMaxAgeHours: 24,
@@ -104,7 +106,6 @@ void main() {
                   ),
                 ),
               );
-              savedZone = result.displayTimeZone as DisplayTimeZone;
             },
             child: const Text('Abrir configurações'),
           ),
@@ -113,10 +114,6 @@ void main() {
     );
     await tester.tap(find.text('Abrir configurações'));
     await tester.pumpAndSettle();
-    await tester.tap(find.byType(DropdownButtonFormField<DisplayTimeZone>));
-    await tester.pumpAndSettle();
-    await tester.tap(find.text('UTC').last);
-    await tester.pumpAndSettle();
     final saveButton = find.text('Salvar alterações');
     await tester.scrollUntilVisible(
       saveButton,
@@ -124,8 +121,14 @@ void main() {
       scrollable: find.byType(Scrollable).first,
     );
     await tester.pumpAndSettle();
-    await tester.tap(saveButton);
+    await tester.tap(
+      find.ancestor(
+        of: find.text('Salvar alterações'),
+        matching: find.byType(FilledButton),
+      ),
+    );
     await tester.pumpAndSettle();
-    expect(savedZone, DisplayTimeZone.utc);
+    final result = await navigation;
+    expect((result as dynamic).displayTimeZone, DisplayTimeZone.utc);
   });
 }
